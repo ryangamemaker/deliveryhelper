@@ -554,7 +554,35 @@ let currentTouchY = 0;
 
 let itemSwipeStartX = 0, itemSwipeStartY = 0, itemSwipeCurrentX = 0, itemSwipingEl = null, openItemSwipeEl = null, itemSwipeDirection = null;
 
+// --- 終極強制清理函數 ---
+function forceCleanupDrag() {
+    isDraggingItem = false;
+    clearTimeout(pressTimer);
+    dragTarget = null;
+    placeholder = null;
+    
+    document.querySelectorAll('.drag-placeholder').forEach(el => el.remove());
+    document.getElementById('view-home').style.overflowY = '';
+    
+    document.querySelectorAll('.active-timer-container.dragging').forEach(el => {
+        el.classList.remove('dragging');
+        el.style.position = '';
+        el.style.top = '';
+        el.style.left = '';
+        el.style.width = '';
+        el.style.margin = '';
+        el.style.zIndex = '';
+        el.style.transform = '';
+    });
+}
+
 function handleItemTouchStart(e) { 
+    // 1. 防止重複觸發：先清理之前的計時器
+    clearTimeout(pressTimer);
+    
+    // 如果已經在拖曳中，直接忽略新的點擊
+    if (isDraggingItem) return;
+
     if (openItemSwipeEl && openItemSwipeEl !== e.currentTarget) { 
         openItemSwipeEl.style.transform = 'translateX(0px)'; 
         openItemSwipeEl = null; 
@@ -574,18 +602,22 @@ function handleItemTouchStart(e) {
     const isClickable = e.target.closest('button') || e.target.closest('.swipe-delete') || e.target.tagName.toLowerCase() === 'h3';
     
     if (!isClickable) {
-        // 立即鎖定當前點擊的容器
         dragTarget = e.currentTarget.closest('.active-timer-container');
         pressTimer = setTimeout(() => {
+            // 2. 觸發時再次確認
+            if (isDraggingItem) return;
             isDraggingItem = true;
+            
             if (navigator.vibrate) navigator.vibrate(50);
-
+            
             // 禁用背景滾動，避免與拖曳衝突
             document.getElementById('view-home').style.overflowY = 'hidden';
 
-            // 記錄觸發長按【當下】的視窗精確座標
             initialClientY = currentTouchY;
             const rect = dragTarget.getBoundingClientRect();
+
+            // 3. 【終極防呆】建立新的佔位符前，強制刪除所有畫面上的佔位符
+            document.querySelectorAll('.drag-placeholder').forEach(el => el.remove());
 
             // 建立佔位符
             placeholder = document.createElement('div');
@@ -650,10 +682,12 @@ function handleItemTouchMove(e) {
             return currentTouchY < box.top + box.height / 2;
         });
 
-        if (nextSibling) {
-            list.insertBefore(placeholder, nextSibling);
-        } else {
-            list.appendChild(placeholder);
+        if (placeholder) {
+            if (nextSibling) {
+                list.insertBefore(placeholder, nextSibling);
+            } else {
+                list.appendChild(placeholder);
+            }
         }
     }
 }
@@ -667,20 +701,28 @@ function handleItemTouchEnd(e) {
         // 恢復背景滾動
         document.getElementById('view-home').style.overflowY = '';
 
-        // 將卡片放回佔位符的位置 (原來的列表容器內)
-        placeholder.parentNode.insertBefore(dragTarget, placeholder);
+        // 如果 placeholder 還在，把元素插回去
+        if (dragTarget && placeholder && placeholder.parentNode) {
+            placeholder.parentNode.insertBefore(dragTarget, placeholder);
+        } else if (dragTarget) {
+            // 如果 placeholder 不見了 (異常狀況)，直接插回列表最後
+            document.getElementById('active-timers-list').appendChild(dragTarget);
+        }
 
         // 清除所有拖曳樣式
-        dragTarget.classList.remove('dragging');
-        dragTarget.style.position = '';
-        dragTarget.style.top = '';
-        dragTarget.style.left = '';
-        dragTarget.style.width = '';
-        dragTarget.style.margin = '';
-        dragTarget.style.zIndex = '';
-        dragTarget.style.transform = '';
+        if (dragTarget) {
+            dragTarget.classList.remove('dragging');
+            dragTarget.style.position = '';
+            dragTarget.style.top = '';
+            dragTarget.style.left = '';
+            dragTarget.style.width = '';
+            dragTarget.style.margin = '';
+            dragTarget.style.zIndex = '';
+            dragTarget.style.transform = '';
+        }
 
-        placeholder.remove();
+        // 4. 【終極防呆】不再只刪除變數 reference，直接砍掉 DOM 裡所有的 .drag-placeholder
+        document.querySelectorAll('.drag-placeholder').forEach(el => el.remove());
         placeholder = null;
 
         if (navigator.vibrate) navigator.vibrate(20);
@@ -688,8 +730,12 @@ function handleItemTouchEnd(e) {
         // 更新資料陣列順序並儲存
         const list = document.getElementById('active-timers-list');
         const newOrderIds = [...list.querySelectorAll('.active-timer-container')].map(el => el.getAttribute('data-id'));
-        activeTimers.sort((a, b) => newOrderIds.indexOf(a.id) - newOrderIds.indexOf(b.id));
-        localStorage.setItem(getStoreKey('order_active_timers'), JSON.stringify(activeTimers));
+        
+        // 確保陣列長度一致才進行排序，避免資料遺失
+        if (newOrderIds.length === activeTimers.length) {
+            activeTimers.sort((a, b) => newOrderIds.indexOf(a.id) - newOrderIds.indexOf(b.id));
+            localStorage.setItem(getStoreKey('order_active_timers'), JSON.stringify(activeTimers));
+        }
 
         dragTarget = null;
         return;
@@ -711,15 +757,8 @@ function handleItemTouchEnd(e) {
 }
 
 function renderActiveTimers() {
-    // --- 【防呆機制】 ---
-    // 每次重新渲染列表前，強制清除所有殘留的拖曳狀態與虛線框
-    isDraggingItem = false;
-    clearTimeout(pressTimer);
-    dragTarget = null;
-    placeholder = null;
-    document.querySelectorAll('.drag-placeholder').forEach(el => el.remove());
-    document.getElementById('view-home').style.overflowY = '';
-    // -------------------
+    // 5. 【終極防呆】每次渲染前確保環境 100% 乾淨
+    forceCleanupDrag();
 
     const listEl = document.getElementById('active-timers-list'); 
     document.getElementById('active-count').innerText = `${activeTimers.length} 個進行中`;
@@ -730,7 +769,6 @@ function renderActiveTimers() {
     activeTimers.forEach((timer, idx) => {
         const titleStr = timer.storeName ? `${timer.storeName} #${timer.orderNumber}` : `訂單計時 #${idx + 1}`;
         
-        // 【修復 BUG：新增 ontouchcancel】
         // 確保手機滑動被打斷時（如系統手勢或來電），也能呼叫 handleItemTouchEnd 來收拾殘局
         html += `<div class="swipe-container active-timer-container" data-id="${timer.id}">
                     <div class="swipe-content active-timer-content" 

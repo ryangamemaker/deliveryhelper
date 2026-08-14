@@ -1,6 +1,7 @@
-// ==============================================================
-// 靜態資料庫 (店家清單)
-// ==============================================================
+const RATE_PER_HOUR = 245; 
+const MIN_AMOUNT = 45; 
+const DAYS_MAP = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+
 const STORE_LIST = [
     {code: 'oza2', name: '義庭Eating'}, {code: '12si', name: '巴酣酣小吃店'}, {code: 'vwab', name: '合品廣東粥鍋燒麵'}, {code: 'g3ya', name: '胖老爹美式炸雞 (大園中正東店)'},
     {code: 'nzii', name: '大樹藥局 (大園中正店)'}, {code: 'tlmk', name: '全聯福利中心 (大園華興店)'}, {code: 'nyyn', name: '合浦刀切麵食工坊 (大園中正店)'},
@@ -41,7 +42,7 @@ const STORE_LIST = [
     {code: 'ft5h', name: '東北秘製滷味'}, {code: 'uke6', name: '玉将食堂'}, {code: 'c4cg', name: '天天來放山雞鵝肉飯麵館'}, {code: 'p6uz', name: '肯得利香雞排'},
     {code: 'f6jv', name: '清心福全 (大園中正東店)'}, {code: 'zycw', name: '黃金稻職人炒飯 (大園新興店)'}, {code: 'kn29', name: '老闆好會炒 (Lao Ban Hao Huei Chao)'},
     {code: 'vq10', name: '桶一天下 (桃園大園店)'}, {code: 'j5ve', name: '好停車宵夜早餐店'},
-    {code: 'p5yp', name: '元鴨坊益身當歸鴨'}, {code: 'j3ox', name: '高品味轉角美食'}, {code: 'g7r3', name: '紅豆之家'}, {code: 'li3v', name: '鍋賣局(桃園大園店)'},
+    {code: 'p5yp', name: '元鸭坊益身當歸鴨'}, {code: 'j3ox', name: '高品味轉角美食'}, {code: 'g7r3', name: '紅豆之家'}, {code: 'li3v', name: '鍋賣局(桃園大園店)'},
     {code: 'xjoj', name: '吳記燒麻糬(桃園大園店)'}, {code: 'f2st', name: '曼谷小館(桃園大園店)'}, {code: 'zl5t', name: '小六の鍋'}, {code: 'y4hv', name: 'Mowan港式串烤雞蛋仔'},
     {code: 'okmc', name: 'Watstons屈臣氏(大園店S0267)'}, {code: 'u9zj', name: '大園豆花'}, {code: 'khtt', name: '粥日興鍋燒麵'}, {code: 'tv7h', name: '陳記臭家莊清蒸麻辣臭豆腐'},
     {code: 'evot', name: '品安炸雞(桃園大園店)'}, {code: 'auuf', name: '左撇子義式廚房'}, {code: 's1b2', name: '屢品鮮鵝肉(桃園大園店)'}, {code: 'qwtw', name: '小北百貨(大園店)'},

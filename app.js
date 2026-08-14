@@ -1,9 +1,6 @@
-const RATE_PER_HOUR = 245; 
-const MIN_AMOUNT = 45; 
-const DAYS_MAP = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
-
-// 注意：STORE_LIST 已經被移到 data.js 中，這裡不需要再定義。
-
+/* ==============================================================
+   全域狀態與資料初始化 (依賴 data.js 中的常數)
+   ============================================================== */
 let currentUser = localStorage.getItem('app_current_user') || '預設使用者';
 let usersList = JSON.parse(localStorage.getItem('app_users_list')) || ['預設使用者'];
 let customStores = JSON.parse(localStorage.getItem('app_custom_stores')) || [];
@@ -293,14 +290,17 @@ function startCanvasEngine(themeType) {
             for (let i = meteors.length - 1; i >= 0; i--) { let m = meteors[i], grad = ctx.createLinearGradient(m.x, m.y, m.x - m.len * Math.cos(m.angle), m.y - m.len * Math.sin(m.angle)); grad.addColorStop(0, `rgba(255, 255, 255, 1)`); grad.addColorStop(0.2, `rgba(${primaryRgbStr}, 0.8)`); grad.addColorStop(1, `rgba(${primaryRgbStr}, 0)`); ctx.strokeStyle = grad; ctx.beginPath(); ctx.moveTo(m.x, m.y); ctx.lineTo(m.x - m.len * Math.cos(m.angle), m.y - m.len * Math.sin(m.angle)); ctx.stroke(); m.x += m.speed * Math.cos(m.angle); m.y += m.speed * Math.sin(m.angle); if (m.y > h + m.len || m.x > w + m.len) meteors.splice(i, 1); }
             canvasAnimationId = requestAnimationFrame(draw);
         } draw();
+    } else if (themeType === 'canvas-particles') {
+        let pts = Array.from({length: 60}, () => ({ x: Math.random()*w, y: Math.random()*h, vx: (Math.random()-0.5)*1.5, vy: (Math.random()-0.5)*1.5 }));
+        function draw() { ctx.clearRect(0,0,w,h); ctx.fillStyle = `rgba(${primaryRgbStr}, 1)`; ctx.strokeStyle = `rgba(${primaryRgbStr}, 0.2)`; pts.forEach(p => { p.x += p.vx; p.y += p.vy; if(p.x<0 || p.x>w) p.vx*=-1; if(p.y<0 || p.y>h) p.vy*=-1; ctx.beginPath(); ctx.arc(p.x, p.y, 1.5, 0, Math.PI*2); ctx.fill(); }); for(let i=0; i<pts.length; i++){ for(let j=i+1; j<pts.length; j++){ let d = Math.hypot(pts[i].x-pts[j].x, pts[i].y-pts[j].y); if(d < 120) { ctx.beginPath(); ctx.moveTo(pts[i].x, pts[i].y); ctx.lineTo(pts[j].x, pts[j].y); ctx.stroke(); } } } canvasAnimationId = requestAnimationFrame(draw); } draw();
     } else if (themeType === 'canvas-beams') {
         let rot = 0; function draw() { ctx.clearRect(0,0,w,h); ctx.save(); ctx.translate(w/2, h/2); ctx.rotate(rot += 0.002); ctx.globalCompositeOperation = 'lighter'; for(let i=0; i<6; i++) { ctx.rotate((Math.PI*2)/6); let grad = ctx.createLinearGradient(0, 0, w, 0); grad.addColorStop(0, 'transparent'); grad.addColorStop(0.5, `rgba(${primaryRgbStr}, 0.04)`); grad.addColorStop(1, 'rgba(255,255,255, 0.02)'); ctx.fillStyle = grad; ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(w, -200); ctx.lineTo(w, 200); ctx.fill(); } ctx.restore(); canvasAnimationId = requestAnimationFrame(draw); } draw();
     }
 }
 
 /* ==============================================================
-   視圖切換與使用者管理邏輯
-   ============================================================== */
+    視圖切換與使用者管理邏輯
+    ============================================================== */
 function loadData() { 
     activeTimers = JSON.parse(localStorage.getItem(getStoreKey('order_active_timers'))) || []; 
     historyRecords = JSON.parse(localStorage.getItem(getStoreKey('order_history_records'))) || []; 
@@ -544,83 +544,169 @@ function selectStore(storeName) {
     });
 }
 
+/* ================== 卡片拖曳排序邏輯 (長按啟動) ================== */
+let pressTimer = null;
+let isDraggingItem = false;
+let dragTarget = null;
+let placeholder = null;
+let initialClientY = 0;
+let currentTouchY = 0; 
+
 let itemSwipeStartX = 0, itemSwipeStartY = 0, itemSwipeCurrentX = 0, itemSwipingEl = null, openItemSwipeEl = null, itemSwipeDirection = null;
-let draggingEl = null;
-
-function handleDragStart(e) {
-    if (!e.target.closest('.drag-handle')) return;
-    
-    draggingEl = e.target.closest('.active-timer-container');
-    if (!draggingEl) return;
-
-    if (navigator.vibrate) navigator.vibrate(50); // 觸覺回饋
-    draggingEl.classList.add('dragging');
-
-    document.addEventListener('touchmove', handleDragMove, { passive: false });
-    document.addEventListener('touchend', handleDragEnd);
-    document.addEventListener('mousemove', handleDragMove, { passive: false });
-    document.addEventListener('mouseup', handleDragEnd);
-}
-
-function handleDragMove(e) {
-    if (!draggingEl) return;
-    e.preventDefault(); // 防止滾動
-    
-    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-    const list = document.getElementById('active-timers-list');
-    const siblings = [...list.querySelectorAll('.active-timer-container:not(.dragging)')];
-    
-    const nextSibling = siblings.find(sibling => {
-        const box = sibling.getBoundingClientRect();
-        return clientY < box.top + box.height / 2;
-    });
-    
-    if (nextSibling) {
-        list.insertBefore(draggingEl, nextSibling);
-    } else {
-        list.appendChild(draggingEl);
-    }
-}
-
-function handleDragEnd(e) {
-    if (!draggingEl) return;
-    draggingEl.classList.remove('dragging');
-    draggingEl = null;
-    
-    document.removeEventListener('touchmove', handleDragMove);
-    document.removeEventListener('touchend', handleDragEnd);
-    document.removeEventListener('mousemove', handleDragMove);
-    document.removeEventListener('mouseup', handleDragEnd);
-    
-    const list = document.getElementById('active-timers-list');
-    const newOrderIds = [...list.querySelectorAll('.active-timer-container')].map(el => el.getAttribute('data-id'));
-    
-    activeTimers.sort((a, b) => newOrderIds.indexOf(a.id) - newOrderIds.indexOf(b.id));
-    localStorage.setItem(getStoreKey('order_active_timers'), JSON.stringify(activeTimers));
-}
 
 function handleItemTouchStart(e) { 
-    if (e.target.closest('.drag-handle')) return; // 忽略拖拉把手
-    if (openItemSwipeEl && openItemSwipeEl !== e.currentTarget) { openItemSwipeEl.style.transform = 'translateX(0px)'; openItemSwipeEl = null; } 
-    itemSwipeStartX = e.changedTouches[0].screenX; 
-    itemSwipeStartY = e.changedTouches[0].screenY; 
+    if (openItemSwipeEl && openItemSwipeEl !== e.currentTarget) { 
+        openItemSwipeEl.style.transform = 'translateX(0px)'; 
+        openItemSwipeEl = null; 
+    } 
+    
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    currentTouchY = e.touches ? e.touches[0].clientY : e.clientY;
+
+    itemSwipeStartX = clientX; 
+    itemSwipeStartY = currentTouchY; 
     itemSwipingEl = e.currentTarget; 
     itemSwipingEl.style.transition = 'none'; 
     itemSwipeCurrentX = window.getComputedStyle(itemSwipingEl).transform !== 'none' ? parseInt(window.getComputedStyle(itemSwipingEl).transform.split(',')[4]) || 0 : 0; 
     itemSwipeDirection = null; 
+
+    // 判斷是否點擊到按鈕或文字，如果是則不啟動長按拖曳
+    const isClickable = e.target.closest('button') || e.target.closest('.swipe-delete') || e.target.tagName.toLowerCase() === 'h3';
+    
+    if (!isClickable) {
+        // 立即鎖定當前點擊的容器
+        dragTarget = e.currentTarget.closest('.active-timer-container');
+        pressTimer = setTimeout(() => {
+            isDraggingItem = true;
+            if (navigator.vibrate) navigator.vibrate(50);
+
+            // 禁用背景滾動，避免與拖曳衝突
+            document.getElementById('view-home').style.overflowY = 'hidden';
+
+            // 記錄觸發長按【當下】的視窗精確座標
+            initialClientY = currentTouchY;
+            const rect = dragTarget.getBoundingClientRect();
+
+            // 建立佔位符
+            placeholder = document.createElement('div');
+            placeholder.className = 'drag-placeholder';
+            placeholder.style.height = rect.height + 'px';
+            dragTarget.parentNode.insertBefore(placeholder, dragTarget);
+
+            // 絕對關鍵修正：使用 position: fixed 以及 rect.top，完全不受滾動條影響
+            dragTarget.style.position = 'fixed';
+            dragTarget.style.top = rect.top + 'px';
+            dragTarget.style.left = rect.left + 'px';
+            dragTarget.style.width = rect.width + 'px';
+            dragTarget.style.margin = '0';
+            dragTarget.style.zIndex = '5000';
+            dragTarget.classList.add('dragging');
+            
+            document.body.appendChild(dragTarget);
+            
+        }, 200); // 200 毫秒長按觸發
+    }
 }
+
 function handleItemTouchMove(e) { 
-    if (!itemSwipingEl) return; 
-    let diffX = e.changedTouches[0].screenX - itemSwipeStartX, diffY = e.changedTouches[0].screenY - itemSwipeStartY; 
-    if (!itemSwipeDirection) { if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 5) itemSwipeDirection = 'horizontal'; else if (Math.abs(diffY) > Math.abs(diffX) && Math.abs(diffY) > 5) itemSwipeDirection = 'vertical'; } 
-    if (itemSwipeDirection === 'vertical') return; 
-    if (itemSwipeDirection === 'horizontal') { if (e.cancelable) e.preventDefault(); let moveX = itemSwipeCurrentX + diffX; if (moveX > 0) moveX = 0; if (moveX < -90) moveX = -90; itemSwipingEl.style.transform = `translateX(${moveX}px)`; } 
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    currentTouchY = e.touches ? e.touches[0].clientY : e.clientY;
+    let diffX = clientX - itemSwipeStartX; 
+    let diffY = currentTouchY - itemSwipeStartY; 
+
+    if (!isDraggingItem) {
+        // 如果在長按觸發前手指就已經大幅移動，則取消長按
+        if (Math.abs(diffX) > 10 || Math.abs(diffY) > 10) {
+            clearTimeout(pressTimer);
+        }
+
+        // 處理左右滑動刪除
+        if (!itemSwipeDirection) { 
+            if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 5) itemSwipeDirection = 'horizontal'; 
+            else if (Math.abs(diffY) > Math.abs(diffX) && Math.abs(diffY) > 5) itemSwipeDirection = 'vertical'; 
+        } 
+        if (itemSwipeDirection === 'vertical') return; 
+        if (itemSwipeDirection === 'horizontal') { 
+            if (e.cancelable) e.preventDefault(); 
+            let moveX = itemSwipeCurrentX + diffX; 
+            if (moveX > 0) moveX = 0; 
+            if (moveX < -90) moveX = -90; 
+            itemSwipingEl.style.transform = `translateX(${moveX}px)`; 
+        } 
+    } else {
+        // 處理上下拖曳排序
+        if (e.cancelable) e.preventDefault(); // 阻止畫面跟著捲動
+
+        // 零延遲更新卡片位置：完全貼合手指移動距離
+        const deltaY = currentTouchY - initialClientY;
+        dragTarget.style.transform = `translateY(${deltaY}px) scale(1.02)`;
+
+        // 尋找要插入的節點位置
+        const list = document.getElementById('active-timers-list');
+        const siblings = [...list.querySelectorAll('.active-timer-container:not(.dragging)')];
+
+        let nextSibling = siblings.find(sibling => {
+            const box = sibling.getBoundingClientRect();
+            return currentTouchY < box.top + box.height / 2;
+        });
+
+        if (nextSibling) {
+            list.insertBefore(placeholder, nextSibling);
+        } else {
+            list.appendChild(placeholder);
+        }
+    }
 }
+
 function handleItemTouchEnd(e) { 
+    clearTimeout(pressTimer);
+
+    if (isDraggingItem) {
+        isDraggingItem = false;
+        
+        // 恢復背景滾動
+        document.getElementById('view-home').style.overflowY = '';
+
+        // 將卡片放回佔位符的位置 (原來的列表容器內)
+        placeholder.parentNode.insertBefore(dragTarget, placeholder);
+
+        // 清除所有拖曳樣式
+        dragTarget.classList.remove('dragging');
+        dragTarget.style.position = '';
+        dragTarget.style.top = '';
+        dragTarget.style.left = '';
+        dragTarget.style.width = '';
+        dragTarget.style.margin = '';
+        dragTarget.style.zIndex = '';
+        dragTarget.style.transform = '';
+
+        placeholder.remove();
+        placeholder = null;
+
+        if (navigator.vibrate) navigator.vibrate(20);
+
+        // 更新資料陣列順序並儲存
+        const list = document.getElementById('active-timers-list');
+        const newOrderIds = [...list.querySelectorAll('.active-timer-container')].map(el => el.getAttribute('data-id'));
+        activeTimers.sort((a, b) => newOrderIds.indexOf(a.id) - newOrderIds.indexOf(b.id));
+        localStorage.setItem(getStoreKey('order_active_timers'), JSON.stringify(activeTimers));
+
+        dragTarget = null;
+        return;
+    }
+
+    // 處理左右滑動結束邏輯
     if (!itemSwipingEl || itemSwipeDirection === 'vertical') return; 
     itemSwipingEl.style.transition = 'transform 0.3s ease'; 
-    let finalX = itemSwipeCurrentX + (e.changedTouches[0].screenX - itemSwipeStartX); 
-    if (finalX < -40) { itemSwipingEl.style.transform = `translateX(-80px)`; openItemSwipeEl = itemSwipingEl; } else { itemSwipingEl.style.transform = `translateX(0px)`; if (openItemSwipeEl === itemSwipingEl) openItemSwipeEl = null; } 
+    let currentX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX; 
+    let finalX = itemSwipeCurrentX + (currentX - itemSwipeStartX); 
+    if (finalX < -40) { 
+        itemSwipingEl.style.transform = `translateX(-80px)`; 
+        openItemSwipeEl = itemSwipingEl; 
+    } else { 
+        itemSwipingEl.style.transform = `translateX(0px)`; 
+        if (openItemSwipeEl === itemSwipingEl) openItemSwipeEl = null; 
+    } 
     itemSwipingEl = null; 
 }
 
@@ -630,7 +716,7 @@ function renderActiveTimers() {
     let html = '';
     activeTimers.forEach((timer, idx) => {
         const titleStr = timer.storeName ? `${timer.storeName} #${timer.orderNumber}` : `訂單計時 #${idx + 1}`;
-        html += `<div class="swipe-container active-timer-container" data-id="${timer.id}"><div class="swipe-content active-timer-content" ontouchstart="handleItemTouchStart(event)" ontouchmove="handleItemTouchMove(event)" ontouchend="handleItemTouchEnd(event)"><div class="drag-handle" onmousedown="handleDragStart(event)" ontouchstart="handleDragStart(event)">≡</div><div class="timer-info"><h3 onclick="handleTimerTitleClick('${timer.id}')">${titleStr}</h3><p>開始時間：${formatTime(new Date(timer.startTime))}</p><div class="timer-duration" id="duration_${timer.id}">00:00:00</div></div><button class="btn-stop" onclick="stopTimer('${timer.id}')">配送</button><div class="swipe-delete" onclick="cancelTimer('${timer.id}')">刪除</div></div></div>`;
+        html += `<div class="swipe-container active-timer-container" data-id="${timer.id}"><div class="swipe-content active-timer-content" onmousedown="handleItemTouchStart(event)" ontouchstart="handleItemTouchStart(event)" onmousemove="handleItemTouchMove(event)" ontouchmove="handleItemTouchMove(event)" onmouseup="handleItemTouchEnd(event)" ontouchend="handleItemTouchEnd(event)" onmouseleave="handleItemTouchEnd(event)"><div class="timer-info"><h3 onclick="handleTimerTitleClick('${timer.id}')">${titleStr}</h3><p>開始時間：${formatTime(new Date(timer.startTime))}</p><div class="timer-duration" id="duration_${timer.id}">00:00:00</div></div><button class="btn-stop" onclick="stopTimer('${timer.id}')">配送</button><div class="swipe-delete" onclick="cancelTimer('${timer.id}')">刪除</div></div></div>`;
     });
     listEl.innerHTML = html; updateTimersDisplay();
 }

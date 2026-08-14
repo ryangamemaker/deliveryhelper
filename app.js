@@ -544,7 +544,7 @@ function selectStore(storeName) {
     });
 }
 
-/* ================== 卡片拖曳排序邏輯 (長按啟動) ================== */
+/* ================== 卡片拖曳排序邏輯 ================== */
 let pressTimer = null;
 let isDraggingItem = false;
 let dragTarget = null;
@@ -554,16 +554,18 @@ let currentTouchY = 0;
 
 let itemSwipeStartX = 0, itemSwipeStartY = 0, itemSwipeCurrentX = 0, itemSwipingEl = null, openItemSwipeEl = null, itemSwipeDirection = null;
 
-// --- 終極強制清理函數 ---
+// =========================================================
+// 【終極強制清理防呆機制】
+// 確保任何異常中斷都能粉碎幽靈虛線框並歸位卡片
+// =========================================================
 function forceCleanupDrag() {
     isDraggingItem = false;
     clearTimeout(pressTimer);
-    dragTarget = null;
-    placeholder = null;
     
+    // 1. 強制移除畫面上所有存在的虛線框
     document.querySelectorAll('.drag-placeholder').forEach(el => el.remove());
-    document.getElementById('view-home').style.overflowY = '';
     
+    // 2. 尋找所有被標記為拖曳中狀態的卡片
     document.querySelectorAll('.active-timer-container.dragging').forEach(el => {
         el.classList.remove('dragging');
         el.style.position = '';
@@ -573,16 +575,40 @@ function forceCleanupDrag() {
         el.style.margin = '';
         el.style.zIndex = '';
         el.style.transform = '';
+        
+        // 如果卡片因為異常被留在 body 裡（成為孤兒），直接移除
+        // 反正我們調用這函數之後通常會伴隨 renderActiveTimers() 重新生成正確清單
+        if (el.parentNode === document.body) {
+            el.remove();
+        }
     });
+
+    document.getElementById('view-home').style.overflowY = '';
+    dragTarget = null;
+    placeholder = null;
 }
 
+// 監聽 App 切換至背景或失去焦點：立即觸發終極清理
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+        forceCleanupDrag();
+        renderActiveTimers();
+    }
+});
+window.addEventListener('pagehide', () => {
+    forceCleanupDrag();
+});
+window.addEventListener('blur', () => {
+    forceCleanupDrag();
+});
+// =========================================================
+
 function handleItemTouchStart(e) { 
-    // 1. 防止重複觸發：先清理之前的計時器
+    // 如果已經在拖曳中，拒絕任何新的點擊事件
+    if (isDraggingItem) return;
+    
     clearTimeout(pressTimer);
     
-    // 如果已經在拖曳中，直接忽略新的點擊
-    if (isDraggingItem) return;
-
     if (openItemSwipeEl && openItemSwipeEl !== e.currentTarget) { 
         openItemSwipeEl.style.transform = 'translateX(0px)'; 
         openItemSwipeEl = null; 
@@ -598,34 +624,31 @@ function handleItemTouchStart(e) {
     itemSwipeCurrentX = window.getComputedStyle(itemSwipingEl).transform !== 'none' ? parseInt(window.getComputedStyle(itemSwipingEl).transform.split(',')[4]) || 0 : 0; 
     itemSwipeDirection = null; 
 
-    // 判斷是否點擊到按鈕或文字，如果是則不啟動長按拖曳
     const isClickable = e.target.closest('button') || e.target.closest('.swipe-delete') || e.target.tagName.toLowerCase() === 'h3';
     
     if (!isClickable) {
         dragTarget = e.currentTarget.closest('.active-timer-container');
+        
         pressTimer = setTimeout(() => {
-            // 2. 觸發時再次確認
+            // 雙重防呆：確保計時器執行時，真的沒有其他拖曳在進行
             if (isDraggingItem) return;
+            
             isDraggingItem = true;
-            
             if (navigator.vibrate) navigator.vibrate(50);
-            
-            // 禁用背景滾動，避免與拖曳衝突
+
             document.getElementById('view-home').style.overflowY = 'hidden';
 
             initialClientY = currentTouchY;
             const rect = dragTarget.getBoundingClientRect();
 
-            // 3. 【終極防呆】建立新的佔位符前，強制刪除所有畫面上的佔位符
+            // 在建立新虛線框之前，無條件砍掉所有可能遺留的幽靈框
             document.querySelectorAll('.drag-placeholder').forEach(el => el.remove());
 
-            // 建立佔位符
             placeholder = document.createElement('div');
             placeholder.className = 'drag-placeholder';
             placeholder.style.height = rect.height + 'px';
             dragTarget.parentNode.insertBefore(placeholder, dragTarget);
 
-            // 絕對關鍵修正：使用 position: fixed 以及 rect.top，完全不受滾動條影響
             dragTarget.style.position = 'fixed';
             dragTarget.style.top = rect.top + 'px';
             dragTarget.style.left = rect.left + 'px';
@@ -636,7 +659,7 @@ function handleItemTouchStart(e) {
             
             document.body.appendChild(dragTarget);
             
-        }, 200); // 200 毫秒長按觸發
+        }, 200);
     }
 }
 
@@ -647,12 +670,11 @@ function handleItemTouchMove(e) {
     let diffY = currentTouchY - itemSwipeStartY; 
 
     if (!isDraggingItem) {
-        // 如果在長按觸發前手指就已經大幅移動，則取消長按
+        // 手指如果大幅移動，代表是滑動而非長按，立刻取消長按計時器
         if (Math.abs(diffX) > 10 || Math.abs(diffY) > 10) {
             clearTimeout(pressTimer);
         }
 
-        // 處理左右滑動刪除
         if (!itemSwipeDirection) { 
             if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 5) itemSwipeDirection = 'horizontal'; 
             else if (Math.abs(diffY) > Math.abs(diffX) && Math.abs(diffY) > 5) itemSwipeDirection = 'vertical'; 
@@ -666,14 +688,11 @@ function handleItemTouchMove(e) {
             itemSwipingEl.style.transform = `translateX(${moveX}px)`; 
         } 
     } else {
-        // 處理上下拖曳排序
-        if (e.cancelable) e.preventDefault(); // 阻止畫面跟著捲動
+        if (e.cancelable) e.preventDefault(); 
 
-        // 零延遲更新卡片位置：完全貼合手指移動距離
         const deltaY = currentTouchY - initialClientY;
         dragTarget.style.transform = `translateY(${deltaY}px) scale(1.02)`;
 
-        // 尋找要插入的節點位置
         const list = document.getElementById('active-timers-list');
         const siblings = [...list.querySelectorAll('.active-timer-container:not(.dragging)')];
 
@@ -698,18 +717,17 @@ function handleItemTouchEnd(e) {
     if (isDraggingItem) {
         isDraggingItem = false;
         
-        // 恢復背景滾動
         document.getElementById('view-home').style.overflowY = '';
 
-        // 如果 placeholder 還在，把元素插回去
         if (dragTarget && placeholder && placeholder.parentNode) {
             placeholder.parentNode.insertBefore(dragTarget, placeholder);
         } else if (dragTarget) {
-            // 如果 placeholder 不見了 (異常狀況)，直接插回列表最後
-            document.getElementById('active-timers-list').appendChild(dragTarget);
+            const list = document.getElementById('active-timers-list');
+            if (list && dragTarget.parentNode !== list) {
+                list.appendChild(dragTarget);
+            }
         }
 
-        // 清除所有拖曳樣式
         if (dragTarget) {
             dragTarget.classList.remove('dragging');
             dragTarget.style.position = '';
@@ -721,17 +739,15 @@ function handleItemTouchEnd(e) {
             dragTarget.style.transform = '';
         }
 
-        // 4. 【終極防呆】不再只刪除變數 reference，直接砍掉 DOM 裡所有的 .drag-placeholder
+        // 放開手指後，無條件砍掉所有畫面上殘留的虛線框
         document.querySelectorAll('.drag-placeholder').forEach(el => el.remove());
         placeholder = null;
 
         if (navigator.vibrate) navigator.vibrate(20);
 
-        // 更新資料陣列順序並儲存
         const list = document.getElementById('active-timers-list');
         const newOrderIds = [...list.querySelectorAll('.active-timer-container')].map(el => el.getAttribute('data-id'));
         
-        // 確保陣列長度一致才進行排序，避免資料遺失
         if (newOrderIds.length === activeTimers.length) {
             activeTimers.sort((a, b) => newOrderIds.indexOf(a.id) - newOrderIds.indexOf(b.id));
             localStorage.setItem(getStoreKey('order_active_timers'), JSON.stringify(activeTimers));
@@ -741,7 +757,6 @@ function handleItemTouchEnd(e) {
         return;
     }
 
-    // 處理左右滑動結束邏輯
     if (!itemSwipingEl || itemSwipeDirection === 'vertical') return; 
     itemSwipingEl.style.transition = 'transform 0.3s ease'; 
     let currentX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX; 
@@ -757,7 +772,7 @@ function handleItemTouchEnd(e) {
 }
 
 function renderActiveTimers() {
-    // 5. 【終極防呆】每次渲染前確保環境 100% 乾淨
+    // 每次重新渲染前，確保拖曳狀態絕對淨空
     forceCleanupDrag();
 
     const listEl = document.getElementById('active-timers-list'); 
@@ -769,7 +784,7 @@ function renderActiveTimers() {
     activeTimers.forEach((timer, idx) => {
         const titleStr = timer.storeName ? `${timer.storeName} #${timer.orderNumber}` : `訂單計時 #${idx + 1}`;
         
-        // 確保手機滑動被打斷時（如系統手勢或來電），也能呼叫 handleItemTouchEnd 來收拾殘局
+        // 綁定 ontouchcancel 事件作為最後一道保險
         html += `<div class="swipe-container active-timer-container" data-id="${timer.id}">
                     <div class="swipe-content active-timer-content" 
                          onmousedown="handleItemTouchStart(event)" 

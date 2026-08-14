@@ -711,15 +711,52 @@ function handleItemTouchEnd(e) {
 }
 
 function renderActiveTimers() {
-    const listEl = document.getElementById('active-timers-list'); document.getElementById('active-count').innerText = `${activeTimers.length} 個進行中`;
+    // --- 【防呆機制】 ---
+    // 每次重新渲染列表前，強制清除所有殘留的拖曳狀態與虛線框
+    isDraggingItem = false;
+    clearTimeout(pressTimer);
+    dragTarget = null;
+    placeholder = null;
+    document.querySelectorAll('.drag-placeholder').forEach(el => el.remove());
+    document.getElementById('view-home').style.overflowY = '';
+    // -------------------
+
+    const listEl = document.getElementById('active-timers-list'); 
+    document.getElementById('active-count').innerText = `${activeTimers.length} 個進行中`;
+    
     if (activeTimers.length === 0) return listEl.innerHTML = '<div class="empty-state">目前沒有進行中的訂單</div>';
+    
     let html = '';
     activeTimers.forEach((timer, idx) => {
         const titleStr = timer.storeName ? `${timer.storeName} #${timer.orderNumber}` : `訂單計時 #${idx + 1}`;
-        html += `<div class="swipe-container active-timer-container" data-id="${timer.id}"><div class="swipe-content active-timer-content" onmousedown="handleItemTouchStart(event)" ontouchstart="handleItemTouchStart(event)" onmousemove="handleItemTouchMove(event)" ontouchmove="handleItemTouchMove(event)" onmouseup="handleItemTouchEnd(event)" ontouchend="handleItemTouchEnd(event)" onmouseleave="handleItemTouchEnd(event)"><div class="timer-info"><h3 onclick="handleTimerTitleClick('${timer.id}')">${titleStr}</h3><p>開始時間：${formatTime(new Date(timer.startTime))}</p><div class="timer-duration" id="duration_${timer.id}">00:00:00</div></div><button class="btn-stop" onclick="stopTimer('${timer.id}')">配送</button><div class="swipe-delete" onclick="cancelTimer('${timer.id}')">刪除</div></div></div>`;
+        
+        // 【修復 BUG：新增 ontouchcancel】
+        // 確保手機滑動被打斷時（如系統手勢或來電），也能呼叫 handleItemTouchEnd 來收拾殘局
+        html += `<div class="swipe-container active-timer-container" data-id="${timer.id}">
+                    <div class="swipe-content active-timer-content" 
+                         onmousedown="handleItemTouchStart(event)" 
+                         ontouchstart="handleItemTouchStart(event)" 
+                         onmousemove="handleItemTouchMove(event)" 
+                         ontouchmove="handleItemTouchMove(event)" 
+                         onmouseup="handleItemTouchEnd(event)" 
+                         ontouchend="handleItemTouchEnd(event)" 
+                         ontouchcancel="handleItemTouchEnd(event)" 
+                         onmouseleave="handleItemTouchEnd(event)">
+                        <div class="timer-info">
+                            <h3 onclick="handleTimerTitleClick('${timer.id}')">${titleStr}</h3>
+                            <p>開始時間：${formatTime(new Date(timer.startTime))}</p>
+                            <div class="timer-duration" id="duration_${timer.id}">00:00:00</div>
+                        </div>
+                        <button class="btn-stop" onclick="stopTimer('${timer.id}')">配送</button>
+                        <div class="swipe-delete" onclick="cancelTimer('${timer.id}')">刪除</div>
+                    </div>
+                 </div>`;
     });
-    listEl.innerHTML = html; updateTimersDisplay();
+    
+    listEl.innerHTML = html; 
+    updateTimersDisplay();
 }
+
 function updateTimersDisplay() { const now = Date.now(); activeTimers.forEach(timer => { const el = document.getElementById(`duration_${timer.id}`); if (el) el.innerText = formatDuration(now - timer.startTime); }); if (activeShift) { const shiftEl = document.getElementById('shift-current-duration'); if(shiftEl) shiftEl.innerText = formatDuration(now - activeShift.startTime); } checkWaitState(); }
 
 /* ================== 修改訂單(收入)金額邏輯 ================== */

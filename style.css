@@ -173,40 +173,41 @@ body.night-mode #view-search-result, body.night-mode #view-daily-detail { backgr
 .btn-preset.ocean { background: linear-gradient(180deg, #0284c7, #082f49); color: #38bdf8; border-color: #0284c7; box-shadow: 0 6px 12px rgba(0,0,0,0.2), inset 0 1px 1px rgba(255,255,255,0.1);}
 
 /* --- 滑動刪除與列表拖拉排序 --- */
+.timer-list { position: relative; } /* 讓拖曳物件有穩定的定位基準 */
 .swipe-container { position: relative; overflow: hidden; border-radius: 12px; margin-bottom: 12px; background: transparent; box-shadow: var(--item-shadow); transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease; }
 .swipe-container:hover { transform: translateY(-1px); box-shadow: var(--card-shadow); }
 .swipe-delete { position: absolute; top: 0; right: -80px; bottom: 0; width: 80px; background: var(--danger); color: var(--danger-text); display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 1rem; cursor: pointer; z-index: 10; box-shadow: inset 2px 0 5px rgba(0,0,0,0.1); }
 .active-timer-container { border: 1px solid var(--border); }
 
-/* 拖拉中的卡片樣式 */
+/* 拖拉中的卡片樣式：強制關閉過渡動畫，實現零延遲跟隨 */
 .active-timer-container.dragging {
-    opacity: 0.8;
-    box-shadow: 0 15px 30px rgba(0,0,0,0.3) !important;
-    transform: scale(1.02);
-    z-index: 50;
-    position: relative;
-    background: var(--timer-bg);
+    opacity: 0.95 !important;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1), 0 0 0 1.5px var(--primary) !important;
+    pointer-events: none; /* 讓底下元素能感應滑鼠位置 */
+    transition: none !important; /* ★關鍵修正：移除動畫過渡，讓卡片緊貼游標/手指★ */
 }
 
-.active-timer-content { position: relative; z-index: 2; width: 100%; background: var(--timer-bg); padding: 16px; display: flex; justify-content: space-between; align-items: center; border-left: 5px solid var(--success); transition: transform 0.3s ease; touch-action: pan-y; backdrop-filter: var(--card-backdrop); -webkit-backdrop-filter: var(--card-backdrop); box-shadow: var(--card-glow); }
-
-.drag-handle {
-    padding: 10px 15px 10px 0;
-    font-size: 2rem;
-    color: var(--text-muted);
-    cursor: grab;
-    touch-action: none; /* 防止把手觸發頁面滾動 */
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    line-height: 1;
+body.night-mode .active-timer-container.dragging {
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5), 0 0 0 1.5px var(--primary) !important;
 }
 
-.timer-info { flex-grow: 1; min-width: 0; padding-right: 12px; }
+/* 拖拉佔位符：虛線框提示 */
+.drag-placeholder {
+    border: 2px dashed var(--primary);
+    border-radius: 12px;
+    background: rgba(255, 117, 151, 0.05);
+    margin-bottom: 12px;
+    transition: height 0.2s ease;
+}
+
+.active-timer-content { position: relative; z-index: 2; width: 100%; background: var(--timer-bg); padding: 16px; display: flex; justify-content: space-between; align-items: center; border-left: 5px solid var(--success); transition: transform 0.3s ease; touch-action: pan-y; backdrop-filter: var(--card-backdrop); -webkit-backdrop-filter: var(--card-backdrop); box-shadow: var(--card-glow); user-select: none; -webkit-user-select: none; cursor: grab; }
+.active-timer-content:active { cursor: grabbing; }
+
+.timer-info { flex-grow: 1; min-width: 0; padding-right: 12px; pointer-events: auto; }
 .timer-info h3 { font-size: 1.05rem; margin-bottom: 4px; color: var(--text-main); word-break: break-word; line-height: 1.3; cursor: pointer; }
 .timer-info p { font-size: 0.85rem; color: var(--text-muted); }
 .timer-duration { font-family: monospace; font-size: 1.1rem; font-weight: bold; color: var(--success); margin-top: 4px; text-shadow: 0 1px 1px rgba(0,0,0,0.05); }
-.btn-stop { width: auto; padding: 12px 16px; font-size: 0.95rem; background-color: var(--primary); color: var(--btn-text); border: 1px solid rgba(0,0,0,0.1); font-weight: bold; border-radius: 10px; cursor: pointer; box-shadow: 0 4px 8px rgba(0,0,0,0.15), inset 0 1px 1px rgba(255,255,255,0.2); transition: all 0.2s; flex-shrink: 0; }
+.btn-stop { pointer-events: auto; width: auto; padding: 12px 16px; font-size: 0.95rem; background-color: var(--primary); color: var(--btn-text); border: 1px solid rgba(0,0,0,0.1); font-weight: bold; border-radius: 10px; cursor: pointer; box-shadow: 0 4px 8px rgba(0,0,0,0.15), inset 0 1px 1px rgba(255,255,255,0.2); transition: all 0.2s; flex-shrink: 0; }
 .btn-stop:active { transform: translateY(2px) scale(0.95); box-shadow: 0 1px 2px rgba(0,0,0,0.1), inset 0 2px 4px rgba(0,0,0,0.15); }
 
 .section-title { font-size: 1.1rem; margin: 20px 0 10px 4px; display: flex; justify-content: space-between; align-items: center; font-weight: bold;}

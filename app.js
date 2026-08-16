@@ -17,6 +17,45 @@ function formatMins(mins) { const h = Math.floor(mins / 60), m = Math.floor(mins
 function fmtMoney(num) { return '$' + Number(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); } 
 function fmtNum(num) { return Number(num).toLocaleString('en-US'); }
 
+/* ================== 動態注入新功能 CSS 與 HTML ================== */
+function injectNewStyles() {
+    if (document.getElementById('injected-new-styles')) return;
+    const style = document.createElement('style');
+    style.id = 'injected-new-styles';
+    style.innerHTML = `
+        .swipe-edit { position: absolute; top: 0; left: -80px; bottom: 0; width: 80px; background: var(--primary); color: var(--btn-text); display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 1rem; cursor: pointer; z-index: 10; box-shadow: inset -2px 0 5px rgba(0,0,0,0.1); }
+    `;
+    document.head.appendChild(style);
+}
+
+function ensureRateViewDOM() {
+    const rateView = document.getElementById('view-rate');
+    if (!document.getElementById('card-punctuality') && rateView) {
+        const cardHtml = `
+        <div class="card" id="card-punctuality">
+            <h2 style="display:flex; justify-content:space-between; align-items:center;">
+                <span>準時率 / 超時率分析</span>
+                <button class="btn-icon" onclick="calculatePunctuality()" style="font-size:1.2rem; padding:0;">⟳</button>
+            </h2>
+            <div class="input-group">
+                <label>合理彈性時間 (分鐘)</label>
+                <input type="number" id="rate-buffer-time" class="form-control" value="5" oninput="calculatePunctuality()">
+            </div>
+            
+            <div class="summary-block" style="margin-top: 15px; padding-top: 15px; border-top: 1px dashed var(--border);">
+                <div class="summary-item"><span>準時率</span><strong style="color:var(--success);" id="punctuality-ontime">--%</strong></div>
+                <div class="summary-item"><span>單筆超時(平均)</span><strong style="color:var(--danger);" id="punctuality-avg-timeout">--%</strong></div>
+                <div class="summary-item"><span>總超時率</span><strong style="color:var(--danger);" id="punctuality-total-timeout">--%</strong></div>
+            </div>
+            
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 15px; line-height: 1.4;">
+                * 僅計算已寫入「預估時間」之歷史訂單。目前採用全時段累計計算。
+            </p>
+        </div>`;
+        rateView.insertAdjacentHTML('afterbegin', cardHtml);
+    }
+}
+
 /* ================== 自訂對話框引擎 ================== */
 let currentDialogResolve = null;
 function showCustomDialog({ type, title, message, defaultValue = '', confirmText = '確認', cancelText = '取消', isDanger = false }) {
@@ -105,6 +144,8 @@ function loadSettingsForCurrentUser() {
 }
 
 window.onload = function() {
+    injectNewStyles();
+    ensureRateViewDOM();
     if (currentUser === '預設使用者' && !localStorage.getItem(getStoreKey('order_history_records')) && localStorage.getItem('order_history_records')) {
         ['order_active_timers', 'order_history_records', 'order_tips', 'order_costs'].forEach(k => { localStorage.setItem(getStoreKey(k), localStorage.getItem(k) || '[]'); });
     }
@@ -315,7 +356,7 @@ function loadData() {
 
 let currentViewIndex = 0, isSearchResultOpen = false; 
 const views = ['home', 'income', 'tips', 'costs', 'rate', 'settings']; 
-const viewTitles = ['預設使用者', '收入', '小費', '成本', '取單率與單量', '設定']; 
+const viewTitles = ['預設使用者', '收入', '小費', '成本', '取單率', '設定']; 
 const viewHasSearch = [false, true, true, true, false, false]; 
 
 function switchView(index, isInstant = false) { 
@@ -339,6 +380,7 @@ function switchView(index, isInstant = false) {
         else { el.style.transition = 'none'; el.style.visibility = 'hidden'; }
     });
     if([1, 2, 3].includes(index)) { initWeeklyView(); renderWeeklyData(); }
+    if(index === 4) { calculatePunctuality(); }
     updateUIState(); 
 }
 
@@ -351,7 +393,7 @@ function initSwipeNavigation() {
 }
 
 function updateUIState() { 
-    const unselectedIcons = ['☖', '＄', '♡', '☇', '◑', '⛭'], selectedIcons = ['☗', '＄', '♥\uFE0E', '☈', '◕', '⛯'];
+    const unselectedIcons = ['☖', '＄', '♡', '☇', '◑', '⛭'], selectedIcons = ['☗', '＄', '♥\uFE0E', '☈', '◕\uFE0E', '⛯'];
     document.querySelectorAll('.nav-item').forEach((el, index) => { el.classList.remove('active'); const iconSpan = el.querySelector('.nav-icon'); if (iconSpan) { iconSpan.innerText = unselectedIcons[index]; iconSpan.style.transform = 'scale(1)'; } }); 
     const activeNav = document.getElementById(`nav-${currentViewIndex}`); activeNav.classList.add('active'); 
     const activeIconSpan = activeNav.querySelector('.nav-icon');
@@ -427,18 +469,35 @@ function checkWaitState() {
 async function startTimers(count) { if (!activeShift) return await appAlert('請先點擊「時段開始」進入上線狀態，才能開始接單！'); const now = Date.now(); for (let i = 0; i < count; i++) activeTimers.push({ id: 'timer_' + now + '_' + Math.random().toString(36).substr(2, 5), startTime: now }); localStorage.setItem(getStoreKey('order_active_timers'), JSON.stringify(activeTimers)); renderActiveTimers(); checkWaitState(); }
 
 function stopTimer(id) { 
+    closeAllSwipes();
     const index = activeTimers.findIndex(t => t.id === id); if (index === -1) return; 
     const timer = activeTimers[index], endTime = Date.now(), diffMins = Math.max(1, Math.round((endTime - timer.startTime) / 60000)); 
-    let amount = (diffMins / 60) * RATE_PER_HOUR; if (amount < MIN_AMOUNT) amount = MIN_AMOUNT; 
+    
+    // 【重要邏輯】：用預估時間與實際花費時間相比，取其高者作為計價標準
+    const billableMins = Math.max(diffMins, timer.estimatedTime || 0);
+    
+    let amount = (billableMins / 60) * RATE_PER_HOUR; if (amount < MIN_AMOUNT) amount = MIN_AMOUNT; 
     const endDateObj = new Date(endTime); 
-    historyRecords.push({ id: timer.id, dateKey: getDateKey(endTime), year: endDateObj.getFullYear(), month: endDateObj.getMonth() + 1, day: endDateObj.getDate(), dayOfWeek: DAYS_MAP[endDateObj.getDay()], startTimeStr: formatTime(new Date(timer.startTime)), endTimeStr: formatTime(endDateObj), durationMins: diffMins, amount: Number(amount.toFixed(2)), timestamp: endTime, storeName: timer.storeName || '', orderNumber: timer.orderNumber || '' }); 
+    historyRecords.push({ 
+        id: timer.id, 
+        dateKey: getDateKey(endTime), 
+        year: endDateObj.getFullYear(), month: endDateObj.getMonth() + 1, day: endDateObj.getDate(), dayOfWeek: DAYS_MAP[endDateObj.getDay()], 
+        startTimeStr: formatTime(new Date(timer.startTime)), endTimeStr: formatTime(endDateObj), 
+        durationMins: diffMins,
+        estimatedTime: timer.estimatedTime || 0, // 保存預估時間
+        amount: Number(amount.toFixed(2)), timestamp: endTime, storeName: timer.storeName || '', orderNumber: timer.orderNumber || '' 
+    }); 
     activeTimers.splice(index, 1); 
     localStorage.setItem(getStoreKey('order_active_timers'), JSON.stringify(activeTimers)); 
     localStorage.setItem(getStoreKey('order_history_records'), JSON.stringify(historyRecords)); 
     renderActiveTimers(); renderWeeklyData(); checkWaitState(); 
+    if (currentViewIndex === 4) calculatePunctuality();
 }
 
-function cancelTimer(id) { const index = activeTimers.findIndex(t => t.id === id); if (index > -1) { activeTimers.splice(index, 1); localStorage.setItem(getStoreKey('order_active_timers'), JSON.stringify(activeTimers)); renderActiveTimers(); checkWaitState(); } }
+function cancelTimer(id) { 
+    closeAllSwipes();
+    const index = activeTimers.findIndex(t => t.id === id); if (index > -1) { activeTimers.splice(index, 1); localStorage.setItem(getStoreKey('order_active_timers'), JSON.stringify(activeTimers)); renderActiveTimers(); checkWaitState(); } 
+}
 
 /* ================== 店家搜尋與綁定邏輯 ================== */
 function incrementOrderNumber(str) {
@@ -544,6 +603,24 @@ function selectStore(storeName) {
     });
 }
 
+/* ================== 預估時間設定邏輯 ================== */
+async function setEstimatedTime(id) {
+    closeAllSwipes();
+    const timer = activeTimers.find(t => t.id === id);
+    if (!timer) return;
+    const val = await appPrompt('請輸入預估時間 (分鐘):', timer.estimatedTime || '', '設定預估時間');
+    if (val !== null && val.trim() !== '') {
+        const num = parseInt(val, 10);
+        if (!isNaN(num) && num >= 0) {
+            timer.estimatedTime = num;
+            localStorage.setItem(getStoreKey('order_active_timers'), JSON.stringify(activeTimers));
+            renderActiveTimers();
+        } else {
+            await appAlert('請輸入有效的數字', '錯誤');
+        }
+    }
+}
+
 /* ================== 卡片拖曳排序邏輯 ================== */
 let pressTimer = null;
 let isDraggingItem = false;
@@ -554,33 +631,25 @@ let currentTouchY = 0;
 
 let itemSwipeStartX = 0, itemSwipeStartY = 0, itemSwipeCurrentX = 0, itemSwipingEl = null, openItemSwipeEl = null, itemSwipeDirection = null;
 
-// =========================================================
-// 【終極強制清理防呆機制】
-// 確保任何異常中斷都能粉碎幽靈虛線框並歸位卡片
-// =========================================================
+function closeAllSwipes() {
+    if (openItemSwipeEl) {
+        openItemSwipeEl.style.transition = 'transform 0.3s ease';
+        openItemSwipeEl.style.transform = 'translateX(0px)';
+        openItemSwipeEl = null;
+    }
+}
+
 function forceCleanupDrag() {
     isDraggingItem = false;
     clearTimeout(pressTimer);
     
-    // 1. 強制移除畫面上所有存在的虛線框
+    closeAllSwipes();
+
     document.querySelectorAll('.drag-placeholder').forEach(el => el.remove());
-    
-    // 2. 尋找所有被標記為拖曳中狀態的卡片
     document.querySelectorAll('.active-timer-container.dragging').forEach(el => {
         el.classList.remove('dragging');
-        el.style.position = '';
-        el.style.top = '';
-        el.style.left = '';
-        el.style.width = '';
-        el.style.margin = '';
-        el.style.zIndex = '';
-        el.style.transform = '';
-        
-        // 如果卡片因為異常被留在 body 裡（成為孤兒），直接移除
-        // 反正我們調用這函數之後通常會伴隨 renderActiveTimers() 重新生成正確清單
-        if (el.parentNode === document.body) {
-            el.remove();
-        }
+        el.style.position = ''; el.style.top = ''; el.style.left = ''; el.style.width = ''; el.style.margin = ''; el.style.zIndex = ''; el.style.transform = '';
+        if (el.parentNode === document.body) el.remove();
     });
 
     document.getElementById('view-home').style.overflowY = '';
@@ -588,25 +657,12 @@ function forceCleanupDrag() {
     placeholder = null;
 }
 
-// 監聽 App 切換至背景或失去焦點：立即觸發終極清理
-document.addEventListener('visibilitychange', () => {
-    if (document.hidden) {
-        forceCleanupDrag();
-        renderActiveTimers();
-    }
-});
-window.addEventListener('pagehide', () => {
-    forceCleanupDrag();
-});
-window.addEventListener('blur', () => {
-    forceCleanupDrag();
-});
-// =========================================================
+document.addEventListener('visibilitychange', () => { if (document.hidden) { forceCleanupDrag(); renderActiveTimers(); } });
+window.addEventListener('pagehide', () => { forceCleanupDrag(); });
+window.addEventListener('blur', () => { forceCleanupDrag(); });
 
 function handleItemTouchStart(e) { 
-    // 如果已經在拖曳中，拒絕任何新的點擊事件
     if (isDraggingItem) return;
-    
     clearTimeout(pressTimer);
     
     if (openItemSwipeEl && openItemSwipeEl !== e.currentTarget) { 
@@ -624,24 +680,19 @@ function handleItemTouchStart(e) {
     itemSwipeCurrentX = window.getComputedStyle(itemSwipingEl).transform !== 'none' ? parseInt(window.getComputedStyle(itemSwipingEl).transform.split(',')[4]) || 0 : 0; 
     itemSwipeDirection = null; 
 
-    const isClickable = e.target.closest('button') || e.target.closest('.swipe-delete') || e.target.tagName.toLowerCase() === 'h3';
+    const isClickable = e.target.closest('button') || e.target.closest('.swipe-delete') || e.target.closest('.swipe-edit') || e.target.tagName.toLowerCase() === 'h3';
     
-    if (!isClickable) {
+    if (!isClickable && e.currentTarget.closest('.active-timer-container')) {
         dragTarget = e.currentTarget.closest('.active-timer-container');
-        
         pressTimer = setTimeout(() => {
-            // 雙重防呆：確保計時器執行時，真的沒有其他拖曳在進行
             if (isDraggingItem) return;
-            
             isDraggingItem = true;
             if (navigator.vibrate) navigator.vibrate(50);
 
             document.getElementById('view-home').style.overflowY = 'hidden';
-
             initialClientY = currentTouchY;
             const rect = dragTarget.getBoundingClientRect();
 
-            // 在建立新虛線框之前，無條件砍掉所有可能遺留的幽靈框
             document.querySelectorAll('.drag-placeholder').forEach(el => el.remove());
 
             placeholder = document.createElement('div');
@@ -659,7 +710,7 @@ function handleItemTouchStart(e) {
             
             document.body.appendChild(dragTarget);
             
-        }, 200);
+        }, 200); 
     }
 }
 
@@ -670,10 +721,7 @@ function handleItemTouchMove(e) {
     let diffY = currentTouchY - itemSwipeStartY; 
 
     if (!isDraggingItem) {
-        // 手指如果大幅移動，代表是滑動而非長按，立刻取消長按計時器
-        if (Math.abs(diffX) > 10 || Math.abs(diffY) > 10) {
-            clearTimeout(pressTimer);
-        }
+        if (Math.abs(diffX) > 10 || Math.abs(diffY) > 10) clearTimeout(pressTimer);
 
         if (!itemSwipeDirection) { 
             if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 5) itemSwipeDirection = 'horizontal'; 
@@ -683,30 +731,33 @@ function handleItemTouchMove(e) {
         if (itemSwipeDirection === 'horizontal') { 
             if (e.cancelable) e.preventDefault(); 
             let moveX = itemSwipeCurrentX + diffX; 
-            if (moveX > 0) moveX = 0; 
+            
+            let hasRightAction = itemSwipingEl.querySelector('.swipe-edit') !== null;
+            let hasLeftAction = itemSwipingEl.querySelector('.swipe-delete') !== null;
+
+            if (!hasRightAction && moveX > 0) moveX = 0;
+            if (!hasLeftAction && moveX < 0) moveX = 0;
+
+            if (moveX > 90) moveX = 90; 
             if (moveX < -90) moveX = -90; 
+            
             itemSwipingEl.style.transform = `translateX(${moveX}px)`; 
         } 
     } else {
         if (e.cancelable) e.preventDefault(); 
-
         const deltaY = currentTouchY - initialClientY;
         dragTarget.style.transform = `translateY(${deltaY}px) scale(1.02)`;
 
         const list = document.getElementById('active-timers-list');
         const siblings = [...list.querySelectorAll('.active-timer-container:not(.dragging)')];
-
         let nextSibling = siblings.find(sibling => {
             const box = sibling.getBoundingClientRect();
             return currentTouchY < box.top + box.height / 2;
         });
 
         if (placeholder) {
-            if (nextSibling) {
-                list.insertBefore(placeholder, nextSibling);
-            } else {
-                list.appendChild(placeholder);
-            }
+            if (nextSibling) list.insertBefore(placeholder, nextSibling);
+            else list.appendChild(placeholder);
         }
     }
 }
@@ -716,43 +767,33 @@ function handleItemTouchEnd(e) {
 
     if (isDraggingItem) {
         isDraggingItem = false;
-        
         document.getElementById('view-home').style.overflowY = '';
 
         if (dragTarget && placeholder && placeholder.parentNode) {
             placeholder.parentNode.insertBefore(dragTarget, placeholder);
         } else if (dragTarget) {
             const list = document.getElementById('active-timers-list');
-            if (list && dragTarget.parentNode !== list) {
-                list.appendChild(dragTarget);
-            }
+            if (list && dragTarget.parentNode !== list) list.appendChild(dragTarget);
         }
 
         if (dragTarget) {
             dragTarget.classList.remove('dragging');
-            dragTarget.style.position = '';
-            dragTarget.style.top = '';
-            dragTarget.style.left = '';
-            dragTarget.style.width = '';
-            dragTarget.style.margin = '';
-            dragTarget.style.zIndex = '';
-            dragTarget.style.transform = '';
+            dragTarget.style.position = ''; dragTarget.style.top = ''; dragTarget.style.left = ''; dragTarget.style.width = ''; dragTarget.style.margin = ''; dragTarget.style.zIndex = ''; dragTarget.style.transform = '';
         }
 
-        // 放開手指後，無條件砍掉所有畫面上殘留的虛線框
         document.querySelectorAll('.drag-placeholder').forEach(el => el.remove());
         placeholder = null;
 
         if (navigator.vibrate) navigator.vibrate(20);
 
         const list = document.getElementById('active-timers-list');
-        const newOrderIds = [...list.querySelectorAll('.active-timer-container')].map(el => el.getAttribute('data-id'));
-        
-        if (newOrderIds.length === activeTimers.length) {
-            activeTimers.sort((a, b) => newOrderIds.indexOf(a.id) - newOrderIds.indexOf(b.id));
-            localStorage.setItem(getStoreKey('order_active_timers'), JSON.stringify(activeTimers));
+        if (list) {
+            const newOrderIds = [...list.querySelectorAll('.active-timer-container')].map(el => el.getAttribute('data-id'));
+            if (newOrderIds.length === activeTimers.length) {
+                activeTimers.sort((a, b) => newOrderIds.indexOf(a.id) - newOrderIds.indexOf(b.id));
+                localStorage.setItem(getStoreKey('order_active_timers'), JSON.stringify(activeTimers));
+            }
         }
-
         dragTarget = null;
         return;
     }
@@ -761,8 +802,15 @@ function handleItemTouchEnd(e) {
     itemSwipingEl.style.transition = 'transform 0.3s ease'; 
     let currentX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX; 
     let finalX = itemSwipeCurrentX + (currentX - itemSwipeStartX); 
-    if (finalX < -40) { 
+
+    let hasRightAction = itemSwipingEl.querySelector('.swipe-edit') !== null;
+    let hasLeftAction = itemSwipingEl.querySelector('.swipe-delete') !== null;
+
+    if (hasLeftAction && finalX < -40) { 
         itemSwipingEl.style.transform = `translateX(-80px)`; 
+        openItemSwipeEl = itemSwipingEl; 
+    } else if (hasRightAction && finalX > 40) {
+        itemSwipingEl.style.transform = `translateX(80px)`; 
         openItemSwipeEl = itemSwipingEl; 
     } else { 
         itemSwipingEl.style.transform = `translateX(0px)`; 
@@ -772,7 +820,6 @@ function handleItemTouchEnd(e) {
 }
 
 function renderActiveTimers() {
-    // 每次重新渲染前，確保拖曳狀態絕對淨空
     forceCleanupDrag();
 
     const listEl = document.getElementById('active-timers-list'); 
@@ -783,8 +830,8 @@ function renderActiveTimers() {
     let html = '';
     activeTimers.forEach((timer, idx) => {
         const titleStr = timer.storeName ? `${timer.storeName} #${timer.orderNumber}` : `訂單計時 #${idx + 1}`;
+        const estStr = timer.estimatedTime ? `<span style="color:var(--primary); font-size:0.85rem; margin-left:8px; border:1px solid var(--primary); padding:1px 4px; border-radius:4px;">預估 ${timer.estimatedTime}m</span>` : '';
         
-        // 綁定 ontouchcancel 事件作為最後一道保險
         html += `<div class="swipe-container active-timer-container" data-id="${timer.id}">
                     <div class="swipe-content active-timer-content" 
                          onmousedown="handleItemTouchStart(event)" 
@@ -795,8 +842,9 @@ function renderActiveTimers() {
                          ontouchend="handleItemTouchEnd(event)" 
                          ontouchcancel="handleItemTouchEnd(event)" 
                          onmouseleave="handleItemTouchEnd(event)">
+                        <div class="swipe-edit" style="background:#3b82f6;" onclick="setEstimatedTime('${timer.id}')">預估</div>
                         <div class="timer-info">
-                            <h3 onclick="handleTimerTitleClick('${timer.id}')">${titleStr}</h3>
+                            <h3 onclick="handleTimerTitleClick('${timer.id}')">${titleStr} ${estStr}</h3>
                             <p>開始時間：${formatTime(new Date(timer.startTime))}</p>
                             <div class="timer-duration" id="duration_${timer.id}">00:00:00</div>
                         </div>
@@ -833,6 +881,7 @@ async function editIncomeAmount(id) {
 
 /* ================== 小費與成本紀錄邏輯 ================== */
 async function deleteTip(id) { 
+    closeAllSwipes();
     if(await appConfirm('確定刪除這筆小費紀錄嗎？', '刪除確認', true)) { 
         tipRecords = tipRecords.filter(t => t.id !== id); 
         localStorage.setItem(getStoreKey('order_tips'), JSON.stringify(tipRecords)); 
@@ -841,6 +890,7 @@ async function deleteTip(id) {
     } 
 } 
 async function deleteCost(id) { 
+    closeAllSwipes();
     if(await appConfirm('確定刪除這筆成本紀錄嗎？', '刪除確認', true)) { 
         costRecords = costRecords.filter(t => t.id !== id); 
         localStorage.setItem(getStoreKey('order_costs'), JSON.stringify(costRecords)); 
@@ -901,7 +951,7 @@ function renderDailyDetail() {
         if (dailyRecords.length === 0) html = '<div class="empty-state">今日無收入紀錄</div>';
         else dailyRecords.forEach(r => {
             const titleStr = r.storeName ? `<div style="font-weight:bold; color:var(--primary); margin-bottom:4px; font-size:1rem; word-break:break-word;">${r.storeName} #${r.orderNumber}</div>` : '';
-            html += `<div class="record-item" onclick="editIncomeAmount('${r.id}')" style="cursor:pointer;"><div class="record-info">${titleStr}<div class="record-time" style="color:var(--text-main);">${r.startTimeStr} - ${r.endTimeStr}</div><div class="record-desc" style="color:var(--text-muted);">實際花費 ${r.durationMins} 分鐘</div></div><div class="record-amount">${fmtMoney(r.amount)}</div></div>`;
+            html += `<div class="record-item" onclick="editIncomeAmount('${r.id}')" style="cursor:pointer;"><div class="record-info">${titleStr}<div class="record-time" style="color:var(--text-main);">${r.startTimeStr} - ${r.endTimeStr}</div><div class="record-desc" style="color:var(--text-muted);">實際 ${r.durationMins} 分鐘 ${r.estimatedTime ? ` / 預估 ${r.estimatedTime} 分鐘` : ''}</div></div><div class="record-amount">${fmtMoney(r.amount)}</div></div>`;
         });
     } else if (currentDailyContext === 'tip') {
         document.getElementById('daily-detail-type-label').innerText = '小費總額';
@@ -911,7 +961,7 @@ function renderDailyDetail() {
         statsGrid.style.display = 'none';
 
         if (dailyRecords.length === 0) html = '<div class="empty-state">今日無小費紀錄</div>';
-        else dailyRecords.forEach(r => html += `<div class="swipe-container record-swipe-container"><div class="swipe-content record-swipe-content" ontouchstart="handleItemTouchStart(event)" ontouchmove="handleItemTouchMove(event)" ontouchend="handleItemTouchEnd(event)"><div class="record-info"><div class="record-time">${r.timeStr}</div><div class="record-desc">支付方式: ${r.method}</div></div><div class="record-amount">${fmtMoney(r.amount)}</div><button class="btn-edit" onclick="openEdit('tip', '${r.id}')">編輯</button><div class="swipe-delete" onclick="deleteTip('${r.id}')">刪除</div></div></div>`);
+        else dailyRecords.forEach(r => html += `<div class="swipe-container record-swipe-container"><div class="swipe-content record-swipe-content" ontouchstart="handleItemTouchStart(event)" ontouchmove="handleItemTouchMove(event)" ontouchend="handleItemTouchEnd(event)" ontouchcancel="handleItemTouchEnd(event)"><div class="swipe-edit" onclick="openEdit('tip', '${r.id}')">編輯</div><div class="record-info"><div class="record-time">${r.timeStr}</div><div class="record-desc">支付方式: ${r.method}</div></div><div class="record-amount">${fmtMoney(r.amount)}</div><div class="swipe-delete" onclick="deleteTip('${r.id}')">刪除</div></div></div>`);
     } else if (currentDailyContext === 'cost') {
         document.getElementById('daily-detail-type-label').innerText = '成本支出總額';
         const dailyRecords = costRecords.filter(r => r.dateKey === dateKey).sort((a,b)=>b.timestamp - a.timestamp);
@@ -920,13 +970,13 @@ function renderDailyDetail() {
         statsGrid.style.display = 'none';
 
         if (dailyRecords.length === 0) html = '<div class="empty-state">今日無成本紀錄</div>';
-        else dailyRecords.forEach(r => { let tags = `<span class="tag">${r.type}</span>`; if((r.type === '保養維修' || r.type === '加油') && r.mileage) tags += `<span class="tag">里程:${fmtNum(r.mileage)}</span>`; html += `<div class="swipe-container record-swipe-container"><div class="swipe-content record-swipe-content" ontouchstart="handleItemTouchStart(event)" ontouchmove="handleItemTouchMove(event)" ontouchend="handleItemTouchEnd(event)"><div class="record-info"><div class="record-time">${r.timeStr} ${tags}</div><div class="record-desc">${r.memo || '無備註'}</div></div><div class="record-amount" style="color:var(--text-main);">- ${fmtMoney(r.amount)}</div><button class="btn-edit" onclick="openEdit('cost', '${r.id}')">編輯</button><div class="swipe-delete" onclick="deleteCost('${r.id}')">刪除</div></div></div>`; });
+        else dailyRecords.forEach(r => { let tags = `<span class="tag">${r.type}</span>`; if((r.type === '保養維修' || r.type === '加油') && r.mileage) tags += `<span class="tag">里程:${fmtNum(r.mileage)}</span>`; html += `<div class="swipe-container record-swipe-container"><div class="swipe-content record-swipe-content" ontouchstart="handleItemTouchStart(event)" ontouchmove="handleItemTouchMove(event)" ontouchend="handleItemTouchEnd(event)" ontouchcancel="handleItemTouchEnd(event)"><div class="swipe-edit" onclick="openEdit('cost', '${r.id}')">編輯</div><div class="record-info"><div class="record-time">${r.timeStr} ${tags}</div><div class="record-desc">${r.memo || '無備註'}</div></div><div class="record-amount" style="color:var(--text-main);">- ${fmtMoney(r.amount)}</div><div class="swipe-delete" onclick="deleteCost('${r.id}')">刪除</div></div></div>`; });
     }
     listContainer.innerHTML = html;
 }
 
 /* ================== 編輯與查詢邏輯 ================== */
-function openEdit(category, id) { document.getElementById('edit-modal').classList.add('active'); document.getElementById('edit-id').value = id; document.getElementById('edit-category').value = category; if (category === 'tip') { document.getElementById('edit-modal-title').innerText = '編輯小費'; document.getElementById('edit-tip-fields').style.display = 'block'; document.getElementById('edit-cost-fields').style.display = 'none'; const record = tipRecords.find(t => t.id === id); document.getElementById('edit-amount').value = record.amount; document.getElementById('edit-tip-method').value = record.method; } else { document.getElementById('edit-modal-title').innerText = '編輯成本'; document.getElementById('edit-tip-fields').style.display = 'none'; document.getElementById('edit-cost-fields').style.display = 'block'; const record = costRecords.find(t => t.id === id); document.getElementById('edit-amount').value = record.amount; document.getElementById('edit-cost-type').value = record.type; document.getElementById('edit-cost-memo').value = record.memo || ''; toggleEditMileage(); if(record.type === '保養維修' || record.type === '加油') document.getElementById('edit-cost-mileage').value = record.mileage || ''; } }
+function openEdit(category, id) { closeAllSwipes(); document.getElementById('edit-modal').classList.add('active'); document.getElementById('edit-id').value = id; document.getElementById('edit-category').value = category; if (category === 'tip') { document.getElementById('edit-modal-title').innerText = '編輯小費'; document.getElementById('edit-tip-fields').style.display = 'block'; document.getElementById('edit-cost-fields').style.display = 'none'; const record = tipRecords.find(t => t.id === id); document.getElementById('edit-amount').value = record.amount; document.getElementById('edit-tip-method').value = record.method; } else { document.getElementById('edit-modal-title').innerText = '編輯成本'; document.getElementById('edit-tip-fields').style.display = 'none'; document.getElementById('edit-cost-fields').style.display = 'block'; const record = costRecords.find(t => t.id === id); document.getElementById('edit-amount').value = record.amount; document.getElementById('edit-cost-type').value = record.type; document.getElementById('edit-cost-memo').value = record.memo || ''; toggleEditMileage(); if(record.type === '保養維修' || record.type === '加油') document.getElementById('edit-cost-mileage').value = record.mileage || ''; } }
 async function saveEdit() { const id = document.getElementById('edit-id').value, category = document.getElementById('edit-category').value, amount = Number(document.getElementById('edit-amount').value); if (!amount || amount <= 0) return await appAlert('請輸入有效金額', '輸入錯誤'); if (category === 'tip') { const idx = tipRecords.findIndex(t => t.id === id); if(idx > -1) { tipRecords[idx].amount = amount; tipRecords[idx].method = document.getElementById('edit-tip-method').value; localStorage.setItem(getStoreKey('order_tips'), JSON.stringify(tipRecords)); renderWeeklyData(); if(document.getElementById('view-daily-detail').classList.contains('active')) renderDailyDetail(); } } else { const idx = costRecords.findIndex(t => t.id === id); if(idx > -1) { const type = document.getElementById('edit-cost-type').value; costRecords[idx].amount = amount; costRecords[idx].type = type; costRecords[idx].memo = document.getElementById('edit-cost-memo').value; costRecords[idx].mileage = (type === '保養維修' || type === '加油') ? document.getElementById('edit-cost-mileage').value : ''; localStorage.setItem(getStoreKey('order_costs'), JSON.stringify(costRecords)); renderWeeklyData(); if(document.getElementById('view-daily-detail').classList.contains('active')) renderDailyDetail(); } } closeModal('edit-modal'); }
 
 let currentCalDate = new Date(), calSelStart = null, calSelEnd = null;
@@ -934,6 +984,52 @@ function openFilterModal() { calSelStart = null; calSelEnd = null; renderCalenda
 function renderCalendar() { const y = currentCalDate.getFullYear(), m = currentCalDate.getMonth(); document.getElementById('cal-month-year').innerText = `${y}年${m + 1}月`; const firstDay = new Date(y, m, 1).getDay(), daysInMonth = new Date(y, m + 1, 0).getDate(), grid = document.getElementById('cal-days'); grid.innerHTML = ''; for (let i = 0; i < firstDay; i++) grid.innerHTML += `<div class="cal-day empty"></div>`; for (let i = 1; i <= daysInMonth; i++) { const dayTime = new Date(y, m, i, 0, 0, 0).getTime(); let classes = 'cal-day'; if (calSelStart === dayTime || calSelEnd === dayTime) classes += ' selected'; if (calSelStart && calSelEnd && dayTime > calSelStart && dayTime < calSelEnd) classes += ' in-range'; grid.innerHTML += `<div class="${classes}" onclick="selectCalDate(${y}, ${m}, ${i})">${i}</div>`; } document.getElementById('cal-selection-text').innerText = !calSelStart ? '請點選開始日期' : (!calSelEnd ? '請點選結束日期 (單日請直接按確認)' : '已選擇範圍，請點擊確認查詢'); }
 function selectCalDate(y, m, d) { const t = new Date(y, m, d, 0, 0, 0).getTime(); if (!calSelStart || (calSelStart && calSelEnd)) { calSelStart = t; calSelEnd = null; } else { if (t >= calSelStart) calSelEnd = t; else { calSelStart = t; calSelEnd = null; } } renderCalendar(); }
 async function applyFilter() { if (!calSelStart) return await appAlert('請先選擇日期', '操作錯誤'); const sTime = calSelStart, eTime = (calSelEnd || calSelStart) + 86399999; const fInc = historyRecords.filter(r => r.timestamp >= sTime && r.timestamp <= eTime), fTip = tipRecords.filter(r => r.timestamp >= sTime && r.timestamp <= eTime), fCost = costRecords.filter(r => r.timestamp >= sTime && r.timestamp <= eTime); document.getElementById('search-total-income').innerText = fmtMoney(fInc.reduce((s, r)=>s+r.amount,0)); document.getElementById('search-total-tips').innerText = fmtMoney(fTip.reduce((s, r)=>s+r.amount,0)); document.getElementById('search-total-costs').innerText = '-' + fmtMoney(fCost.reduce((s, r)=>s+r.amount,0)); const sd = new Date(sTime), ed = new Date(eTime), sStr = `${sd.getFullYear()}/${sd.getMonth()+1}/${sd.getDate()}`, eStr = `${ed.getFullYear()}/${ed.getMonth()+1}/${ed.getDate()}`; document.getElementById('search-date-range').innerText = sStr === eStr ? sStr : `${sStr} ~ ${eStr}`; renderStats(fInc, 'search-income-list'); renderTips(fTip, 'search-tips-list'); renderCosts(fCost, 'search-costs-list'); closeModal('filter-modal'); isSearchResultOpen = true; document.getElementById('view-search-result').classList.add('active'); updateUIState(); }
+
+/* ================== 準時率 / 取單率邏輯 ================== */
+function calculatePunctuality() {
+    const buffer = Number(document.getElementById('rate-buffer-time').value) || 0;
+    const validRecords = historyRecords.filter(r => r.estimatedTime && r.estimatedTime > 0);
+    
+    if (validRecords.length === 0) {
+        document.getElementById('punctuality-ontime').innerText = '--%';
+        document.getElementById('punctuality-avg-timeout').innerText = '--%';
+        document.getElementById('punctuality-total-timeout').innerText = '--%';
+        return;
+    }
+
+    let onTimeCount = 0;
+    let singleTimeoutRates = [];
+    let totalActual = 0;
+    let totalEstimatedWithBuffer = 0;
+
+    validRecords.forEach(r => {
+        let limit = r.estimatedTime + buffer;
+        let actual = r.durationMins;
+
+        if (actual <= limit) {
+            onTimeCount++;
+            singleTimeoutRates.push(0);
+        } else {
+            let overRatio = (actual - limit) / limit;
+            singleTimeoutRates.push(overRatio);
+        }
+
+        totalActual += actual;
+        totalEstimatedWithBuffer += limit;
+    });
+
+    const onTimeRate = (onTimeCount / validRecords.length) * 100;
+    const avgTimeoutRate = (singleTimeoutRates.reduce((a, b) => a + b, 0) / validRecords.length) * 100;
+
+    let totalTimeoutRate = 0;
+    if (totalActual > totalEstimatedWithBuffer && totalEstimatedWithBuffer > 0) {
+        totalTimeoutRate = ((totalActual - totalEstimatedWithBuffer) / totalEstimatedWithBuffer) * 100;
+    }
+
+    document.getElementById('punctuality-ontime').innerText = onTimeRate.toFixed(1) + '%';
+    document.getElementById('punctuality-avg-timeout').innerText = avgTimeoutRate.toFixed(1) + '%';
+    document.getElementById('punctuality-total-timeout').innerText = totalTimeoutRate.toFixed(1) + '%';
+}
 
 function calculateRateTotal() { const total = Number(document.getElementById('rate-input-total').value), box = document.getElementById('rate-result-total'); if(total && total > 0) { box.style.display = 'block'; document.getElementById('rate-number-reject').innerText = Math.floor(total * 0.2); } else box.style.display = 'none'; }
 function calculateRateCurrent() { const pct = Number(document.getElementById('rate-current-pct').value), total = Number(document.getElementById('rate-current-total').value), box = document.getElementById('rate-result-current'); if(pct && total && pct > 0 && total > 0) { box.style.display = 'block'; document.getElementById('rate-current-ans').innerText = Math.max(0, total - Math.round(total * (pct / 100))); } else box.style.display = 'none'; }

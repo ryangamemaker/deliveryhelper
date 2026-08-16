@@ -42,7 +42,7 @@ const STORE_LIST = [
     {code: 'ft5h', name: '東北秘製滷味'}, {code: 'uke6', name: '玉将食堂'}, {code: 'c4cg', name: '天天來放山雞鵝肉飯麵館'}, {code: 'p6uz', name: '肯得利香雞排'},
     {code: 'f6jv', name: '清心福全 (大園中正東店)'}, {code: 'zycw', name: '黃金稻職人炒飯 (大園新興店)'}, {code: 'kn29', name: '老闆好會炒 (Lao Ban Hao Huei Chao)'},
     {code: 'vq10', name: '桶一天下 (桃園大園店)'}, {code: 'j5ve', name: '好停車宵夜早餐店'},
-    {code: 'p5yp', name: '元鸭坊益身當歸鴨'}, {code: 'j3ox', name: '高品味轉角美食'}, {code: 'g7r3', name: '紅豆之家'}, {code: 'li3v', name: '鍋賣局(桃園大園店)'},
+    {code: 'p5yp', name: '元鴨坊益身當歸鴨'}, {code: 'j3ox', name: '高品味轉角美食'}, {code: 'g7r3', name: '紅豆之家'}, {code: 'li3v', name: '鍋賣局(桃園大園店)'},
     {code: 'xjoj', name: '吳記燒麻糬(桃園大園店)'}, {code: 'f2st', name: '曼谷小館(桃園大園店)'}, {code: 'zl5t', name: '小六の鍋'}, {code: 'y4hv', name: 'Mowan港式串烤雞蛋仔'},
     {code: 'okmc', name: 'Watstons屈臣氏(大園店S0267)'}, {code: 'u9zj', name: '大園豆花'}, {code: 'khtt', name: '粥日興鍋燒麵'}, {code: 'tv7h', name: '陳記臭家莊清蒸麻辣臭豆腐'},
     {code: 'evot', name: '品安炸雞(桃園大園店)'}, {code: 'auuf', name: '左撇子義式廚房'}, {code: 's1b2', name: '屢品鮮鵝肉(桃園大園店)'}, {code: 'qwtw', name: '小北百貨(大園店)'},
@@ -52,5 +52,6 @@ const STORE_LIST = [
     {code: 'pnbe', name: '麥當勞歡樂送(244大園中正)(pandago)'}, {code: 'ji8v', name: '烤地瓜養生鋪'}, {code: 'n4lu', name: '極緻餐舖'}, {code: 'o5vg', name: 'Gotcha鮮饗茶(桃園大園店)'},
     {code: 'u061', name: '三寶大腸麵線'}, {code: 'rmty', name: '秘醬滷味'}, {code: 'ff2s', name: '澎湖風味館'}, {code: 'sih2', name: '儂翠泰式料理(大工路店)'},
     {code: 'r8kj', name: '清原芋圓(桃園大園店)'}, {code: 'of5s', name: '酒米食堂(桃園大園店)'}, {code: 'hfjg', name: '川醉湘(桃園大園店)'}, {code: 't4co', name: '鑫得壽司專賣店'},
-    {code: 's3gs', name: '無飲(大園店)'}, {code: 'tgiy', name: '三年愛班豆花冰舖(大園店)'}, {code: 'r5hn', name: '城市漢堡(大園和平店)'}, {code: 'hwrd', name: '巴拉舫小吃店(巴拉舫餐酒館)'}
+    {code: 's3gs', name: '無飲(大園店)'}, {code: 'tgiy', name: '三年愛班豆花冰舖(大園店)'}, {code: 'r5hn', name: '城市漢堡(大園和平店)'}, {code: 'hwrd', name: '巴拉舫小吃店(巴拉舫餐酒館)'}, 
+    {code: 'd48b', name: '2121 café'}, {code: 'u9ac', name: '全家便利商店(大園航園店)'}
 ];

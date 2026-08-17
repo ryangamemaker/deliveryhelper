@@ -34,6 +34,9 @@
             
             <!-- 底部可拖曳式面板 -->
             <div id="bottom-panel" class="bottom-panel">
+                <!-- 🎯 回到定位按鈕 (掛在面板上緣，隨面板移動) -->
+                <button id="btn-recenter" class="map-btn-recenter" onclick="recenterMap()" title="回到定位">🎯</button>
+
                 <!-- 面板拖曳把手 -->
                 <div class="panel-header" id="panel-drag-handle">
                     <div class="panel-handle-bar"></div>
@@ -229,7 +232,7 @@
             </div>
 
             <div class="card">
-                <h2>自由搭配 (色彩與特效)</h2>
+                <h2>自由搭配 (色彩與特效解耦)</h2>
                 <div class="input-group" style="margin-top: 15px;">
                     <label>選擇顏色基調 (Color)</label>
                     <select id="color-theme-select" class="form-control" onchange="changeTheme()">

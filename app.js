@@ -148,9 +148,8 @@ function loadSettingsForCurrentUser() {
     if(settings.matrixText1 === undefined) settings.matrixText1 = '01'; if(settings.matrixText2 === undefined) settings.matrixText2 = ''; if(settings.matrixText3 === undefined) settings.matrixText3 = '';
     if(settings.customCardEnable === undefined) settings.customCardEnable = false; if(settings.customCardBg === undefined) settings.customCardBg = '#ffffff'; if(settings.customCardOpacity === undefined) settings.customCardOpacity = 85;
     
-    // 【新增設定防呆】
-    if(settings.enableMap === undefined) settings.enableMap = true; // 預設開啟地圖
-    if(settings.confirmDelivery === undefined) settings.confirmDelivery = false; // 預設關閉防手滑
+    if(settings.enableMap === undefined) settings.enableMap = true; 
+    if(settings.confirmDelivery === undefined) settings.confirmDelivery = false; 
 }
 
 window.onload = function() {
@@ -197,59 +196,54 @@ function initBottomPanel() {
     const header = document.getElementById('panel-drag-handle');
     if (!panel || !header) return;
 
-    let isDragging = false;
+    let isDraggingPanel = false;
     let startY = 0;
-    let currentTransform = 0;
-    let viewH = window.innerHeight;
+    let initialTranslateY = 0;
+    let panelHeight = 0;
+    let snapPoints = [];
 
-    const getSnapPoints = () => [
-        viewH * 0.05,
-        viewH * 0.55,
-        viewH - 180   
-    ];
-    
-    let snapPoints = getSnapPoints();
-    panel.style.transform = `translateY(${snapPoints[1]}px)`; 
-
-    window.addEventListener('resize', () => {
-        viewH = window.innerHeight;
-        snapPoints = getSnapPoints();
-    });
+    function updatePanelDimensions() {
+        panelHeight = panel.offsetHeight;
+        snapPoints = [
+            0,
+            panelHeight * 0.5,
+            panelHeight - 140
+        ];
+    }
 
     header.addEventListener('touchstart', (e) => {
-        if (!document.body.classList.contains('map-enabled')) return; // 未開啟地圖時禁止拖曳
-        isDragging = true;
+        if (!document.body.classList.contains('map-enabled')) return;
+        isDraggingPanel = true;
         startY = e.touches[0].clientY;
         
-        const style = window.getComputedStyle(panel);
-        const matrix = new DOMMatrixReadOnly(style.transform);
-        currentTransform = matrix.m42;
+        const match = panel.style.transform.match(/translateY\(([-\d.]+)px\)/);
+        initialTranslateY = match ? parseFloat(match[1]) : snapPoints[1];
         
         panel.classList.add('dragging');
+        updatePanelDimensions(); 
     }, {passive: true});
 
     document.addEventListener('touchmove', (e) => {
-        if (!isDragging || !document.body.classList.contains('map-enabled')) return;
-        e.preventDefault(); 
+        if (!isDraggingPanel || !document.body.classList.contains('map-enabled')) return;
+        if (e.cancelable) e.preventDefault(); 
         
         const currentY = e.touches[0].clientY;
         const deltaY = currentY - startY;
-        let newY = currentTransform + deltaY;
+        let newY = initialTranslateY + deltaY;
         
-        if (newY < snapPoints[0]) newY = snapPoints[0];
-        if (newY > snapPoints[2]) newY = snapPoints[2];
+        if (newY < snapPoints[0]) newY = snapPoints[0] - (snapPoints[0] - newY) * 0.2; 
+        if (newY > snapPoints[2]) newY = snapPoints[2] + (newY - snapPoints[2]) * 0.2;
 
         panel.style.transform = `translateY(${newY}px)`;
     }, {passive: false});
 
     document.addEventListener('touchend', () => {
-        if (!isDragging || !document.body.classList.contains('map-enabled')) return;
-        isDragging = false;
+        if (!isDraggingPanel || !document.body.classList.contains('map-enabled')) return;
+        isDraggingPanel = false;
         panel.classList.remove('dragging');
 
-        const style = window.getComputedStyle(panel);
-        const matrix = new DOMMatrixReadOnly(style.transform);
-        const endY = matrix.m42;
+        const match = panel.style.transform.match(/translateY\(([-\d.]+)px\)/);
+        const endY = match ? parseFloat(match[1]) : snapPoints[1];
 
         let closest = snapPoints[0];
         let minDiff = Math.abs(endY - snapPoints[0]);
@@ -267,6 +261,14 @@ function initBottomPanel() {
             setTimeout(() => mapInstance.invalidateSize(), 300);
         }
     });
+
+    setTimeout(() => {
+        updatePanelDimensions();
+        if(document.body.classList.contains('map-enabled') && (!panel.style.transform || panel.style.transform === 'none')) {
+            panel.style.transform = `translateY(${snapPoints[1]}px)`;
+        }
+    }, 300);
+    window.addEventListener('resize', updatePanelDimensions);
 }
 
 function getLuminance(r, g, b) { return (0.299 * r + 0.587 * g + 0.114 * b) / 255; }
@@ -280,7 +282,6 @@ function applySettings() {
     document.getElementById('custom-card-toggle').checked = settings.customCardEnable; document.getElementById('custom-card-panel').style.display = settings.customCardEnable ? 'block' : 'none';
     document.getElementById('picker-card-bg').value = settings.customCardBg; document.getElementById('picker-card-opacity').value = settings.customCardOpacity; document.getElementById('card-opacity-val').innerText = settings.customCardOpacity;
     
-    // 【更新新設定的介面顯示】
     document.getElementById('setting-map-toggle').checked = settings.enableMap !== false;
     document.getElementById('setting-confirm-delivery').checked = settings.confirmDelivery || false;
 
@@ -300,12 +301,20 @@ function applySettings() {
         document.body.style.setProperty('--card-bg', `rgba(${cardRgb.r}, ${cardRgb.g}, ${cardRgb.b}, ${op})`, 'important'); document.body.style.setProperty('--timer-bg', `rgba(${cardRgb.r}, ${cardRgb.g}, ${cardRgb.b}, ${opTimer})`, 'important');
     }
     
-    // 【切換滿版地圖 CSS Class】
     if (settings.enableMap !== false) {
         document.body.classList.add('map-enabled');
-        if (mapInstance) { setTimeout(() => mapInstance.invalidateSize(), 300); }
+        if (mapInstance) { 
+            setTimeout(() => mapInstance.invalidateSize(), 300); 
+            const panel = document.getElementById('bottom-panel');
+            if (panel && (!panel.style.transform || panel.style.transform === 'none')) {
+                const snapMiddle = panel.offsetHeight * 0.5;
+                panel.style.transform = `translateY(${snapMiddle}px)`;
+            }
+        }
     } else {
         document.body.classList.remove('map-enabled');
+        const panel = document.getElementById('bottom-panel');
+        if (panel) panel.style.transform = 'none';
     }
 
     applyNightMode();
@@ -331,7 +340,6 @@ function applyNightMode() {
 }
 function toggleAutoNight() { settings.autoNightMode = document.getElementById('auto-night-toggle').checked; saveSettings(); applyNightMode(); }
 
-// 【新增控制功能函數】
 function toggleMapSetting() { settings.enableMap = document.getElementById('setting-map-toggle').checked; saveSettings(); applySettings(); }
 function toggleConfirmDelivery() { settings.confirmDelivery = document.getElementById('setting-confirm-delivery').checked; saveSettings(); applySettings(); }
 
@@ -520,17 +528,35 @@ function switchView(index, isInstant = false) {
         else if (i === oldIndex) { el.style.transition = 'transform 0.3s ease-out'; el.style.transform = direction === 'right' ? 'translateX(-100vw)' : 'translateX(100vw)'; setTimeout(() => { if (currentViewIndex !== i) el.style.visibility = 'hidden'; }, 300); } 
         else { el.style.transition = 'none'; el.style.visibility = 'hidden'; }
     });
+    
     if([1, 2, 3].includes(index)) { initWeeklyView(); renderWeeklyData(); }
     if(index === 4) { calculatePunctuality(); }
+    
+    if (index === 0 && document.body.classList.contains('map-enabled') && mapInstance) {
+        setTimeout(() => mapInstance.invalidateSize(), 350);
+    }
+    
     updateUIState(); 
 }
 
 let appTouchStartX = 0, appTouchStartY = 0, isSwipingApp = false;
 function initSwipeNavigation() { 
     const appContainer = document.getElementById('app-container'); 
-    appContainer.addEventListener('touchstart', (e) => { if (e.target.closest('.swipe-content') || e.target.closest('.record-swipe-content') || e.target.closest('.horizontal-scroll-ignore') || e.target.type === 'range' || e.target.closest('.bottom-panel')) return; appTouchStartX = e.changedTouches[0].screenX; appTouchStartY = e.changedTouches[0].screenY; isSwipingApp = true; }, {passive: true}); 
-    appContainer.addEventListener('touchmove', (e) => { if (!isSwipingApp) return; if (Math.abs(e.changedTouches[0].screenY - appTouchStartY) > Math.abs(e.changedTouches[0].screenX - appTouchStartX)) isSwipingApp = false; }, {passive: true}); 
-    appContainer.addEventListener('touchend', (e) => { if (!isSwipingApp) return; let diffX = e.changedTouches[0].screenX - appTouchStartX; if (diffX < -50) switchView(currentViewIndex < views.length - 1 ? currentViewIndex + 1 : 0, false); else if (diffX > 50) switchView(currentViewIndex > 0 ? currentViewIndex - 1 : views.length - 1, false); isSwipingApp = false; }); 
+    appContainer.addEventListener('touchstart', (e) => { 
+        if (e.target.closest('.swipe-content') || e.target.closest('.record-swipe-content') || e.target.closest('.horizontal-scroll-ignore') || e.target.type === 'range' || e.target.closest('.bottom-panel')) return; 
+        appTouchStartX = e.changedTouches[0].screenX; appTouchStartY = e.changedTouches[0].screenY; isSwipingApp = true; 
+    }, {passive: true}); 
+    appContainer.addEventListener('touchmove', (e) => { 
+        if (!isSwipingApp) return; 
+        if (Math.abs(e.changedTouches[0].screenY - appTouchStartY) > Math.abs(e.changedTouches[0].screenX - appTouchStartX)) isSwipingApp = false; 
+    }, {passive: true}); 
+    appContainer.addEventListener('touchend', (e) => { 
+        if (!isSwipingApp) return; 
+        let diffX = e.changedTouches[0].screenX - appTouchStartX; 
+        if (diffX < -50) switchView(currentViewIndex < views.length - 1 ? currentViewIndex + 1 : 0, false); 
+        else if (diffX > 50) switchView(currentViewIndex > 0 ? currentViewIndex - 1 : views.length - 1, false); 
+        isSwipingApp = false; 
+    }); 
 }
 
 function updateUIState() { 
@@ -609,11 +635,8 @@ function checkWaitState() {
 
 async function startTimers(count) { if (!activeShift) return await appAlert('請先點擊「時段開始」進入上線狀態，才能開始接單！'); const now = Date.now(); for (let i = 0; i < count; i++) activeTimers.push({ id: 'timer_' + now + '_' + Math.random().toString(36).substr(2, 5), startTime: now }); localStorage.setItem(getStoreKey('order_active_timers'), JSON.stringify(activeTimers)); renderActiveTimers(); checkWaitState(); }
 
-// 【修改：加入配送確認邏輯】
 async function stopTimer(id) { 
     closeAllSwipes();
-    
-    // 如果開啟了防手滑設定，彈出確認框
     if (settings.confirmDelivery) {
         const confirmed = await appConfirm('確定要完成配送並結算此訂單嗎？', '配送確認');
         if (!confirmed) return;
@@ -836,7 +859,11 @@ function forceCleanupDrag() {
         if (el.parentNode === document.body) el.remove();
     });
 
-    document.getElementById('view-home').style.overflowY = '';
+    // 只有非地圖模式時才需要還原捲動
+    if (!document.body.classList.contains('map-enabled')) {
+        document.getElementById('view-home').style.overflowY = '';
+    }
+    
     dragTarget = null;
     placeholder = null;
 }
@@ -873,7 +900,10 @@ function handleItemTouchStart(e) {
             isDraggingItem = true;
             if (navigator.vibrate) navigator.vibrate(50);
 
-            document.getElementById('view-home').style.overflowY = 'hidden';
+            if (!document.body.classList.contains('map-enabled')) {
+                document.getElementById('view-home').style.overflowY = 'hidden';
+            }
+            
             initialClientY = currentTouchY;
             const rect = dragTarget.getBoundingClientRect();
 
@@ -951,7 +981,9 @@ function handleItemTouchEnd(e) {
 
     if (isDraggingItem) {
         isDraggingItem = false;
-        document.getElementById('view-home').style.overflowY = '';
+        if (!document.body.classList.contains('map-enabled')) {
+            document.getElementById('view-home').style.overflowY = '';
+        }
 
         if (dragTarget && placeholder && placeholder.parentNode) {
             placeholder.parentNode.insertBefore(dragTarget, placeholder);

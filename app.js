@@ -15,7 +15,7 @@ let currentTileLayer = null;
 let userMarker = null;
 let currentLoc = [25.0645, 121.1928]; // 預設大園
 let geoWatchId = null;
-let hasCenteredMapInit = false; // 是否已經自動定位過
+let hasCenteredMapInit = false; 
 
 const LIGHT_TILE = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
 const DARK_TILE = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
@@ -182,7 +182,12 @@ window.onload = function() {
 
 /* ================== 地圖與面板邏輯 ================== */
 function initMap() {
-    if(mapInstance) return;
+    if (typeof L === 'undefined') {
+        console.warn('無法載入地圖資源 (離線或被阻擋)');
+        return;
+    }
+    if (mapInstance) return;
+    
     mapInstance = L.map('map', {zoomControl: false}).setView(currentLoc, 15);
     
     const isNightMode = document.body.classList.contains('night-mode');
@@ -191,24 +196,19 @@ function initMap() {
         attribution: '© OpenStreetMap'
     }).addTo(mapInstance);
     
-    userMarker = L.marker(currentLoc).addTo(mapInstance)
-        .bindPopup('<b style="color:#000;">目前定位</b>');
+    userMarker = L.marker(currentLoc).addTo(mapInstance).bindPopup('<b style="color:#000;">目前定位</b>');
         
-    // 開啟即時定位追蹤
     if ("geolocation" in navigator) {
         geoWatchId = navigator.geolocation.watchPosition(
             (position) => {
                 currentLoc = [position.coords.latitude, position.coords.longitude];
-                if (userMarker) {
-                    userMarker.setLatLng(currentLoc);
-                }
-                // 首次獲取定位時，自動置中
+                if (userMarker) userMarker.setLatLng(currentLoc);
                 if (!hasCenteredMapInit) {
-                    mapInstance.setView(currentLoc, 16);
+                    mapInstance.setView(currentLoc, 15);
                     hasCenteredMapInit = true;
                 }
             },
-            (error) => { console.warn("定位失敗或拒絕授權: ", error); },
+            (error) => { console.warn("定位獲取失敗: ", error); },
             { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
         );
     }
@@ -216,7 +216,7 @@ function initMap() {
 
 function recenterMap() {
     if (mapInstance && currentLoc) {
-        mapInstance.flyTo(currentLoc, 16, { animate: true, duration: 0.5 });
+        mapInstance.flyTo(currentLoc, 15, { animate: true, duration: 0.5 });
         if (userMarker) userMarker.openPopup();
     }
 }
@@ -236,22 +236,22 @@ function initBottomPanel() {
         panelHeight = panel.offsetHeight;
         let viewH = window.innerHeight;
         snapPoints = [
-            viewH * 0.33,  // 【修改】：頂部保留 1/3 (面板最高只佔 2/3)
-            viewH * 0.65,  // 中間
-            viewH - 180    // 底部收起
+            viewH * 0.33,
+            viewH * 0.65,
+            viewH - 180   
         ];
     }
 
     header.addEventListener('touchstart', (e) => {
         if (!document.body.classList.contains('map-enabled')) return;
         isDraggingPanel = true;
+        updatePanelDimensions(); 
         startY = e.touches[0].clientY;
         
         const match = panel.style.transform.match(/translateY\(([-\d.]+)px\)/);
         initialTranslateY = match ? parseFloat(match[1]) : snapPoints[1];
         
         panel.classList.add('dragging');
-        updatePanelDimensions(); 
     }, {passive: true});
 
     document.addEventListener('touchmove', (e) => {
@@ -268,7 +268,7 @@ function initBottomPanel() {
         panel.style.transform = `translateY(${newY}px)`;
     }, {passive: false});
 
-    document.addEventListener('touchend', () => {
+    function handlePanelEndOrCancel() {
         if (!isDraggingPanel || !document.body.classList.contains('map-enabled')) return;
         isDraggingPanel = false;
         panel.classList.remove('dragging');
@@ -287,11 +287,11 @@ function initBottomPanel() {
         }
 
         panel.style.transform = `translateY(${closest}px)`;
-        
-        if (mapInstance) {
-            setTimeout(() => mapInstance.invalidateSize(), 300);
-        }
-    });
+        if (mapInstance) setTimeout(() => mapInstance.invalidateSize(), 300);
+    }
+
+    document.addEventListener('touchend', handlePanelEndOrCancel);
+    document.addEventListener('touchcancel', handlePanelEndOrCancel); // 加入 touchcancel 防護
 
     setTimeout(() => {
         updatePanelDimensions();
@@ -884,14 +884,21 @@ function forceCleanupDrag() {
     closeAllSwipes();
 
     document.querySelectorAll('.drag-placeholder').forEach(el => el.remove());
+    
+    const list = document.getElementById('active-timers-list');
     document.querySelectorAll('.active-timer-container.dragging').forEach(el => {
         el.classList.remove('dragging');
         el.style.position = ''; el.style.top = ''; el.style.left = ''; el.style.width = ''; el.style.margin = ''; el.style.zIndex = ''; el.style.transform = '';
-        if (el.parentNode === document.body) el.remove();
+        if (el.parentNode === document.body && list) {
+            list.appendChild(el); 
+        }
     });
 
     if (!document.body.classList.contains('map-enabled')) {
         document.getElementById('view-home').style.overflowY = '';
+    } else {
+        const panelScroll = document.getElementById('panel-scroll-content');
+        if (panelScroll) panelScroll.style.overflowY = '';
     }
     
     dragTarget = null;
@@ -903,7 +910,12 @@ window.addEventListener('pagehide', () => { forceCleanupDrag(); });
 window.addEventListener('blur', () => { forceCleanupDrag(); });
 
 function handleItemTouchStart(e) { 
-    if (isDraggingItem) return;
+    if (isDraggingItem) {
+        forceCleanupDrag();
+        renderActiveTimers();
+        return;
+    }
+    
     clearTimeout(pressTimer);
     
     if (openItemSwipeEl && openItemSwipeEl !== e.currentTarget) { 
@@ -932,6 +944,8 @@ function handleItemTouchStart(e) {
 
             if (!document.body.classList.contains('map-enabled')) {
                 document.getElementById('view-home').style.overflowY = 'hidden';
+            } else {
+                document.getElementById('panel-scroll-content').style.overflowY = 'hidden';
             }
             
             initialClientY = currentTouchY;
@@ -1011,8 +1025,12 @@ function handleItemTouchEnd(e) {
 
     if (isDraggingItem) {
         isDraggingItem = false;
+        
         if (!document.body.classList.contains('map-enabled')) {
             document.getElementById('view-home').style.overflowY = '';
+        } else {
+            const panelScroll = document.getElementById('panel-scroll-content');
+            if (panelScroll) panelScroll.style.overflowY = '';
         }
 
         if (dragTarget && placeholder && placeholder.parentNode) {

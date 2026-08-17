@@ -291,7 +291,7 @@ function initBottomPanel() {
     }
 
     document.addEventListener('touchend', handlePanelEndOrCancel);
-    document.addEventListener('touchcancel', handlePanelEndOrCancel); // 加入 touchcancel 防護
+    document.addEventListener('touchcancel', handlePanelEndOrCancel); 
 
     setTimeout(() => {
         updatePanelDimensions();

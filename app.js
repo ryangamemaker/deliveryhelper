@@ -231,20 +231,22 @@ function initBottomPanel() {
     let initialTranslateY = 0;
     let panelHeight = 0;
     let snapPoints = [];
+    let hasMoved = false; // 用於判斷點擊還是拖曳
 
     function updatePanelDimensions() {
         panelHeight = panel.offsetHeight;
         let viewH = window.innerHeight;
         snapPoints = [
-            viewH * 0.33,
-            viewH * 0.65,
-            viewH - 180   
+            viewH * 0.33,  // 最高：保留頂部 1/3 的地圖空間
+            viewH * 0.65,  // 中間
+            viewH - 120    // 最低：確保拖曳把手與回到定位按鈕可見
         ];
     }
 
     header.addEventListener('touchstart', (e) => {
         if (!document.body.classList.contains('map-enabled')) return;
         isDraggingPanel = true;
+        hasMoved = false;
         updatePanelDimensions(); 
         startY = e.touches[0].clientY;
         
@@ -256,10 +258,12 @@ function initBottomPanel() {
 
     document.addEventListener('touchmove', (e) => {
         if (!isDraggingPanel || !document.body.classList.contains('map-enabled')) return;
-        if (e.cancelable) e.preventDefault(); 
         
         const currentY = e.touches[0].clientY;
         const deltaY = currentY - startY;
+        if (Math.abs(deltaY) > 5) hasMoved = true;
+        
+        if (e.cancelable) e.preventDefault(); 
         let newY = initialTranslateY + deltaY;
         
         if (newY < snapPoints[0]) newY = snapPoints[0] - (snapPoints[0] - newY) * 0.2; 
@@ -273,20 +277,27 @@ function initBottomPanel() {
         isDraggingPanel = false;
         panel.classList.remove('dragging');
 
-        const match = panel.style.transform.match(/translateY\(([-\d.]+)px\)/);
-        const endY = match ? parseFloat(match[1]) : snapPoints[1];
+        if (!hasMoved) {
+            // 單擊觸發：一鍵展開到最高 (1/3 位置)
+            panel.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)';
+            panel.style.transform = `translateY(${snapPoints[0]}px)`;
+        } else {
+            // 拖曳結束：尋找最近吸附點
+            const match = panel.style.transform.match(/translateY\(([-\d.]+)px\)/);
+            const endY = match ? parseFloat(match[1]) : snapPoints[1];
 
-        let closest = snapPoints[0];
-        let minDiff = Math.abs(endY - snapPoints[0]);
-        for(let i=1; i<snapPoints.length; i++) {
-            let diff = Math.abs(endY - snapPoints[i]);
-            if(diff < minDiff) {
-                minDiff = diff;
-                closest = snapPoints[i];
+            let closest = snapPoints[0];
+            let minDiff = Math.abs(endY - snapPoints[0]);
+            for(let i=1; i<snapPoints.length; i++) {
+                let diff = Math.abs(endY - snapPoints[i]);
+                if(diff < minDiff) {
+                    minDiff = diff;
+                    closest = snapPoints[i];
+                }
             }
+            panel.style.transform = `translateY(${closest}px)`;
         }
-
-        panel.style.transform = `translateY(${closest}px)`;
+        
         if (mapInstance) setTimeout(() => mapInstance.invalidateSize(), 300);
     }
 

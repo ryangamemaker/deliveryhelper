@@ -12,6 +12,11 @@ let viewedWeekStart = new Date(), currentDailyContext = 'income', currentDailyDa
 // Leaflet 地圖變數
 let mapInstance = null;
 let currentTileLayer = null;
+let userMarker = null;
+let currentLoc = [25.0645, 121.1928]; // 預設大園
+let geoWatchId = null;
+let hasCenteredMapInit = false; // 是否已經自動定位過
+
 const LIGHT_TILE = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
 const DARK_TILE = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
 
@@ -178,7 +183,7 @@ window.onload = function() {
 /* ================== 地圖與面板邏輯 ================== */
 function initMap() {
     if(mapInstance) return;
-    mapInstance = L.map('map', {zoomControl: false}).setView([25.0645, 121.1928], 14);
+    mapInstance = L.map('map', {zoomControl: false}).setView(currentLoc, 15);
     
     const isNightMode = document.body.classList.contains('night-mode');
     currentTileLayer = L.tileLayer(isNightMode ? DARK_TILE : LIGHT_TILE, {
@@ -186,9 +191,34 @@ function initMap() {
         attribution: '© OpenStreetMap'
     }).addTo(mapInstance);
     
-    L.marker([25.0645, 121.1928]).addTo(mapInstance)
-        .bindPopup('<b style="color:#000;">目前定位<br>桃園市大園區</b>')
-        .openPopup();
+    userMarker = L.marker(currentLoc).addTo(mapInstance)
+        .bindPopup('<b style="color:#000;">目前定位</b>');
+        
+    // 開啟即時定位追蹤
+    if ("geolocation" in navigator) {
+        geoWatchId = navigator.geolocation.watchPosition(
+            (position) => {
+                currentLoc = [position.coords.latitude, position.coords.longitude];
+                if (userMarker) {
+                    userMarker.setLatLng(currentLoc);
+                }
+                // 首次獲取定位時，自動置中
+                if (!hasCenteredMapInit) {
+                    mapInstance.setView(currentLoc, 16);
+                    hasCenteredMapInit = true;
+                }
+            },
+            (error) => { console.warn("定位失敗或拒絕授權: ", error); },
+            { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+        );
+    }
+}
+
+function recenterMap() {
+    if (mapInstance && currentLoc) {
+        mapInstance.flyTo(currentLoc, 16, { animate: true, duration: 0.5 });
+        if (userMarker) userMarker.openPopup();
+    }
 }
 
 function initBottomPanel() {
@@ -204,10 +234,11 @@ function initBottomPanel() {
 
     function updatePanelDimensions() {
         panelHeight = panel.offsetHeight;
+        let viewH = window.innerHeight;
         snapPoints = [
-            0,
-            panelHeight * 0.5,
-            panelHeight - 140
+            viewH * 0.33,  // 【修改】：頂部保留 1/3 (面板最高只佔 2/3)
+            viewH * 0.65,  // 中間
+            viewH - 180    // 底部收起
         ];
     }
 
@@ -307,7 +338,7 @@ function applySettings() {
             setTimeout(() => mapInstance.invalidateSize(), 300); 
             const panel = document.getElementById('bottom-panel');
             if (panel && (!panel.style.transform || panel.style.transform === 'none')) {
-                const snapMiddle = panel.offsetHeight * 0.5;
+                const snapMiddle = window.innerHeight * 0.65;
                 panel.style.transform = `translateY(${snapMiddle}px)`;
             }
         }
@@ -543,7 +574,7 @@ let appTouchStartX = 0, appTouchStartY = 0, isSwipingApp = false;
 function initSwipeNavigation() { 
     const appContainer = document.getElementById('app-container'); 
     appContainer.addEventListener('touchstart', (e) => { 
-        if (e.target.closest('.swipe-content') || e.target.closest('.record-swipe-content') || e.target.closest('.horizontal-scroll-ignore') || e.target.type === 'range' || e.target.closest('.bottom-panel')) return; 
+        if (e.target.closest('.swipe-content') || e.target.closest('.record-swipe-content') || e.target.closest('.horizontal-scroll-ignore') || e.target.type === 'range' || e.target.closest('.bottom-panel') || e.target.closest('.map-btn-recenter')) return; 
         appTouchStartX = e.changedTouches[0].screenX; appTouchStartY = e.changedTouches[0].screenY; isSwipingApp = true; 
     }, {passive: true}); 
     appContainer.addEventListener('touchmove', (e) => { 
@@ -859,7 +890,6 @@ function forceCleanupDrag() {
         if (el.parentNode === document.body) el.remove();
     });
 
-    // 只有非地圖模式時才需要還原捲動
     if (!document.body.classList.contains('map-enabled')) {
         document.getElementById('view-home').style.overflowY = '';
     }
@@ -1045,7 +1075,7 @@ function renderActiveTimers() {
     
     let html = '';
     activeTimers.forEach((timer, idx) => {
-        const titleStr = timer.storeName ? `${timer.storeName} #${timer.orderNumber}` : `訂單 #${idx + 1}`;
+        const titleStr = timer.storeName ? `${timer.storeName} #${timer.orderNumber}` : `訂單計時 #${idx + 1}`;
         const estStr = timer.estimatedTime ? `<span style="white-space:nowrap; color:var(--primary); font-size:0.85rem; margin-left:8px; border:1px solid var(--primary); padding:1px 4px; border-radius:4px;">預估 ${timer.estimatedTime}m</span>` : '';
         
         html += `<div class="swipe-container active-timer-container" data-id="${timer.id}">

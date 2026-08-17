@@ -9,6 +9,12 @@ function getStoreKey(key) { return `${currentUser}_${key}`; }
 let activeTimers = [], historyRecords = [], tipRecords = [], costRecords = [], shiftRecords = [], activeShift = null, waitRecords = [], activeWait = null, settings = {};
 let viewedWeekStart = new Date(), currentDailyContext = 'income', currentDailyDateObj = new Date();
 
+// Leaflet 地圖變數
+let mapInstance = null;
+let currentTileLayer = null;
+const LIGHT_TILE = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+const DARK_TILE = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+
 /* ================== 日期與時間工具 ================== */
 function getDateKey(ts) { const d = new Date(ts); return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`; }
 function formatTime(dateObj) { return `${String(dateObj.getHours()).padStart(2, '0')}:${String(dateObj.getMinutes()).padStart(2, '0')}`; }
@@ -141,6 +147,10 @@ function loadSettingsForCurrentUser() {
     }
     if(settings.matrixText1 === undefined) settings.matrixText1 = '01'; if(settings.matrixText2 === undefined) settings.matrixText2 = ''; if(settings.matrixText3 === undefined) settings.matrixText3 = '';
     if(settings.customCardEnable === undefined) settings.customCardEnable = false; if(settings.customCardBg === undefined) settings.customCardBg = '#ffffff'; if(settings.customCardOpacity === undefined) settings.customCardOpacity = 85;
+    
+    // 【新增設定防呆】
+    if(settings.enableMap === undefined) settings.enableMap = true; // 預設開啟地圖
+    if(settings.confirmDelivery === undefined) settings.confirmDelivery = false; // 預設關閉防手滑
 }
 
 window.onload = function() {
@@ -149,10 +159,115 @@ window.onload = function() {
     if (currentUser === '預設使用者' && !localStorage.getItem(getStoreKey('order_history_records')) && localStorage.getItem('order_history_records')) {
         ['order_active_timers', 'order_history_records', 'order_tips', 'order_costs'].forEach(k => { localStorage.setItem(getStoreKey(k), localStorage.getItem(k) || '[]'); });
     }
-    initWeeklyView(); loadSettingsForCurrentUser(); loadData(); applySettings(); updateUIState();
-    setInterval(updateTimersDisplay, 1000); setInterval(applyNightMode, 60000);
-    toggleMileageInput(); initSwipeNavigation(); switchView(0, true);
+    initWeeklyView(); 
+    loadSettingsForCurrentUser(); 
+    loadData(); 
+    
+    initMap();
+    initBottomPanel();
+
+    applySettings(); 
+    updateUIState();
+    
+    setInterval(updateTimersDisplay, 1000); 
+    setInterval(applyNightMode, 60000);
+    toggleMileageInput(); 
+    initSwipeNavigation(); 
+    switchView(0, true);
 };
+
+/* ================== 地圖與面板邏輯 ================== */
+function initMap() {
+    if(mapInstance) return;
+    mapInstance = L.map('map', {zoomControl: false}).setView([25.0645, 121.1928], 14);
+    
+    const isNightMode = document.body.classList.contains('night-mode');
+    currentTileLayer = L.tileLayer(isNightMode ? DARK_TILE : LIGHT_TILE, {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap'
+    }).addTo(mapInstance);
+    
+    L.marker([25.0645, 121.1928]).addTo(mapInstance)
+        .bindPopup('<b style="color:#000;">目前定位<br>桃園市大園區</b>')
+        .openPopup();
+}
+
+function initBottomPanel() {
+    const panel = document.getElementById('bottom-panel');
+    const header = document.getElementById('panel-drag-handle');
+    if (!panel || !header) return;
+
+    let isDragging = false;
+    let startY = 0;
+    let currentTransform = 0;
+    let viewH = window.innerHeight;
+
+    const getSnapPoints = () => [
+        viewH * 0.05,
+        viewH * 0.55,
+        viewH - 180   
+    ];
+    
+    let snapPoints = getSnapPoints();
+    panel.style.transform = `translateY(${snapPoints[1]}px)`; 
+
+    window.addEventListener('resize', () => {
+        viewH = window.innerHeight;
+        snapPoints = getSnapPoints();
+    });
+
+    header.addEventListener('touchstart', (e) => {
+        if (!document.body.classList.contains('map-enabled')) return; // 未開啟地圖時禁止拖曳
+        isDragging = true;
+        startY = e.touches[0].clientY;
+        
+        const style = window.getComputedStyle(panel);
+        const matrix = new DOMMatrixReadOnly(style.transform);
+        currentTransform = matrix.m42;
+        
+        panel.classList.add('dragging');
+    }, {passive: true});
+
+    document.addEventListener('touchmove', (e) => {
+        if (!isDragging || !document.body.classList.contains('map-enabled')) return;
+        e.preventDefault(); 
+        
+        const currentY = e.touches[0].clientY;
+        const deltaY = currentY - startY;
+        let newY = currentTransform + deltaY;
+        
+        if (newY < snapPoints[0]) newY = snapPoints[0];
+        if (newY > snapPoints[2]) newY = snapPoints[2];
+
+        panel.style.transform = `translateY(${newY}px)`;
+    }, {passive: false});
+
+    document.addEventListener('touchend', () => {
+        if (!isDragging || !document.body.classList.contains('map-enabled')) return;
+        isDragging = false;
+        panel.classList.remove('dragging');
+
+        const style = window.getComputedStyle(panel);
+        const matrix = new DOMMatrixReadOnly(style.transform);
+        const endY = matrix.m42;
+
+        let closest = snapPoints[0];
+        let minDiff = Math.abs(endY - snapPoints[0]);
+        for(let i=1; i<snapPoints.length; i++) {
+            let diff = Math.abs(endY - snapPoints[i]);
+            if(diff < minDiff) {
+                minDiff = diff;
+                closest = snapPoints[i];
+            }
+        }
+
+        panel.style.transform = `translateY(${closest}px)`;
+        
+        if (mapInstance) {
+            setTimeout(() => mapInstance.invalidateSize(), 300);
+        }
+    });
+}
 
 function getLuminance(r, g, b) { return (0.299 * r + 0.587 * g + 0.114 * b) / 255; }
 function hexToRgb(hex) { hex = hex.replace('#', ''); if (hex.length === 3) hex = hex.split('').map(c => c + c).join(''); const num = parseInt(hex, 16); return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 }; }
@@ -164,6 +279,10 @@ function applySettings() {
     document.getElementById('custom-matrix-input-group').style.display = (settings.effectTheme === 'canvas-matrix-custom') ? 'block' : 'none';
     document.getElementById('custom-card-toggle').checked = settings.customCardEnable; document.getElementById('custom-card-panel').style.display = settings.customCardEnable ? 'block' : 'none';
     document.getElementById('picker-card-bg').value = settings.customCardBg; document.getElementById('picker-card-opacity').value = settings.customCardOpacity; document.getElementById('card-opacity-val').innerText = settings.customCardOpacity;
+    
+    // 【更新新設定的介面顯示】
+    document.getElementById('setting-map-toggle').checked = settings.enableMap !== false;
+    document.getElementById('setting-confirm-delivery').checked = settings.confirmDelivery || false;
 
     if (settings.colorTheme === 'custom') {
         document.body.setAttribute('data-color-theme', 'custom');
@@ -180,6 +299,15 @@ function applySettings() {
         const cardRgb = hexToRgb(settings.customCardBg || '#ffffff'), op = (settings.customCardOpacity !== undefined ? settings.customCardOpacity : 85) / 100, opTimer = Math.max(0, op - 0.15); 
         document.body.style.setProperty('--card-bg', `rgba(${cardRgb.r}, ${cardRgb.g}, ${cardRgb.b}, ${op})`, 'important'); document.body.style.setProperty('--timer-bg', `rgba(${cardRgb.r}, ${cardRgb.g}, ${cardRgb.b}, ${opTimer})`, 'important');
     }
+    
+    // 【切換滿版地圖 CSS Class】
+    if (settings.enableMap !== false) {
+        document.body.classList.add('map-enabled');
+        if (mapInstance) { setTimeout(() => mapInstance.invalidateSize(), 300); }
+    } else {
+        document.body.classList.remove('map-enabled');
+    }
+
     applyNightMode();
 }
 
@@ -191,8 +319,21 @@ function toggleCustomCard() { settings.customCardEnable = document.getElementByI
 function updateCustomCard() { settings.customCardBg = document.getElementById('picker-card-bg').value; settings.customCardOpacity = document.getElementById('picker-card-opacity').value; document.getElementById('card-opacity-val').innerText = settings.customCardOpacity; saveSettings(); applySettings(); }
 function setFontSize(size) { settings.fontSize = size; saveSettings(); applySettings(); }
 function saveSettings() { localStorage.setItem(getStoreKey('order_settings'), JSON.stringify(settings)); }
-function applyNightMode() { const hour = new Date().getHours(); if (settings.autoNightMode && (hour >= 18 || hour < 6)) document.body.classList.add('night-mode'); else document.body.classList.remove('night-mode'); }
+function applyNightMode() { 
+    const hour = new Date().getHours(); 
+    const isNight = settings.autoNightMode && (hour >= 18 || hour < 6);
+    if (isNight) document.body.classList.add('night-mode'); 
+    else document.body.classList.remove('night-mode'); 
+    
+    if (mapInstance && currentTileLayer) {
+        currentTileLayer.setUrl(isNight ? DARK_TILE : LIGHT_TILE);
+    }
+}
 function toggleAutoNight() { settings.autoNightMode = document.getElementById('auto-night-toggle').checked; saveSettings(); applyNightMode(); }
+
+// 【新增控制功能函數】
+function toggleMapSetting() { settings.enableMap = document.getElementById('setting-map-toggle').checked; saveSettings(); applySettings(); }
+function toggleConfirmDelivery() { settings.confirmDelivery = document.getElementById('setting-confirm-delivery').checked; saveSettings(); applySettings(); }
 
 /* ================== UI 摺疊互動 ================== */
 function toggleCollapse(header) {
@@ -387,7 +528,7 @@ function switchView(index, isInstant = false) {
 let appTouchStartX = 0, appTouchStartY = 0, isSwipingApp = false;
 function initSwipeNavigation() { 
     const appContainer = document.getElementById('app-container'); 
-    appContainer.addEventListener('touchstart', (e) => { if (e.target.closest('.swipe-content') || e.target.closest('.record-swipe-content') || e.target.closest('.horizontal-scroll-ignore') || e.target.type === 'range') return; appTouchStartX = e.changedTouches[0].screenX; appTouchStartY = e.changedTouches[0].screenY; isSwipingApp = true; }, {passive: true}); 
+    appContainer.addEventListener('touchstart', (e) => { if (e.target.closest('.swipe-content') || e.target.closest('.record-swipe-content') || e.target.closest('.horizontal-scroll-ignore') || e.target.type === 'range' || e.target.closest('.bottom-panel')) return; appTouchStartX = e.changedTouches[0].screenX; appTouchStartY = e.changedTouches[0].screenY; isSwipingApp = true; }, {passive: true}); 
     appContainer.addEventListener('touchmove', (e) => { if (!isSwipingApp) return; if (Math.abs(e.changedTouches[0].screenY - appTouchStartY) > Math.abs(e.changedTouches[0].screenX - appTouchStartX)) isSwipingApp = false; }, {passive: true}); 
     appContainer.addEventListener('touchend', (e) => { if (!isSwipingApp) return; let diffX = e.changedTouches[0].screenX - appTouchStartX; if (diffX < -50) switchView(currentViewIndex < views.length - 1 ? currentViewIndex + 1 : 0, false); else if (diffX > 50) switchView(currentViewIndex > 0 ? currentViewIndex - 1 : views.length - 1, false); isSwipingApp = false; }); 
 }
@@ -468,12 +609,19 @@ function checkWaitState() {
 
 async function startTimers(count) { if (!activeShift) return await appAlert('請先點擊「時段開始」進入上線狀態，才能開始接單！'); const now = Date.now(); for (let i = 0; i < count; i++) activeTimers.push({ id: 'timer_' + now + '_' + Math.random().toString(36).substr(2, 5), startTime: now }); localStorage.setItem(getStoreKey('order_active_timers'), JSON.stringify(activeTimers)); renderActiveTimers(); checkWaitState(); }
 
-function stopTimer(id) { 
+// 【修改：加入配送確認邏輯】
+async function stopTimer(id) { 
     closeAllSwipes();
+    
+    // 如果開啟了防手滑設定，彈出確認框
+    if (settings.confirmDelivery) {
+        const confirmed = await appConfirm('確定要完成配送並結算此訂單嗎？', '配送確認');
+        if (!confirmed) return;
+    }
+    
     const index = activeTimers.findIndex(t => t.id === id); if (index === -1) return; 
     const timer = activeTimers[index], endTime = Date.now(), diffMins = Math.max(1, Math.round((endTime - timer.startTime) / 60000)); 
     
-    // 【重要邏輯】：用預估時間與實際花費時間相比，取其高者作為計價標準
     const billableMins = Math.max(diffMins, timer.estimatedTime || 0);
     
     let amount = (billableMins / 60) * RATE_PER_HOUR; if (amount < MIN_AMOUNT) amount = MIN_AMOUNT; 
@@ -484,7 +632,7 @@ function stopTimer(id) {
         year: endDateObj.getFullYear(), month: endDateObj.getMonth() + 1, day: endDateObj.getDate(), dayOfWeek: DAYS_MAP[endDateObj.getDay()], 
         startTimeStr: formatTime(new Date(timer.startTime)), endTimeStr: formatTime(endDateObj), 
         durationMins: diffMins,
-        estimatedTime: timer.estimatedTime || 0, // 保存預估時間
+        estimatedTime: timer.estimatedTime || 0,
         amount: Number(amount.toFixed(2)), timestamp: endTime, storeName: timer.storeName || '', orderNumber: timer.orderNumber || '' 
     }); 
     activeTimers.splice(index, 1); 
@@ -631,7 +779,6 @@ async function editHistoryEstimatedTime(id) {
         if (!isNaN(num) && num >= 0) {
             record.estimatedTime = num;
             
-            // 重新比對計算金額
             const billableMins = Math.max(record.durationMins, num);
             let amount = (billableMins / 60) * RATE_PER_HOUR;
             if (amount < MIN_AMOUNT) amount = MIN_AMOUNT;
@@ -866,8 +1013,7 @@ function renderActiveTimers() {
     
     let html = '';
     activeTimers.forEach((timer, idx) => {
-        const titleStr = timer.storeName ? `${timer.storeName} #${timer.orderNumber}` : `訂單 #${idx + 1}`;
-        // 加入 white-space: nowrap 以防止「預估 XXm」斷字換行
+        const titleStr = timer.storeName ? `${timer.storeName} #${timer.orderNumber}` : `訂單計時 #${idx + 1}`;
         const estStr = timer.estimatedTime ? `<span style="white-space:nowrap; color:var(--primary); font-size:0.85rem; margin-left:8px; border:1px solid var(--primary); padding:1px 4px; border-radius:4px;">預估 ${timer.estimatedTime}m</span>` : '';
         
         html += `<div class="swipe-container active-timer-container" data-id="${timer.id}">
@@ -989,7 +1135,6 @@ function renderDailyDetail() {
         if (dailyRecords.length === 0) html = '<div class="empty-state">今日無收入紀錄</div>';
         else dailyRecords.forEach(r => {
             const titleStr = r.storeName ? `<div style="font-weight:bold; color:var(--primary); margin-bottom:4px; font-size:1rem; word-break:break-word;">${r.storeName} #${r.orderNumber}</div>` : '';
-            // 加入歷史訂單專屬的 swipe-container
             html += `<div class="swipe-container record-swipe-container" data-id="${r.id}">
                         <div class="swipe-content record-swipe-content" 
                              ontouchstart="handleItemTouchStart(event)" 

@@ -175,6 +175,7 @@
 
         <!-- 視圖 4: 取單率 -->
         <div id="view-rate" class="view-section">
+            <!-- 準時率面板由 JS 動態注入 -->
             <div class="card">
                 <h2>總單量評估 (80%標準)</h2>
                 <div class="input-group"><label>請輸入總單量 (目標要達到的單量)</label><input type="number" id="rate-input-total" class="form-control" oninput="calculateRateTotal()"></div>
@@ -228,7 +229,7 @@
             </div>
 
             <div class="card">
-                <h2>自由搭配 (色彩與特效)</h2>
+                <h2>自由搭配 (色彩與特效解耦)</h2>
                 <div class="input-group" style="margin-top: 15px;">
                     <label>選擇顏色基調 (Color)</label>
                     <select id="color-theme-select" class="form-control" onchange="changeTheme()">

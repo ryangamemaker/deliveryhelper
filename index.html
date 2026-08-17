@@ -34,8 +34,8 @@
             
             <!-- 底部可拖曳式面板 -->
             <div id="bottom-panel" class="bottom-panel">
-                <!-- 🎯 回到定位按鈕 (掛在面板上緣，隨面板移動) -->
-                <button id="btn-recenter" class="map-btn-recenter" onclick="recenterMap()" title="回到定位">🎯</button>
+                <!-- 🎯 回到定位按鈕 (使用 Unicode 標準定位圖示) -->
+                <button id="btn-recenter" class="map-btn-recenter" onclick="recenterMap()" title="回到定位">&#x2316;</button>
 
                 <!-- 面板拖曳把手 -->
                 <div class="panel-header" id="panel-drag-handle">
@@ -178,7 +178,6 @@
 
         <!-- 視圖 4: 取單率 -->
         <div id="view-rate" class="view-section">
-            <!-- 準時率面板由 JS 動態注入 -->
             <div class="card">
                 <h2>總單量評估 (80%標準)</h2>
                 <div class="input-group"><label>請輸入總單量 (目標要達到的單量)</label><input type="number" id="rate-input-total" class="form-control" oninput="calculateRateTotal()"></div>

@@ -283,6 +283,11 @@ body.night-mode .active-timer-container.dragging {
     overflow: hidden !important;
 }
 
+body:not(.map-enabled) #view-home.map-view-override {
+    padding: 76px 16px 96px 16px !important;
+    overflow-y: auto !important;
+}
+
 #map {
     position: absolute;
     top: 0;
@@ -303,8 +308,8 @@ body.map-enabled #map {
     left: 0;
     right: 0;
     height: calc(100% - 70px);
-    /* 將背景設為絕對不透明 (白/黑)，確保看不見背後地圖 */
-    background: #ffffff !important;
+    /* 絕對不透明背景 */
+    background: var(--card-bg) !important;
     z-index: 10;
     border-radius: 24px 24px 0 0;
     box-shadow: 0 -10px 30px rgba(0,0,0,0.15);
@@ -317,10 +322,14 @@ body.map-enabled #map {
     -webkit-backdrop-filter: none !important;
 }
 
-body.night-mode .bottom-panel {
-    background: #0f172a !important; /* 夜間模式使用深藍黑實色 */
-}
+/* 確保客製化主題的不透明背景支援 */
+body[data-color-theme="obsidian-gold"] .bottom-panel { background: #1a1a1a !important; }
+body[data-color-theme="burgundy"] .bottom-panel { background: #2a0a0a !important; }
+body[data-color-theme="aurora"] .bottom-panel { background: #120b2e !important; }
+body[data-color-theme="cyberpunk"] .bottom-panel { background: #09090e !important; }
+body.night-mode .bottom-panel { background: #0f172a !important; }
 
+/* 關閉地圖時還原排版 */
 body:not(.map-enabled) .bottom-panel {
     position: static;
     height: auto;
@@ -329,12 +338,14 @@ body:not(.map-enabled) .bottom-panel {
     border-radius: 0;
     background: transparent !important;
     border-top: none;
+    display: block; 
 }
 
 .bottom-panel.dragging {
     transition: none;
 }
 
+/* 拖曳把手區域 */
 .panel-header {
     height: 40px;
     flex-shrink: 0;
@@ -368,7 +379,7 @@ body:not(.map-enabled) .panel-content {
     overflow: visible;
 }
 
-/* 定位按鈕 (依附在面板上緣) */
+/* 🎯 定位按鈕 (依附在面板上緣，隨面板移動) */
 .map-btn-recenter {
     position: absolute;
     top: -60px;

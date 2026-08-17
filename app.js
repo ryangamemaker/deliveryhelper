@@ -1,8 +1,8 @@
 /* ==============================================================
    全域狀態與資料初始化 (依賴 data.js 中的常數)
    ============================================================== */
-let currentUser = localStorage.getItem('app_current_user') || '新使用者';
-let usersList = JSON.parse(localStorage.getItem('app_users_list')) || ['新使用者'];
+let currentUser = localStorage.getItem('app_current_user') || '預設使用者';
+let usersList = JSON.parse(localStorage.getItem('app_users_list')) || ['預設使用者'];
 let customStores = JSON.parse(localStorage.getItem('app_custom_stores')) || [];
 function getStoreKey(key) { return `${currentUser}_${key}`; }
 
@@ -146,7 +146,7 @@ function loadSettingsForCurrentUser() {
 window.onload = function() {
     injectNewStyles();
     ensureRateViewDOM();
-    if (currentUser === '新使用者' && !localStorage.getItem(getStoreKey('order_history_records')) && localStorage.getItem('order_history_records')) {
+    if (currentUser === '預設使用者' && !localStorage.getItem(getStoreKey('order_history_records')) && localStorage.getItem('order_history_records')) {
         ['order_active_timers', 'order_history_records', 'order_tips', 'order_costs'].forEach(k => { localStorage.setItem(getStoreKey(k), localStorage.getItem(k) || '[]'); });
     }
     initWeeklyView(); loadSettingsForCurrentUser(); loadData(); applySettings(); updateUIState();
@@ -356,7 +356,7 @@ function loadData() {
 
 let currentViewIndex = 0, isSearchResultOpen = false; 
 const views = ['home', 'income', 'tips', 'costs', 'rate', 'settings']; 
-const viewTitles = ['新使用者', '收入', '小費', '成本', '取單率', '設定']; 
+const viewTitles = ['預設使用者', '收入', '小費', '成本', '取單率與單量', '設定']; 
 const viewHasSearch = [false, true, true, true, false, false]; 
 
 function switchView(index, isInstant = false) { 
@@ -393,7 +393,7 @@ function initSwipeNavigation() {
 }
 
 function updateUIState() { 
-    const unselectedIcons = ['☖', '＄', '♡', '☇', '◑', '⛭'], selectedIcons = ['☗', '＄', '♥\uFE0E', '☈', '◕\uFE0E', '⛯'];
+    const unselectedIcons = ['☖', '＄', '♡', '☇', '◑', '⛭'], selectedIcons = ['☗', '＄', '♥\uFE0E', '☈', '◕', '⛯'];
     document.querySelectorAll('.nav-item').forEach((el, index) => { el.classList.remove('active'); const iconSpan = el.querySelector('.nav-icon'); if (iconSpan) { iconSpan.innerText = unselectedIcons[index]; iconSpan.style.transform = 'scale(1)'; } }); 
     const activeNav = document.getElementById(`nav-${currentViewIndex}`); activeNav.classList.add('active'); 
     const activeIconSpan = activeNav.querySelector('.nav-icon');
@@ -621,6 +621,43 @@ async function setEstimatedTime(id) {
     }
 }
 
+async function editHistoryEstimatedTime(id) {
+    closeAllSwipes();
+    const record = historyRecords.find(r => r.id === id);
+    if (!record) return;
+    const val = await appPrompt('請輸入預估時間 (分鐘):', record.estimatedTime || '', '設定預估時間');
+    if (val !== null && val.trim() !== '') {
+        const num = parseInt(val, 10);
+        if (!isNaN(num) && num >= 0) {
+            record.estimatedTime = num;
+            
+            // 重新比對計算金額
+            const billableMins = Math.max(record.durationMins, num);
+            let amount = (billableMins / 60) * RATE_PER_HOUR;
+            if (amount < MIN_AMOUNT) amount = MIN_AMOUNT;
+            record.amount = Number(amount.toFixed(2));
+            
+            localStorage.setItem(getStoreKey('order_history_records'), JSON.stringify(historyRecords));
+            renderWeeklyData();
+            if(document.getElementById('view-daily-detail').classList.contains('active')) renderDailyDetail();
+            if (currentViewIndex === 4) calculatePunctuality();
+        } else {
+            await appAlert('請輸入有效的數字', '錯誤');
+        }
+    }
+}
+
+async function deleteHistoryRecord(id) {
+    closeAllSwipes();
+    if(await appConfirm('確定刪除這筆收入紀錄嗎？', '刪除確認', true)) {
+        historyRecords = historyRecords.filter(t => t.id !== id);
+        localStorage.setItem(getStoreKey('order_history_records'), JSON.stringify(historyRecords));
+        renderWeeklyData();
+        if(document.getElementById('view-daily-detail').classList.contains('active')) renderDailyDetail();
+        if (currentViewIndex === 4) calculatePunctuality();
+    }
+}
+
 /* ================== 卡片拖曳排序邏輯 ================== */
 let pressTimer = null;
 let isDraggingItem = false;
@@ -829,8 +866,9 @@ function renderActiveTimers() {
     
     let html = '';
     activeTimers.forEach((timer, idx) => {
-        const titleStr = timer.storeName ? `${timer.storeName} #${timer.orderNumber}` : `訂單 #${idx + 1}`;
-        const estStr = timer.estimatedTime ? `<span style="color:var(--primary); font-size:0.85rem; margin-left:8px; border:1px solid var(--primary); padding:1px 4px; border-radius:4px;">預估 ${timer.estimatedTime}m</span>` : '';
+        const titleStr = timer.storeName ? `${timer.storeName} #${timer.orderNumber}` : `訂單計時 #${idx + 1}`;
+        // 加入 white-space: nowrap 以防止「預估 XXm」斷字換行
+        const estStr = timer.estimatedTime ? `<span style="white-space:nowrap; color:var(--primary); font-size:0.85rem; margin-left:8px; border:1px solid var(--primary); padding:1px 4px; border-radius:4px;">預估 ${timer.estimatedTime}m</span>` : '';
         
         html += `<div class="swipe-container active-timer-container" data-id="${timer.id}">
                     <div class="swipe-content active-timer-content" 
@@ -842,7 +880,7 @@ function renderActiveTimers() {
                          ontouchend="handleItemTouchEnd(event)" 
                          ontouchcancel="handleItemTouchEnd(event)" 
                          onmouseleave="handleItemTouchEnd(event)">
-                        <div class="swipe-edit" style="background:#3b82f6;" onclick="setEstimatedTime('${timer.id}')">預估</div>
+                        <div class="swipe-edit" style="background:var(--success);" onclick="setEstimatedTime('${timer.id}')">預估</div>
                         <div class="timer-info">
                             <h3 onclick="handleTimerTitleClick('${timer.id}')">${titleStr} ${estStr}</h3>
                             <p>開始時間：${formatTime(new Date(timer.startTime))}</p>
@@ -951,7 +989,23 @@ function renderDailyDetail() {
         if (dailyRecords.length === 0) html = '<div class="empty-state">今日無收入紀錄</div>';
         else dailyRecords.forEach(r => {
             const titleStr = r.storeName ? `<div style="font-weight:bold; color:var(--primary); margin-bottom:4px; font-size:1rem; word-break:break-word;">${r.storeName} #${r.orderNumber}</div>` : '';
-            html += `<div class="record-item" onclick="editIncomeAmount('${r.id}')" style="cursor:pointer;"><div class="record-info">${titleStr}<div class="record-time" style="color:var(--text-main);">${r.startTimeStr} - ${r.endTimeStr}</div><div class="record-desc" style="color:var(--text-muted);">實際 ${r.durationMins} 分鐘 ${r.estimatedTime ? ` / 預估 ${r.estimatedTime} 分鐘` : ''}</div></div><div class="record-amount">${fmtMoney(r.amount)}</div></div>`;
+            // 加入歷史訂單專屬的 swipe-container
+            html += `<div class="swipe-container record-swipe-container" data-id="${r.id}">
+                        <div class="swipe-content record-swipe-content" 
+                             ontouchstart="handleItemTouchStart(event)" 
+                             ontouchmove="handleItemTouchMove(event)" 
+                             ontouchend="handleItemTouchEnd(event)" 
+                             ontouchcancel="handleItemTouchEnd(event)">
+                            <div class="swipe-edit" style="background:var(--success);" onclick="editHistoryEstimatedTime('${r.id}')">預估</div>
+                            <div class="record-info" onclick="editIncomeAmount('${r.id}')" style="cursor:pointer;">
+                                ${titleStr}
+                                <div class="record-time" style="color:var(--text-main);">${r.startTimeStr} - ${r.endTimeStr}</div>
+                                <div class="record-desc" style="color:var(--text-muted);">實際 ${r.durationMins} 分鐘 ${r.estimatedTime ? ` / 預估 ${r.estimatedTime} 分鐘` : ''}</div>
+                            </div>
+                            <div class="record-amount" onclick="editIncomeAmount('${r.id}')" style="cursor:pointer;">${fmtMoney(r.amount)}</div>
+                            <div class="swipe-delete" onclick="deleteHistoryRecord('${r.id}')">刪除</div>
+                        </div>
+                     </div>`;
         });
     } else if (currentDailyContext === 'tip') {
         document.getElementById('daily-detail-type-label').innerText = '小費總額';

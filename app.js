@@ -1045,7 +1045,7 @@ function renderActiveTimers() {
     
     let html = '';
     activeTimers.forEach((timer, idx) => {
-        const titleStr = timer.storeName ? `${timer.storeName} #${timer.orderNumber}` : `訂單計時 #${idx + 1}`;
+        const titleStr = timer.storeName ? `${timer.storeName} #${timer.orderNumber}` : `訂單 #${idx + 1}`;
         const estStr = timer.estimatedTime ? `<span style="white-space:nowrap; color:var(--primary); font-size:0.85rem; margin-left:8px; border:1px solid var(--primary); padding:1px 4px; border-radius:4px;">預估 ${timer.estimatedTime}m</span>` : '';
         
         html += `<div class="swipe-container active-timer-container" data-id="${timer.id}">

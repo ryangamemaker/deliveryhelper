@@ -179,7 +179,7 @@ function initMap() {
                 if (userMarker) {
                     userMarker.setLatLng(currentLoc);
                     // 根據感測器改變箭頭方向
-                    if (position.coords.heading !== null) {
+                    if (position.coords.heading !== null && !isNaN(position.coords.heading)) {
                         const markerDiv = document.getElementById('map-dir-marker');
                         if (markerDiv) markerDiv.style.transform = `rotate(${position.coords.heading}deg)`;
                     }
@@ -202,7 +202,7 @@ function recenterMap() {
     if (mapInstance && currentLoc) {
         const zoom = mapInstance.getZoom() || 15;
         const targetPoint = mapInstance.project(currentLoc, zoom);
-        // 將地圖的中心點座標往下偏移 1/4 個螢幕，確保定位點留在畫面的上半部，不被拖曳面板擋住
+        // 將地圖的中心點座標往下偏移 1/4 個螢幕，確保定位點留在畫面的上半部
         targetPoint.y += (window.innerHeight / 4); 
         const targetLatLng = mapInstance.unproject(targetPoint, zoom);
         mapInstance.flyTo(targetLatLng, zoom, { animate: true, duration: 0.5 });
@@ -354,7 +354,7 @@ function applyNightMode() {
     if (mapInstance && currentTileLayer) currentTileLayer.setUrl(isNight ? DARK_TILE : LIGHT_TILE);
 }
 function toggleAutoNight() { settings.autoNightMode = document.getElementById('auto-night-toggle').checked; saveSettings(); applyNightMode(); }
-function toggleMapSetting() { settings.enableMap = document.getElementById('setting-map-toggle').checked; saveSettings(); applySettings(); }
+function toggleMapSetting() { settings.enableMap = document.getElementById('setting-map-toggle').checked; saveSettings(); applySettings(); updateUIState(); }
 function toggleConfirmDelivery() { settings.confirmDelivery = document.getElementById('setting-confirm-delivery').checked; saveSettings(); applySettings(); }
 
 /* ================== UI 摺疊互動 ================== */

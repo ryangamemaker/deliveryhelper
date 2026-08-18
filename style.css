@@ -276,13 +276,14 @@ body.night-mode .active-timer-container.dragging {
 .summary-item strong { display: block; font-size: 1.15rem; margin-top: 4px; text-shadow: 0 1px 2px rgba(0,0,0,0.05); }
 
 /* ==============================================================
-   地圖與底部拖曳面板樣式
+   地圖、側邊欄與底部拖曳面板樣式
    ============================================================== */
 .map-view-override {
     padding: 0 !important;
     overflow: hidden !important;
 }
 
+/* ★★★ 重要修復：當關閉地圖時，還原首頁的正常 padding 與滾動 ★★★ */
 body:not(.map-enabled) #view-home.map-view-override {
     padding: 76px 16px 96px 16px !important;
     overflow-y: auto !important;
@@ -301,15 +302,40 @@ body.map-enabled #map {
     display: block;
 }
 
+/* 側邊欄樣式 */
+.map-sidebar {
+    position: fixed;
+    top: 0; left: -50vw; width: 50vw; height: 100vh;
+    background: var(--card-bg);
+    z-index: 3000;
+    transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    box-shadow: 5px 0 25px rgba(0,0,0,0.15);
+    display: flex; flex-direction: column;
+}
+.map-sidebar.active { transform: translateX(50vw); }
+.sidebar-overlay {
+    position: fixed; top:0; left:0; right:0; bottom:0;
+    background: rgba(0,0,0,0.5); z-index: 2999;
+    display: none; opacity: 0; transition: opacity 0.3s;
+}
+.sidebar-overlay.active { display: block; opacity: 1; }
+.sidebar-content { flex: 1; padding: 20px 10px; overflow-y: auto; }
+.sidebar-item { display: flex; align-items: center; padding: 15px; color: var(--text-main); font-weight: bold; text-decoration: none; border-bottom: 1px solid var(--border); cursor: pointer; transition: 0.2s; }
+.sidebar-item:active { background: var(--timer-bg); transform: translateX(5px); }
+.sidebar-item .nav-icon { width: 30px; font-size: 1.2rem; color: var(--primary); display: inline-block; text-align: center; margin-right: 8px;}
+.sidebar-footer { padding: 20px 15px; border-top: 1px solid var(--border); background: var(--timer-bg); }
+
+body.map-enabled #view-home.active ~ #main-header #btn-sidebar-toggle { display: block !important; }
+body.map-enabled .bottom-nav { display: none !important; }
+
 /* 底部面板本體 */
 .bottom-panel {
     position: absolute;
-    top: 70px;
+    top: 33vh; /* 以最大化 2/3 為基準點，這樣裡面內容計算才不會推到底部螢幕外 */
     left: 0;
     right: 0;
-    height: calc(100% - 70px);
-    /* 絕對不透明背景 */
-    background: var(--card-bg) !important;
+    height: 67vh; /* 確保內容不會超出版面 */
+    background: #ffffff !important; /* 絕對不透明 */
     z-index: 10;
     border-radius: 24px 24px 0 0;
     box-shadow: 0 -10px 30px rgba(0,0,0,0.15);
@@ -318,18 +344,14 @@ body.map-enabled #map {
     transform: translateY(100%);
     transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
     will-change: transform;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
 }
 
-/* 確保客製化主題的不透明背景支援 */
 body[data-color-theme="obsidian-gold"] .bottom-panel { background: #1a1a1a !important; }
 body[data-color-theme="burgundy"] .bottom-panel { background: #2a0a0a !important; }
 body[data-color-theme="aurora"] .bottom-panel { background: #120b2e !important; }
 body[data-color-theme="cyberpunk"] .bottom-panel { background: #09090e !important; }
 body.night-mode .bottom-panel { background: #0f172a !important; }
 
-/* 關閉地圖時還原排版 */
 body:not(.map-enabled) .bottom-panel {
     position: static;
     height: auto;
@@ -341,11 +363,8 @@ body:not(.map-enabled) .bottom-panel {
     display: block; 
 }
 
-.bottom-panel.dragging {
-    transition: none;
-}
+.bottom-panel.dragging { transition: none; }
 
-/* 拖曳把手區域 */
 .panel-header {
     height: 40px;
     flex-shrink: 0;
@@ -355,9 +374,7 @@ body:not(.map-enabled) .bottom-panel {
     touch-action: none;
     cursor: grab;
 }
-body.map-enabled .panel-header {
-    display: flex;
-}
+body.map-enabled .panel-header { display: flex; }
 
 .panel-handle-bar {
     width: 40px;
@@ -370,7 +387,7 @@ body.map-enabled .panel-header {
 .panel-content {
     flex: 1;
     overflow-y: auto;
-    padding: 0 16px 120px 16px;
+    padding: 0 16px 20px 16px;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
 }
@@ -379,7 +396,7 @@ body:not(.map-enabled) .panel-content {
     overflow: visible;
 }
 
-/* 🎯 定位按鈕 (依附在面板上緣，隨面板移動) */
+/* 🎯 定位按鈕 (依附在面板上緣) */
 .map-btn-recenter {
     position: absolute;
     top: -60px;
@@ -401,13 +418,8 @@ body:not(.map-enabled) .panel-content {
     -webkit-backdrop-filter: var(--card-backdrop);
     transition: transform 0.2s;
 }
-.map-btn-recenter:active {
-    transform: scale(0.9);
-}
-body:not(.map-enabled) .map-btn-recenter {
-    display: none;
-}
+.map-btn-recenter:active { transform: scale(0.9); }
+body:not(.map-enabled) .map-btn-recenter { display: none; }
 
-/* 確保 Leaflet 控制項不會蓋到 Header */
 .leaflet-top, .leaflet-bottom { z-index: 9 !important; }
 .leaflet-control-container .leaflet-top { top: 70px; }

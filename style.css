@@ -77,17 +77,33 @@ html { font-size: 16px; overflow-x: hidden; scroll-behavior: smooth;}
 
 body { background: var(--page-bg); color: var(--text-main); max-width: 600px; margin: 0 auto; min-height: 100vh; background-attachment: fixed; background-size: cover; transition: background 0.4s ease, color 0.4s ease; overflow-x: hidden; position: relative; }
 
-/* Header 隱藏與滿版覆寫 */
+/* ==============================================================
+   滿版地圖模式與 Header 狀態切換
+   ============================================================== */
 .header { display: flex; justify-content: space-between; align-items: center; padding: 16px; background: var(--card-bg); box-shadow: 0 4px 20px rgba(0,0,0,0.06); position: fixed; top: 0; left: 0; right: 0; z-index: 100; max-width: 600px; margin: 0 auto; backdrop-filter: var(--card-backdrop); -webkit-backdrop-filter: var(--card-backdrop); transition: background 0.4s; }
 .header-center { flex-grow: 1; display: flex; justify-content: center; align-items: center; }
 .header h1 { font-size: 1.2rem; color: var(--primary); margin: 0; text-align: center; text-shadow: 0 1px 2px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: center; gap: 4px; transition: 0.2s; }
 .btn-icon { background: none; border: none; font-size: 1.5rem; color: var(--primary); cursor: pointer; padding: 4px; min-width: 40px; text-shadow: 0 1px 2px rgba(0,0,0,0.1); }
 
+/* 滿版地圖時 Header 透明，並給按鈕/標題加上色塊背景 */
 body.map-enabled.on-home-view .header { background: transparent !important; box-shadow: none !important; border: none !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
-body.map-enabled.on-home-view .header h1, body.map-enabled.on-home-view .header .btn-icon { text-shadow: 0 1px 3px rgba(255,255,255,0.8), 0 0 5px rgba(255,255,255,0.8); }
-body.night-mode.map-enabled.on-home-view .header h1, body.night-mode.map-enabled.on-home-view .header .btn-icon { text-shadow: 0 1px 3px rgba(0,0,0,0.8), 0 0 5px rgba(0,0,0,0.8); }
+body.map-enabled.on-home-view #btn-menu { background-color: var(--nav-bg); border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+body.map-enabled.on-home-view #header-title-wrapper {
+    background-color: var(--nav-bg); padding: 4px 16px; border-radius: 20px; box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    display: flex; flex-direction: column; align-items: center; pointer-events: auto; cursor: pointer;
+}
+body:not(.map-enabled) #btn-menu { display: none !important; }
 
-/* 側邊攔選單 */
+/* 導航列切換邏輯 (非地圖=底部，地圖=側邊漢堡) */
+.bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--nav-bg); border-top: 1px solid var(--border); display: flex; justify-content: space-around; padding: 10px 0; padding-bottom: calc(10px + env(safe-area-inset-bottom)); box-shadow: 0 -5px 25px rgba(0,0,0,0.08); z-index: 1000; max-width: 600px; margin: 0 auto; backdrop-filter: var(--card-backdrop); -webkit-backdrop-filter: var(--card-backdrop); transition: background 0.4s; }
+.nav-item { display: flex; flex-direction: column; align-items: center; color: var(--text-muted); font-size: 0.75rem; text-decoration: none; cursor: pointer; flex: 1; transition: 0.2s;}
+.nav-item.active { color: var(--primary); font-weight: bold; transform: translateY(-2px); text-shadow: 0 2px 4px rgba(255, 117, 151, 0.2); }
+.nav-icon { display: inline-block; font-size: 1.4rem; margin-bottom: 4px; transition: transform 0.2s; font-family: "Segoe UI Symbol", "Apple Symbols", "Arial Unicode MS", sans-serif; font-weight: normal; }
+
+body.map-enabled .bottom-nav { display: none !important; }
+body:not(.map-enabled) .bottom-nav { display: flex !important; }
+
+/* 側邊欄設計 */
 .side-menu-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 4000; display: none; backdrop-filter: blur(4px); }
 .side-menu-overlay.active { display: block; }
 .side-menu { position: fixed; top: 0; left: -280px; width: 280px; height: 100vh; background: var(--card-bg); z-index: 4001; transition: left 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); box-shadow: 5px 0 15px rgba(0,0,0,0.1); display: flex; flex-direction: column; }
@@ -101,8 +117,10 @@ body.night-mode.map-enabled.on-home-view .header h1, body.night-mode.map-enabled
 .side-nav-item.active { background: var(--primary); color: var(--btn-text); box-shadow: 0 4px 8px rgba(0,0,0,0.15); }
 body.night-mode .side-menu { background: var(--card-bg); }
 
+/* 主視圖區塊 */
 #app-container { position: relative; width: 100vw; height: 100vh; overflow: hidden; display: block; }
 .view-section { position: absolute; top: 0; left: 0; right: 0; bottom: 0; width: 100vw; max-width: 600px; margin: 0 auto; padding: 76px 16px 20px 16px; overflow-y: auto; visibility: hidden; transform: translateX(100vw); will-change: transform; -webkit-overflow-scrolling: touch; }
+body:not(.map-enabled) #view-home.map-view-override { padding: 76px 16px 80px 16px !important; }
 
 #view-search-result { position: fixed; top: 60px; left: 0; right: 0; bottom: 20px; background: #ffffff; z-index: 50; transform: translateX(100%); transition: transform 0.3s ease-out; padding: 16px; overflow-y: auto; max-width: 600px; margin: 0 auto; box-shadow: -5px 0 25px rgba(0,0,0,0.1); -webkit-overflow-scrolling: touch; }
 #view-search-result.active { transform: translateX(0); }
@@ -231,7 +249,6 @@ body.night-mode .active-timer-container.dragging { box-shadow: 0 4px 15px rgba(0
    地圖與底部拖曳面板樣式
    ============================================================== */
 .map-view-override { padding: 0 !important; overflow: hidden !important; }
-body:not(.map-enabled) #view-home.map-view-override { padding: 76px 16px 20px 16px !important; overflow-y: auto !important; }
 
 #map { position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 1; display: none; }
 body.map-enabled #map { display: block; }
@@ -283,3 +300,7 @@ body:not(.map-enabled) .map-btn-recenter { display: none; }
 
 .leaflet-top, .leaflet-bottom { z-index: 9 !important; }
 .leaflet-control-container .leaflet-top { top: 70px; }
+
+/* 地圖啟用時隱藏首頁原有的打卡按鈕 */
+body.map-enabled #bottom-panel-shift-card { display: none; }
+body:not(.map-enabled) #bottom-panel-shift-card { display: block; }

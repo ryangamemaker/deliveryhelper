@@ -13,10 +13,12 @@
 
     <div class="header" id="main-header">
         <div style="width: 70px; display:flex; align-items:center;">
+            <!-- 漢堡按鈕 (滿版時為圓形) -->
             <button class="btn-icon" id="btn-menu" onclick="toggleSideMenu()">☰</button>
             <button class="btn-icon" id="btn-back" onclick="handleBack()" style="display: none;">⇠</button>
         </div>
         <div class="header-center" id="header-center-area">
+            <!-- 標題色塊 (滿版時為膠囊圓角形) -->
             <div id="header-title-wrapper">
                 <h1 id="header-title" style="margin: 0;">預設使用者</h1>
                 <span id="shift-status-badge" class="badge" style="background:var(--timer-bg); font-size:0.75rem; padding:2px 6px; margin-top:2px; font-weight:normal; border:1px solid var(--border); display: none; white-space: nowrap;">未上線</span>
@@ -389,7 +391,23 @@
         </div>
     </div>
 
+    <!-- 月曆過濾查詢 Modal -->
+    <div id="view-search-result">
+        <div class="card">
+            <h2 id="search-date-range" style="text-align:center; color:var(--primary);">日期範圍</h2>
+            <div class="summary-block">
+                <div class="summary-item"><span>總收入</span><strong style="color:var(--success);" id="search-total-income">$0.00</strong></div>
+                <div class="summary-item"><span>總小費</span><strong style="color:var(--success);" id="search-total-tips">$0.00</strong></div>
+                <div class="summary-item"><span>總成本</span><strong style="color:var(--text-main);" id="search-total-costs">-$0.00</strong></div>
+            </div>
+        </div>
+        <div class="section-title"><span>收入明細</span></div><div id="search-income-list"></div>
+        <div class="section-title"><span>小費明細</span></div><div id="search-tips-list"></div>
+        <div class="section-title"><span>成本明細</span></div><div id="search-costs-list"></div>
+    </div>
+
     <!-- 單日明細 Modal -->
+    <!-- z-index 改為 2500，確保會覆蓋在查詢結果 (2000) 之上 -->
     <div id="view-daily-detail">
         <div class="header" style="position: sticky; top: 0;">
             <div style="width: 40px;"><button class="btn-icon" onclick="closeDailyDetail()">⇠</button></div>
@@ -424,21 +442,6 @@
             <div class="section-title"><span id="daily-detail-list-title">件數明細</span></div>
             <div id="daily-detail-list"></div>
         </div>
-    </div>
-
-    <!-- 月曆過濾查詢 Modal -->
-    <div id="view-search-result">
-        <div class="card">
-            <h2 id="search-date-range" style="text-align:center; color:var(--primary);">日期範圍</h2>
-            <div class="summary-block">
-                <div class="summary-item"><span>總收入</span><strong style="color:var(--success);" id="search-total-income">$0.00</strong></div>
-                <div class="summary-item"><span>總小費</span><strong style="color:var(--success);" id="search-total-tips">$0.00</strong></div>
-                <div class="summary-item"><span>總成本</span><strong style="color:var(--text-main);" id="search-total-costs">-$0.00</strong></div>
-            </div>
-        </div>
-        <div class="section-title"><span>收入明細</span></div><div id="search-income-list"></div>
-        <div class="section-title"><span>小費明細</span></div><div id="search-tips-list"></div>
-        <div class="section-title"><span>成本明細</span></div><div id="search-costs-list"></div>
     </div>
 
     <!-- 切換使用者 Modal -->
@@ -522,7 +525,7 @@
     </div>
     
     <!-- 全局自訂對話框 -->
-    <div class="modal-overlay" id="custom-dialog-modal" style="z-index: 3000;">
+    <div class="modal-overlay" id="custom-dialog-modal" style="z-index: 5000;">
         <div class="modal-content" style="max-width: 320px; text-align: center; padding: 25px 20px;">
             <h2 id="custom-dialog-title" style="margin-bottom: 15px; color: var(--primary);">提示</h2>
             <p id="custom-dialog-msg" style="margin-bottom: 20px; font-size: 0.95rem; line-height: 1.5; color: var(--text-main);"></p>

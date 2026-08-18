@@ -19,9 +19,8 @@ let currentLoc = [25.0645, 121.1928]; // 預設大園
 let geoWatchId = null;
 let hasCenteredMapInit = false; 
 
-// 切換為 CartoDB 輕量極簡地圖 (符合灰白土地、淺藍水域、少 POI 需求)
-const LIGHT_TILE = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
-const DARK_TILE = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+// 極簡明亮地圖 (淺灰陸地、淺藍水域、少量 POI)
+const MAP_TILE = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
 
 /* ================== 日期與時間工具 ================== */
 function getDateKey(ts) { const d = new Date(ts); return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`; }
@@ -151,15 +150,20 @@ window.onload = function() {
     switchView(0, true);
 };
 
-/* ================== 地圖與面板邏輯 ================== */
+/* ================== 地圖、即時路況與面板邏輯 ================== */
+let trafficLayer = null;
+let isFetchingTraffic = false;
+
 function initMap() {
     if (typeof L === 'undefined') { console.warn('無法載入地圖資源'); return; }
     if (mapInstance) return;
     
     mapInstance = L.map('map', {zoomControl: false}).setView(currentLoc, 15);
+    // 日夜模式皆用同一個圖層，夜間會藉由 style.css 內的 filter 翻轉顏色，確保道路清楚、水域仍是藍色
+    currentTileLayer = L.tileLayer(MAP_TILE, { maxZoom: 19 }).addTo(mapInstance);
     
-    const isNightMode = document.body.classList.contains('night-mode');
-    currentTileLayer = L.tileLayer(isNightMode ? DARK_TILE : LIGHT_TILE, { maxZoom: 19 }).addTo(mapInstance);
+    // 初始化假路況圖層
+    trafficLayer = L.layerGroup().addTo(mapInstance);
     
     // 客製化藍點，具備方向指示箭頭
     const blueDotIcon = L.divIcon({
@@ -178,7 +182,6 @@ function initMap() {
                 currentLoc = [position.coords.latitude, position.coords.longitude];
                 if (userMarker) {
                     userMarker.setLatLng(currentLoc);
-                    // 根據感測器改變箭頭方向
                     if (position.coords.heading !== null && !isNaN(position.coords.heading)) {
                         const markerDiv = document.getElementById('map-dir-marker');
                         if (markerDiv) markerDiv.style.transform = `rotate(${position.coords.heading}deg)`;
@@ -196,13 +199,68 @@ function initMap() {
             { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
         );
     }
+
+    // 地圖移動後觸發擷取假路況
+    mapInstance.on('moveend', () => {
+        clearTimeout(window.trafficTimer);
+        window.trafficTimer = setTimeout(loadFakeTraffic, 800);
+    });
+    setTimeout(loadFakeTraffic, 1000);
+}
+
+// 動態讀取 OSM 道路產生逼真且美觀的綠/黃/紅路況
+function loadFakeTraffic() {
+    if (!document.body.classList.contains('map-enabled') || !mapInstance) return;
+    if (mapInstance.getZoom() < 13) {
+        trafficLayer.clearLayers();
+        return;
+    }
+    if (isFetchingTraffic) return;
+    isFetchingTraffic = true;
+    
+    const bounds = mapInstance.getBounds();
+    const s = bounds.getSouth() - 0.01;
+    const n = bounds.getNorth() + 0.01;
+    const w = bounds.getWest() - 0.01;
+    const e = bounds.getEast() + 0.01;
+    
+    // 向真實地圖庫要主要道路資料
+    const query = `[out:json][timeout:5];(way["highway"~"primary|secondary"](${s},${w},${n},${e}););out geom;`;
+    
+    fetch('https://overpass-api.de/api/interpreter', {
+        method: 'POST',
+        body: query
+    }).then(res => res.json()).then(data => {
+        trafficLayer.clearLayers();
+        data.elements.forEach(el => {
+            if (el.type === 'way' && el.geometry) {
+                const latlngs = el.geometry.map(g => [g.lat, g.lon]);
+                const rand = Math.random();
+                let color = '#22c55e'; // 綠色路況 (佔多數，美觀舒適)
+                if (rand > 0.8) color = '#eab308'; // 黃色
+                if (rand > 0.95) color = '#ef4444'; // 紅色
+                
+                L.polyline(latlngs, {
+                    color: color,
+                    weight: 4,
+                    opacity: 0.8,
+                    lineCap: 'round',
+                    lineJoin: 'round',
+                    className: 'fake-traffic-line'
+                }).addTo(trafficLayer);
+            }
+        });
+        isFetchingTraffic = false;
+    }).catch(() => {
+        isFetchingTraffic = false; // 失敗則默默忽略
+    });
 }
 
 function recenterMap() {
     if (mapInstance && currentLoc) {
         const zoom = mapInstance.getZoom() || 15;
         const targetPoint = mapInstance.project(currentLoc, zoom);
-        // 將地圖的中心點座標往下偏移 1/4 個螢幕，確保定位點留在畫面的上半部
+        // 將中心點往下偏移1/4螢幕高度，這樣定位藍點就會跑在畫面「上半部」而不被下方拖曳區蓋住
         targetPoint.y += (window.innerHeight / 4); 
         const targetLatLng = mapInstance.unproject(targetPoint, zoom);
         mapInstance.flyTo(targetLatLng, zoom, { animate: true, duration: 0.5 });
@@ -351,7 +409,7 @@ function applyNightMode() {
     const isNight = settings.autoNightMode && (hour >= 18 || hour < 6);
     if (isNight) document.body.classList.add('night-mode'); 
     else document.body.classList.remove('night-mode'); 
-    if (mapInstance && currentTileLayer) currentTileLayer.setUrl(isNight ? DARK_TILE : LIGHT_TILE);
+    // 地圖日夜模式由 style.css 的 CSS filter 處理，不再重新換網址，以維持水域美觀
 }
 function toggleAutoNight() { settings.autoNightMode = document.getElementById('auto-night-toggle').checked; saveSettings(); applyNightMode(); }
 function toggleMapSetting() { settings.enableMap = document.getElementById('setting-map-toggle').checked; saveSettings(); applySettings(); updateUIState(); }

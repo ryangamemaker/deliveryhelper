@@ -57,7 +57,7 @@
 
 #dynamic-canvas { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -3; pointer-events: none; display: none; opacity: 0.8; }
 
-/* --- 夜間模式 --- */
+/* --- 夜間模式與地圖反轉特效 --- */
 body.night-mode {
     --page-bg: #0f172a !important; --bg: #0f172a !important; --card-bg: rgba(30, 41, 59, 0.85) !important; 
     --timer-bg: rgba(51, 65, 85, 0.85) !important; --text-main: #f8fafc !important; --text-muted: #94a3b8 !important;
@@ -68,6 +68,16 @@ body.night-mode {
     --item-shadow: 0 4px 12px -3px rgba(0, 0, 0, 0.5), 0 2px 4px -2px rgba(0, 0, 0, 0.3) !important;
     --card-glow: inset 0 1px 1px rgba(255, 255, 255, 0.05) !important;
 }
+
+/* 完美解決夜間地圖太黑的問題：直接使用 CSS 翻轉極簡地圖，水會保持藍色，路面保持清晰！ */
+body.night-mode .leaflet-tile-pane {
+    filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
+}
+/* 讓假路況線條帶點科技感發光 */
+path.fake-traffic-line {
+    filter: drop-shadow(0 0 2px currentColor);
+}
+
 
 /* ==============================================================
     版面與元件樣式
@@ -87,8 +97,18 @@ body { background: var(--page-bg); color: var(--text-main); max-width: 600px; ma
 
 /* 滿版地圖時 Header 透明，並給按鈕/標題加上色塊背景 */
 body.map-enabled.on-home-view .header { background: transparent !important; box-shadow: none !important; border: none !important; backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
-body.map-enabled.on-home-view #btn-menu { background-color: var(--nav-bg); border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
-body.map-enabled.on-home-view #header-title-wrapper { background-color: var(--nav-bg); padding: 4px 16px; border-radius: 20px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); display: flex; flex-direction: column; align-items: center; pointer-events: auto; cursor: pointer; }
+
+/* 漢堡列按紐用圓形色塊 */
+body.map-enabled.on-home-view #btn-menu { 
+    background-color: var(--nav-bg); border-radius: 50%; width: 44px; height: 44px; 
+    display: flex; justify-content: center; align-items: center; padding: 0; 
+    box-shadow: 0 4px 10px rgba(0,0,0,0.15); 
+}
+/* 使用者名稱的色塊用兩個半圓加上一個長方形 (膠囊形狀) */
+body.map-enabled.on-home-view #header-title-wrapper { 
+    background-color: var(--nav-bg); padding: 6px 20px; border-radius: 999px; 
+    box-shadow: 0 4px 10px rgba(0,0,0,0.15); display: flex; flex-direction: column; align-items: center; pointer-events: auto; cursor: pointer; 
+}
 body:not(.map-enabled) #btn-menu { display: none !important; }
 
 /* 導航列切換邏輯 (非地圖=底部，地圖=側邊漢堡) */
@@ -119,10 +139,10 @@ body.night-mode .side-menu { background: var(--card-bg); }
 .view-section { position: absolute; top: 0; left: 0; right: 0; bottom: 0; width: 100vw; max-width: 600px; margin: 0 auto; padding: 76px 16px 20px 16px; overflow-y: auto; visibility: hidden; transform: translateX(100vw); will-change: transform; -webkit-overflow-scrolling: touch; }
 body:not(.map-enabled) #view-home.map-view-override { padding: 76px 16px 80px 16px !important; }
 
-/* 修改這兩個 z-index 確保能覆蓋底部的導航列 */
+/* 查照系統 z-index 修復，確保 detail 打開能覆蓋在 search-result 之上 */
 #view-search-result { position: fixed; top: 60px; left: 0; right: 0; bottom: 20px; background: #ffffff; z-index: 2000; transform: translateX(100%); transition: transform 0.3s ease-out; padding: 16px; overflow-y: auto; max-width: 600px; margin: 0 auto; box-shadow: -5px 0 25px rgba(0,0,0,0.1); -webkit-overflow-scrolling: touch; }
 #view-search-result.active { transform: translateX(0); }
-#view-daily-detail { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #ffffff; z-index: 2000; transform: translateX(100%); transition: transform 0.3s ease-out; overflow-y: auto; max-width: 600px; margin: 0 auto; visibility: hidden; -webkit-overflow-scrolling: touch; }
+#view-daily-detail { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #ffffff; z-index: 2500; transform: translateX(100%); transition: transform 0.3s ease-out; overflow-y: auto; max-width: 600px; margin: 0 auto; visibility: hidden; -webkit-overflow-scrolling: touch; }
 #view-daily-detail.active { transform: translateX(0); visibility: visible; }
 body.night-mode #view-search-result, body.night-mode #view-daily-detail { background: #0f172a; }
 
@@ -279,9 +299,25 @@ body.night-mode .bottom-panel { background: #0f172a !important; }
 body:not(.map-enabled) .bottom-panel { position: static; height: auto; transform: none !important; box-shadow: none; border-radius: 0; background: transparent !important; border-top: none; display: block; }
 .bottom-panel.dragging { transition: none; }
 
-.panel-header { height: 40px; flex-shrink: 0; display: none; justify-content: center; align-items: center; touch-action: none; cursor: grab; }
+/* 放大面板拖曳範圍 */
+.panel-header { 
+    height: 60px; /* 從40px放大為60px */
+    flex-shrink: 0; 
+    display: none; 
+    justify-content: center; 
+    align-items: center; 
+    touch-action: none; 
+    cursor: grab; 
+    position: relative; /* 給偽元素定位用 */
+}
+/* 創造巨大的隱形觸控區域 (往上、下各擴張15px) */
+.panel-header::after {
+    content: '';
+    position: absolute;
+    top: -15px; bottom: -15px; left: 0; right: 0;
+}
 body.map-enabled .panel-header { display: flex; }
-.panel-handle-bar { width: 40px; height: 5px; background: var(--text-muted); border-radius: 3px; opacity: 0.5; }
+.panel-handle-bar { width: 50px; height: 6px; background: var(--text-muted); border-radius: 3px; opacity: 0.5; }
 
 .panel-content {
     flex: 1;

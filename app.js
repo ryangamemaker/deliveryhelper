@@ -9,7 +9,6 @@ function getStoreKey(key) { return `${currentUser}_${key}`; }
 let activeTimers = [], historyRecords = [], tipRecords = [], costRecords = [], shiftRecords = [], activeShift = null, waitRecords = [], activeWait = null, settings = {};
 let viewedWeekStart = new Date(), currentDailyContext = 'income', currentDailyDateObj = new Date();
 
-// UI State
 let sideMenuOpen = false;
 
 // Leaflet 地圖變數
@@ -20,7 +19,8 @@ let currentLoc = [25.0645, 121.1928]; // 預設大園
 let geoWatchId = null;
 let hasCenteredMapInit = false; 
 
-const LIGHT_TILE = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+// 切換為 CartoDB 輕量極簡地圖 (符合灰白土地、淺藍水域、少 POI 需求)
+const LIGHT_TILE = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
 const DARK_TILE = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
 
 /* ================== 日期與時間工具 ================== */
@@ -161,12 +161,14 @@ function initMap() {
     const isNightMode = document.body.classList.contains('night-mode');
     currentTileLayer = L.tileLayer(isNightMode ? DARK_TILE : LIGHT_TILE, { maxZoom: 19 }).addTo(mapInstance);
     
-    // 自訂藍色圓點 Marker (無對話框)
+    // 客製化藍點，具備方向指示箭頭
     const blueDotIcon = L.divIcon({
         className: 'custom-blue-dot',
-        html: '<div style="width: 16px; height: 16px; background-color: #007aff; border: 3px solid white; border-radius: 50%; box-shadow: 0 0 5px rgba(0,0,0,0.5);"></div>',
-        iconSize: [22, 22],
-        iconAnchor: [11, 11]
+        html: `<div id="map-dir-marker" style="width: 18px; height: 18px; background-color: #007aff; border: 3px solid white; border-radius: 50%; box-shadow: 0 2px 6px rgba(0,0,0,0.4); position: relative; transition: transform 0.2s ease-out;">
+                  <div style="position: absolute; top: -10px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-bottom: 10px solid #007aff;"></div>
+               </div>`,
+        iconSize: [24, 24],
+        iconAnchor: [12, 12]
     });
     userMarker = L.marker(currentLoc, {icon: blueDotIcon}).addTo(mapInstance);
         
@@ -174,7 +176,14 @@ function initMap() {
         geoWatchId = navigator.geolocation.watchPosition(
             (position) => {
                 currentLoc = [position.coords.latitude, position.coords.longitude];
-                if (userMarker) userMarker.setLatLng(currentLoc);
+                if (userMarker) {
+                    userMarker.setLatLng(currentLoc);
+                    // 根據感測器改變箭頭方向
+                    if (position.coords.heading !== null) {
+                        const markerDiv = document.getElementById('map-dir-marker');
+                        if (markerDiv) markerDiv.style.transform = `rotate(${position.coords.heading}deg)`;
+                    }
+                }
                 if (!hasCenteredMapInit) {
                     recenterMap();
                     hasCenteredMapInit = true;
@@ -193,8 +202,8 @@ function recenterMap() {
     if (mapInstance && currentLoc) {
         const zoom = mapInstance.getZoom() || 15;
         const targetPoint = mapInstance.project(currentLoc, zoom);
-        // 將視角往下偏移，讓藍點出現在畫面上半部
-        targetPoint.y -= (window.innerHeight / 4); 
+        // 將地圖的中心點座標往下偏移 1/4 個螢幕，確保定位點留在畫面的上半部，不被拖曳面板擋住
+        targetPoint.y += (window.innerHeight / 4); 
         const targetLatLng = mapInstance.unproject(targetPoint, zoom);
         mapInstance.flyTo(targetLatLng, zoom, { animate: true, duration: 0.5 });
     }
@@ -210,7 +219,7 @@ function initBottomPanel() {
     function updatePanelDimensions() {
         let viewH = window.innerHeight;
         snapPoints = [
-            70,             // 最高：讓出頂端 Header
+            70,             // 最高
             viewH * 0.5,    // 中間
             viewH - 80      // 最低
         ];
@@ -260,7 +269,6 @@ function initBottomPanel() {
         panel.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)';
         panel.style.transform = `translateY(${closest}px)`;
         
-        // 確保內部捲動內容不會被底端截斷
         const content = document.getElementById('panel-scroll-content');
         if (content) content.style.paddingBottom = `${closest + 40}px`;
         
@@ -557,39 +565,60 @@ function toggleSideMenu() {
 
 function updateUIState() { 
     const unselectedIcons = ['☖', '＄', '♡', '☇', '◑', '⛭'], selectedIcons = ['☗', '＄', '♥\uFE0E', '☈', '◕', '⛯'];
+    
+    // 底部導航同步
+    document.querySelectorAll('.bottom-nav .nav-item').forEach((el, index) => { 
+        el.classList.remove('active'); 
+        const iconSpan = el.querySelector('.nav-icon'); 
+        if (iconSpan) { iconSpan.innerText = unselectedIcons[index]; iconSpan.style.transform = 'scale(1)'; } 
+    }); 
+    const activeNavBottom = document.getElementById(`nav-${currentViewIndex}`); 
+    if(activeNavBottom) {
+        activeNavBottom.classList.add('active'); 
+        const activeIconSpan = activeNavBottom.querySelector('.nav-icon');
+        if (activeIconSpan) { activeIconSpan.innerText = selectedIcons[currentViewIndex]; if ([2, 4].includes(currentViewIndex)) activeIconSpan.style.transform = 'scale(1.25)'; }
+    }
+
+    // 側邊選單同步
     document.querySelectorAll('.side-nav-item').forEach((el, index) => { 
         el.classList.remove('active'); 
         const iconSpan = el.querySelector('.nav-icon'); 
         if (iconSpan) { iconSpan.innerText = unselectedIcons[index]; iconSpan.style.transform = 'scale(1)'; } 
     }); 
-    const activeNav = document.getElementById(`nav-${currentViewIndex}`); 
-    if(activeNav) {
-        activeNav.classList.add('active'); 
-        const activeIconSpan = activeNav.querySelector('.nav-icon');
+    const activeNavSide = document.getElementById(`side-nav-${currentViewIndex}`); 
+    if(activeNavSide) {
+        activeNavSide.classList.add('active'); 
+        const activeIconSpan = activeNavSide.querySelector('.nav-icon');
         if (activeIconSpan) { activeIconSpan.innerText = selectedIcons[currentViewIndex]; if ([2, 4].includes(currentViewIndex)) activeIconSpan.style.transform = 'scale(1.25)'; }
     }
 
-    const title = document.getElementById('header-title'), btnSearch = document.getElementById('btn-search'), btnBack = document.getElementById('btn-back'), btnMenu = document.getElementById('btn-menu'), shiftBadge = document.getElementById('shift-status-badge'), headerCenter = document.querySelector('.header-center');
+    const title = document.getElementById('header-title');
+    const titleWrapper = document.getElementById('header-title-wrapper');
+    const btnSearch = document.getElementById('btn-search');
+    const btnBack = document.getElementById('btn-back');
+    const btnMenu = document.getElementById('btn-menu');
+    const shiftBadge = document.getElementById('shift-status-badge');
+
     if (isSearchResultOpen || document.getElementById('view-daily-detail').classList.contains('active')) { 
         btnSearch.style.display = 'none'; btnBack.style.display = 'block'; 
         if(btnMenu) btnMenu.style.display = 'none';
         shiftBadge.style.display = 'none';
-        headerCenter.style.pointerEvents = 'none'; headerCenter.style.cursor = 'default'; headerCenter.onclick = null;
+        titleWrapper.style.pointerEvents = 'none'; titleWrapper.style.cursor = 'default'; titleWrapper.onclick = null;
         title.innerHTML = document.getElementById('view-daily-detail').classList.contains('active') ? '單日明細' : '查照結果';
     } else { 
         if (currentViewIndex === 0) {
             document.body.classList.add('on-home-view');
             title.innerHTML = `${currentUser} <span style="font-size: 0.8rem; vertical-align: middle;">▾</span>`;
-            headerCenter.style.pointerEvents = 'auto'; headerCenter.style.cursor = 'pointer'; headerCenter.onclick = openUserModal;
+            titleWrapper.style.pointerEvents = 'auto'; titleWrapper.style.cursor = 'pointer'; titleWrapper.onclick = openUserModal;
         } else {
             document.body.classList.remove('on-home-view');
             title.innerHTML = viewTitles[currentViewIndex]; 
-            headerCenter.style.pointerEvents = 'none'; headerCenter.style.cursor = 'default'; headerCenter.onclick = null;
+            titleWrapper.style.pointerEvents = 'none'; titleWrapper.style.cursor = 'default'; titleWrapper.onclick = null;
         }
         btnSearch.style.display = viewHasSearch[currentViewIndex] ? 'block' : 'none'; 
         btnBack.style.display = 'none'; 
         if(btnMenu) btnMenu.style.display = 'block';
-        shiftBadge.style.display = (currentViewIndex === 0) ? 'inline-block' : 'none';
+        shiftBadge.style.display = (currentViewIndex === 0 && activeShift) ? 'inline-block' : 'none';
     } 
 }
 
@@ -624,15 +653,23 @@ function toggleShift() {
 }
 
 function updateShiftUI() {
-    const btn = document.getElementById('btn-shift-toggle'), badge = document.getElementById('shift-status-badge'), durationEl = document.getElementById('shift-current-duration'), startBtns = document.querySelectorAll('.btn-start');
+    const btns = document.querySelectorAll('.btn-shift-toggle-class');
+    const durations = document.querySelectorAll('.shift-current-duration-class');
+    const badge = document.getElementById('shift-status-badge');
+    const startBtns = document.querySelectorAll('.btn-start');
+    
     if (activeShift) {
-        btn.innerHTML = '時段結束'; btn.style.background = 'transparent'; btn.style.border = '2px solid var(--danger)'; btn.style.color = 'var(--danger)';
-        badge.innerText = '上線中'; badge.style.display = 'inline-block'; badge.style.background = 'var(--success)'; badge.style.color = 'var(--btn-text)'; badge.style.border = '1px solid var(--success)';
-        durationEl.style.display = 'block'; startBtns.forEach(b => { b.disabled = false; b.style.opacity = '1'; b.style.cursor = 'pointer'; });
+        btns.forEach(btn => { btn.innerHTML = '時段結束'; btn.style.background = 'transparent'; btn.style.border = '2px solid var(--danger)'; btn.style.color = 'var(--danger)'; });
+        if(currentViewIndex === 0) badge.style.display = 'inline-block';
+        badge.innerText = '上線中'; badge.style.background = 'var(--success)'; badge.style.color = 'var(--btn-text)'; badge.style.border = '1px solid var(--success)';
+        durations.forEach(el => el.style.display = 'block'); 
+        startBtns.forEach(b => { b.disabled = false; b.style.opacity = '1'; b.style.cursor = 'pointer'; });
     } else {
-        btn.innerHTML = '時段開始'; btn.style.background = 'var(--primary)'; btn.style.border = 'none'; btn.style.color = 'var(--btn-text)';
+        btns.forEach(btn => { btn.innerHTML = '時段開始'; btn.style.background = 'var(--primary)'; btn.style.border = 'none'; btn.style.color = 'var(--btn-text)'; });
+        badge.style.display = 'none';
         badge.innerText = '未上線'; badge.style.background = 'var(--timer-bg)'; badge.style.color = 'var(--text-main)'; badge.style.border = '1px solid var(--border)';
-        durationEl.style.display = 'none'; startBtns.forEach(b => { b.disabled = true; b.style.opacity = '0.5'; b.style.cursor = 'not-allowed'; });
+        durations.forEach(el => el.style.display = 'none'); 
+        startBtns.forEach(b => { b.disabled = true; b.style.opacity = '0.5'; b.style.cursor = 'not-allowed'; });
     }
 }
 
@@ -652,7 +689,6 @@ async function stopTimer(id) {
         const confirmed = await appConfirm('確定要完成配送並結算此訂單嗎？', '配送確認');
         if (!confirmed) return;
     }
-    
     const index = activeTimers.findIndex(t => t.id === id); if (index === -1) return; 
     const timer = activeTimers[index], endTime = Date.now(), diffMins = Math.max(1, Math.round((endTime - timer.startTime) / 60000)); 
     const billableMins = Math.max(diffMins, timer.estimatedTime || 0);
@@ -666,10 +702,7 @@ async function stopTimer(id) {
     if (currentViewIndex === 4) calculatePunctuality();
 }
 
-function cancelTimer(id) { 
-    closeAllSwipes();
-    const index = activeTimers.findIndex(t => t.id === id); if (index > -1) { activeTimers.splice(index, 1); localStorage.setItem(getStoreKey('order_active_timers'), JSON.stringify(activeTimers)); renderActiveTimers(); checkWaitState(); } 
-}
+function cancelTimer(id) { closeAllSwipes(); const index = activeTimers.findIndex(t => t.id === id); if (index > -1) { activeTimers.splice(index, 1); localStorage.setItem(getStoreKey('order_active_timers'), JSON.stringify(activeTimers)); renderActiveTimers(); checkWaitState(); } }
 
 /* ================== 店家搜尋與綁定邏輯 ================== */
 function incrementOrderNumber(str) {
@@ -678,39 +711,13 @@ function incrementOrderNumber(str) {
     return str + '1';
 }
 
-function openStoreModal(id) {
-    document.getElementById('store-target-id').value = id;
-    const kwInput = document.getElementById('store-keyword');
-    kwInput.value = '';
-    document.getElementById('store-result-list').innerHTML = '';
-    document.getElementById('store-modal').classList.add('active');
-    kwInput.focus();
-    setTimeout(() => { kwInput.focus(); }, 50);
-}
-
-function handleTimerTitleClick(id) {
-    const timer = activeTimers.find(t => t.id === id); if (!timer) return;
-    if (timer.storeName) { document.getElementById('timer-action-title').innerText = timer.storeName; document.getElementById('timer-action-id').value = id; document.getElementById('timer-action-modal').classList.add('active'); } else { openStoreModal(id); }
-}
-
-function editOrderNumber() {
-    const id = document.getElementById('timer-action-id').value, timer = activeTimers.find(t => t.id === id);
-    if(timer) { closeModal('timer-action-modal'); openOrderNumberModal('修改單號', timer.orderNumber || '', function(newNum) { timer.orderNumber = newNum; localStorage.setItem(getStoreKey('order_active_timers'), JSON.stringify(activeTimers)); renderActiveTimers(); }); }
-}
-
-function cloneTimer() {
-    const id = document.getElementById('timer-action-id').value, timer = activeTimers.find(t => t.id === id);
-    if(timer) { closeModal('timer-action-modal'); const nextNum = incrementOrderNumber(timer.orderNumber); openOrderNumberModal(`為【${timer.storeName}】新增訂單`, nextNum, function(orderNum) { const now = Date.now(); activeTimers.push({ id: 'timer_' + now + '_' + Math.random().toString(36).substr(2, 5), startTime: now, storeName: timer.storeName, orderNumber: orderNum }); localStorage.setItem(getStoreKey('order_active_timers'), JSON.stringify(activeTimers)); renderActiveTimers(); checkWaitState(); }); }
-}
-
+function openStoreModal(id) { document.getElementById('store-target-id').value = id; const kwInput = document.getElementById('store-keyword'); kwInput.value = ''; document.getElementById('store-result-list').innerHTML = ''; document.getElementById('store-modal').classList.add('active'); kwInput.focus(); setTimeout(() => { kwInput.focus(); }, 50); }
+function handleTimerTitleClick(id) { const timer = activeTimers.find(t => t.id === id); if (!timer) return; if (timer.storeName) { document.getElementById('timer-action-title').innerText = timer.storeName; document.getElementById('timer-action-id').value = id; document.getElementById('timer-action-modal').classList.add('active'); } else { openStoreModal(id); } }
+function editOrderNumber() { const id = document.getElementById('timer-action-id').value, timer = activeTimers.find(t => t.id === id); if(timer) { closeModal('timer-action-modal'); openOrderNumberModal('修改單號', timer.orderNumber || '', function(newNum) { timer.orderNumber = newNum; localStorage.setItem(getStoreKey('order_active_timers'), JSON.stringify(activeTimers)); renderActiveTimers(); }); } }
+function cloneTimer() { const id = document.getElementById('timer-action-id').value, timer = activeTimers.find(t => t.id === id); if(timer) { closeModal('timer-action-modal'); const nextNum = incrementOrderNumber(timer.orderNumber); openOrderNumberModal(`為【${timer.storeName}】新增訂單`, nextNum, function(orderNum) { const now = Date.now(); activeTimers.push({ id: 'timer_' + now + '_' + Math.random().toString(36).substr(2, 5), startTime: now, storeName: timer.storeName, orderNumber: orderNum }); localStorage.setItem(getStoreKey('order_active_timers'), JSON.stringify(activeTimers)); renderActiveTimers(); checkWaitState(); }); } }
 function rebindTimer() { const id = document.getElementById('timer-action-id').value; closeModal('timer-action-modal'); openStoreModal(id); }
 
-async function addCustomStore() {
-    const kw = document.getElementById('store-keyword').value.trim(); 
-    const name = await appPrompt('請輸入新店家名稱：', kw, '新增自訂店家');
-    if (name && name.trim() !== '') { customStores.push({ code: '自訂', name: name.trim() }); localStorage.setItem('app_custom_stores', JSON.stringify(customStores)); searchStore(); selectStore(name.trim()); }
-}
-
+async function addCustomStore() { const kw = document.getElementById('store-keyword').value.trim(); const name = await appPrompt('請輸入新店家名稱：', kw, '新增自訂店家'); if (name && name.trim() !== '') { customStores.push({ code: '自訂', name: name.trim() }); localStorage.setItem('app_custom_stores', JSON.stringify(customStores)); searchStore(); selectStore(name.trim()); } }
 function searchStore() {
     const keyword = document.getElementById('store-keyword').value.trim().toLowerCase(), listEl = document.getElementById('store-result-list'); listEl.innerHTML = '';
     if (!keyword) return; const allStores = STORE_LIST.concat(customStores); const results = allStores.filter(s => s.code.toLowerCase().includes(keyword) || s.name.toLowerCase().includes(keyword));
@@ -721,7 +728,6 @@ function searchStore() {
         div.onclick = () => selectStore(s.name); listEl.appendChild(div);
     });
 }
-
 function selectStore(storeName) {
     const id = document.getElementById('store-target-id').value, timer = activeTimers.find(t => t.id === id); if (!timer) return;
     closeModal('store-modal'); 
@@ -833,7 +839,11 @@ function renderActiveTimers() {
     listEl.innerHTML = html; updateTimersDisplay();
 }
 
-function updateTimersDisplay() { const now = Date.now(); activeTimers.forEach(timer => { const el = document.getElementById(`duration_${timer.id}`); if (el) el.innerText = formatDuration(now - timer.startTime); }); if (activeShift) { const shiftEl = document.getElementById('shift-current-duration'); if(shiftEl) shiftEl.innerText = formatDuration(now - activeShift.startTime); } checkWaitState(); }
+function updateTimersDisplay() {
+    const now = Date.now();
+    activeTimers.forEach(timer => { const el = document.getElementById(`duration_${timer.id}`); if (el) el.innerText = formatDuration(now - timer.startTime); });
+    if (activeShift) { const shiftEls = document.querySelectorAll('.shift-current-duration-class'); shiftEls.forEach(el => el.innerText = formatDuration(now - activeShift.startTime)); } checkWaitState();
+}
 
 /* ================== 修改訂單(收入)金額邏輯 ================== */
 async function editIncomeAmount(id) {
@@ -941,25 +951,18 @@ function calculatePunctuality() {
     const buffer = Number(document.getElementById('rate-buffer-time').value) || 0;
     const now = Date.now();
     
-    // 定義週期錨點 (2026-08-17 為週一)，每 14 天一個循環
     const anchor = new Date(2026, 7, 17).setHours(0,0,0,0);
     const cycleMs = 14 * 24 * 60 * 60 * 1000;
     const weekMs = 7 * 24 * 60 * 60 * 1000;
     
     let startMs = anchor;
     let diff = now - anchor;
-    if (diff >= 0) {
-        startMs = anchor + Math.floor(diff / cycleMs) * cycleMs;
-    } else {
-        startMs = anchor - Math.ceil(Math.abs(diff) / cycleMs) * cycleMs;
-    }
-    
+    if (diff >= 0) { startMs = anchor + Math.floor(diff / cycleMs) * cycleMs; } else { startMs = anchor - Math.ceil(Math.abs(diff) / cycleMs) * cycleMs; }
     let endMs = startMs + cycleMs - 1;
     let isWeek2 = (now - startMs) >= weekMs;
     
     const validRecords = historyRecords.filter(r => r.estimatedTime && r.estimatedTime > 0 && r.timestamp >= startMs && r.timestamp <= endMs);
     
-    // 更新週期提示
     const d1 = new Date(startMs), d2 = new Date(endMs);
     const cycleStr = `${d1.getFullYear()}/${d1.getMonth()+1}/${d1.getDate()} - ${d2.getMonth()+1}/${d2.getDate()}`;
     const weekStr = isWeek2 ? '第二週' : '第一週';
@@ -983,7 +986,6 @@ function calculatePunctuality() {
     }
 
     let onTimeCount = 0, singleTimeoutRates = [], totalActual = 0, totalEstimatedWithBuffer = 0;
-
     validRecords.forEach(r => {
         let limit = r.estimatedTime + buffer;
         let actual = r.durationMins;

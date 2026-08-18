@@ -16,7 +16,6 @@
             <button class="btn-icon" id="btn-menu" onclick="toggleSideMenu()">☰</button>
             <button class="btn-icon" id="btn-back" onclick="handleBack()" style="display: none;">⇠</button>
         </div>
-        <!-- 加入獨立的 wrapper 給予白色背景色塊 -->
         <div class="header-center" id="header-center-area">
             <div id="header-title-wrapper">
                 <h1 id="header-title" style="margin: 0;">預設使用者</h1>
@@ -41,7 +40,6 @@
                 
                 <div class="panel-content" id="panel-scroll-content">
                     
-                    <!-- 進行中的訂單移至上方 -->
                     <div class="section-title" style="margin-top: 10px;"><span>進行中的訂單</span><span class="badge" id="active-count">0 個進行中</span></div>
                     <p style="font-size:0.8rem; color:var(--text-muted); margin:0 0 10px 4px;">提示：長按卡片拖曳排序，往左滑動刪除，點擊標題綁定店家</p>
                     
@@ -52,7 +50,6 @@
 
                     <div class="timer-list" id="active-timers-list"></div>
 
-                    <!-- 選擇訂單數量移至下方 -->
                     <div class="card" style="margin-top: 15px;">
                         <h2 class="collapsible-header" onclick="toggleCollapse(this)">選擇訂單數量：</h2>
                         <div class="collapsible-wrap">
@@ -234,7 +231,6 @@
                 </div>
             </div>
 
-            <!-- 其他設定保持原樣 -->
             <div class="card">
                 <h2>高質感預設組合 (一鍵套用)</h2>
                 <div class="btn-grid" style="margin-top:10px;">
@@ -248,6 +244,108 @@
             </div>
             
             <div class="card">
+                <h2>自由搭配 (色彩與特效解耦)</h2>
+                <div class="input-group" style="margin-top: 15px;">
+                    <label>選擇顏色基調 (Color)</label>
+                    <select id="color-theme-select" class="form-control" onchange="changeTheme()">
+                        <optgroup label="單色基本主題 (純白卡片)">
+                            <option value="pink">櫻花粉色 (預設)</option>
+                            <option value="classic-blue">經典藍</option>
+                            <option value="magenta">洋紅 (桃紅)</option>
+                            <option value="blue">天空藍色</option>
+                            <option value="peach">蜜桃暖橘</option>
+                            <option value="mint">清新薄荷綠</option>
+                            <option value="lavender">優雅薰衣草紫</option>
+                            <option value="mocha">溫暖摩卡棕</option>
+                            <option value="dark">深色模式</option>
+                            <option value="custom">自訂專屬顏色</option>
+                        </optgroup>
+                        <optgroup label="高級漸層主題 (融入主題色卡片)">
+                            <option value="obsidian-gold">曜石黑金</option>
+                            <option value="burgundy">尊爵酒紅</option>
+                            <option value="white-marble">白玉大理石</option>
+                            <option value="aurora">星空極光</option>
+                            <option value="beach">夏日海灘</option>
+                            <option value="clouds">晨曦雲彩</option>
+                            <option value="cyberpunk">霓虹賽博</option>
+                            <option value="forest">森林秘境</option>
+                        </optgroup>
+                    </select>
+                </div>
+
+                <div id="custom-theme-panel" style="display:none; background:var(--timer-bg); padding:16px; border-radius:12px; border:1px solid var(--border); margin-bottom:15px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);">
+                    <div class="input-group">
+                        <label>點選設定您的專屬主題色</label>
+                        <input type="color" id="picker-primary" value="#ff7597" style="width:100%; height:45px; border:none; cursor:pointer; background:none;" onchange="applyCustomPalette()">
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label>選擇背景特效 (同步套用於按鈕)</label>
+                    <select id="effect-theme-select" class="form-control" onchange="changeTheme()">
+                        <option value="none">無特效 (純色/漸層)</option>
+                        <optgroup label="濾鏡質感 (物理堆疊/同步於按鈕)">
+                            <option value="texture-metal">金屬拉絲 (Brushed Metal)</option>
+                            <option value="texture-glass">磨砂玻璃 (Frosted Glass)</option>
+                            <option value="texture-kraft">復古紙紋 (Kraft Paper)</option>
+                            <option value="texture-watercolor">藝術水彩紙 (Watercolor)</option>
+                            <option value="texture-stucco">粗糙水泥牆 (Stucco)</option>
+                            <option value="texture-denim">經典牛仔布 (Denim)</option>
+                            <option value="texture-carbon">碳纖維紋理 (Carbon Fiber)</option>
+                        </optgroup>
+                        <optgroup label="多重漸層與圖案 (隨主題色變換)">
+                            <option value="pattern-dots">圓點波卡 (Dots)</option>
+                            <option value="pattern-grid">方格網格 (Grid)</option>
+                            <option value="pattern-checker">棋盤格紋 (Checkerboard)</option>
+                            <option value="pattern-twill">斜紋布料 (Twill)</option>
+                            <option value="pattern-wave">圓形波浪 (Wave)</option>
+                        </optgroup>
+                        <optgroup label="動態渲染背景 (動態 Canvas)">
+                            <option value="canvas-ocean">深海與陽光折射 (Ocean)</option>
+                            <option value="canvas-matrix-custom">自訂駭客字碼雨 (Custom Matrix)</option>
+                            <option value="canvas-stars">浩瀚星空與流星 (Starry Sky)</option>
+                            <option value="canvas-particles">科技粒子連線 (2D)</option>
+                            <option value="canvas-beams">迷幻旋轉光束 (2D)</option>
+                        </optgroup>
+                    </select>
+                </div>
+
+                <div id="custom-matrix-input-group" style="display:none; margin-top: 10px; background:var(--timer-bg); padding:16px; border-radius:12px; border:1px dashed var(--primary); margin-bottom:15px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);">
+                    <label style="color:var(--primary); font-weight:bold; margin-bottom: 8px;">駭客掉落文字內容 (最多輸入三行)</label>
+                    <input type="text" id="custom-matrix-text-1" class="form-control" placeholder="第一行文字 (例: 01)" style="margin-bottom:8px;" onchange="saveMatrixText()">
+                    <input type="text" id="custom-matrix-text-2" class="form-control" placeholder="第二行文字 (例: 駭客)" style="margin-bottom:8px;" onchange="saveMatrixText()">
+                    <input type="text" id="custom-matrix-text-3" class="form-control" placeholder="第三行文字 (例: 訂單)" onchange="saveMatrixText()">
+                </div>
+
+                <div class="input-group" style="margin-top: 20px; padding-top: 15px; border-top: 1px dashed var(--border);">
+                    <label style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0; cursor:pointer;">
+                        <span style="font-weight:bold;">卡片底色自訂 (自由決定透明度)</span>
+                        <input type="checkbox" id="custom-card-toggle" onchange="toggleCustomCard()" style="width:20px; height:20px;">
+                    </label>
+                </div>
+
+                <div id="custom-card-panel" style="display:none; background:var(--timer-bg); padding:16px; border-radius:12px; border:1px solid var(--border); margin-bottom:15px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);">
+                    <div class="input-group">
+                        <label>卡片與輸入框底色</label>
+                        <input type="color" id="picker-card-bg" value="#ffffff" style="width:100%; height:45px; border:none; cursor:pointer; background:none;" oninput="updateCustomCard()">
+                    </div>
+                    <div class="input-group" style="margin-bottom: 0;">
+                        <label>背景透明度 (<span id="card-opacity-val">85</span>%)</label>
+                        <input type="range" id="picker-card-opacity" min="0" max="100" value="85" style="width:100%;" oninput="updateCustomCard()">
+                    </div>
+                </div>
+
+                <div class="input-group" style="margin-top: 25px; display: flex; align-items: center; justify-content: space-between;">
+                    <label style="margin-bottom:0;">字體大小</label>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn btn-outline" style="padding:6px; width:auto;" onclick="setFontSize('14px')">小</button>
+                        <button class="btn btn-outline" style="padding:6px; width:auto;" onclick="setFontSize('16px')">中</button>
+                        <button class="btn btn-outline" style="padding:6px; width:auto;" onclick="setFontSize('18px')">大</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
                 <h2>資料管理 (匯入/匯出)</h2>
                 <div style="display: flex; gap: 10px; margin-bottom: 15px;">
                     <button class="btn btn-outline" onclick="exportData()">匯出資料</button>
@@ -259,7 +357,7 @@
         </div>
     </div>
 
-    <!-- 底部導航 (非滿版地圖時顯示) -->
+    <!-- 底部導航 (未啟用滿版地圖時顯示) -->
     <div class="bottom-nav">
         <a class="nav-item active" id="nav-0" onclick="switchView(0, true)"><span class="nav-icon">☗</span><span>首頁</span></a>
         <a class="nav-item" id="nav-1" onclick="switchView(1, true)"><span class="nav-icon">＄</span><span>收入</span></a>
@@ -311,6 +409,16 @@
                 <div style="margin-top: 20px; border-top: 1px dashed var(--border); padding-top: 15px;">
                     <div id="daily-detail-type-label" style="font-size: 0.9rem; color: var(--text-muted);">總額</div>
                     <div id="daily-detail-amount" style="font-size: 2.5rem; font-weight: bold; color: var(--success); margin-top: 5px; text-shadow: 0 2px 4px rgba(0,0,0,0.05);">$0.00</div>
+                </div>
+                <div id="daily-detail-stats-grid" style="display:none; grid-template-columns: 1fr 1fr; gap:10px; margin-top:15px;">
+                    <div style="background:var(--timer-bg); padding:12px; border-radius:12px; border:1px solid var(--border); box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);">
+                        <div style="font-size:0.8rem; color:var(--text-muted); font-weight:bold;">上線時數</div>
+                        <div id="daily-detail-online-hours" style="font-size:1.2rem; color:var(--text-main); margin-top:4px; font-weight:bold;">0h 0m</div>
+                    </div>
+                    <div style="background:var(--timer-bg); padding:12px; border-radius:12px; border:1px solid var(--border); box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);">
+                        <div style="font-size:0.8rem; color:var(--text-muted); font-weight:bold;">累計/最長等單</div>
+                        <div style="font-size:1.05rem; color:var(--text-main); margin-top:4px; font-weight:bold;"><span id="daily-detail-wait-total">0m</span> / <span id="daily-detail-wait-max">0m</span></div>
+                    </div>
                 </div>
             </div>
             <div class="section-title"><span id="daily-detail-list-title">件數明細</span></div>
@@ -413,7 +521,7 @@
         </div>
     </div>
     
-    <!-- 取代原生 Alert 的全局自訂對話框 -->
+    <!-- 全局自訂對話框 -->
     <div class="modal-overlay" id="custom-dialog-modal" style="z-index: 3000;">
         <div class="modal-content" style="max-width: 320px; text-align: center; padding: 25px 20px;">
             <h2 id="custom-dialog-title" style="margin-bottom: 15px; color: var(--primary);">提示</h2>
@@ -425,10 +533,7 @@
         </div>
     </div>
 
-    <!-- 引入 Leaflet 地圖 JS 核心 -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-    
-    <!-- 引入外部 JavaScript -->
     <script src="data.js"></script>
     <script src="app.js"></script>
 </body>

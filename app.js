@@ -1,5 +1,5 @@
 /* ==============================================================
-   全域狀態與資料初始化
+   全域狀態與資料初始化 (依賴 data.js 中的常數)
    ============================================================== */
 let currentUser = localStorage.getItem('app_current_user') || '預設使用者';
 let usersList = JSON.parse(localStorage.getItem('app_users_list')) || ['預設使用者'];
@@ -13,7 +13,7 @@ let viewedWeekStart = new Date(), currentDailyContext = 'income', currentDailyDa
 let mapInstance = null;
 let currentTileLayer = null;
 let userMarker = null;
-let currentLoc = [25.0645, 121.1928]; // 預設桃園大園
+let currentLoc = [25.0645, 121.1928]; // 預設大園
 let geoWatchId = null;
 let hasCenteredMapInit = false; 
 
@@ -28,7 +28,7 @@ function formatMins(mins) { const h = Math.floor(mins / 60), m = Math.floor(mins
 function fmtMoney(num) { return '$' + Number(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); } 
 function fmtNum(num) { return Number(num).toLocaleString('en-US'); }
 
-/* ================== 動態注入新功能 ================== */
+/* ================== 動態注入新功能 CSS 與 HTML ================== */
 function injectNewStyles() {
     if (document.getElementById('injected-new-styles')) return;
     const style = document.createElement('style');
@@ -59,17 +59,12 @@ function ensureRateViewDOM() {
                 <div class="summary-item"><span>總超時率</span><strong style="color:var(--danger);" id="punctuality-total-timeout">--%</strong></div>
             </div>
             
-            <p id="rate-period-info" style="font-size: 0.8rem; color: var(--text-muted); margin-top: 15px; line-height: 1.4;">
-                * 僅計算本週期內已寫入「預估時間」之訂單。
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 15px; line-height: 1.4;">
+                * 僅計算已寫入「預估時間」之歷史訂單。目前採用全時段累計計算。
             </p>
         </div>`;
         rateView.insertAdjacentHTML('afterbegin', cardHtml);
     }
-}
-
-function toggleSidebar() {
-    document.getElementById('sidebar').classList.toggle('active');
-    document.getElementById('sidebar-overlay').classList.toggle('active');
 }
 
 /* ================== 自訂對話框引擎 ================== */
@@ -121,6 +116,8 @@ function showCustomDialog({ type, title, message, defaultValue = '', confirmText
         confirmBtn.onclick = () => {
             if (type === 'prompt') {
                 handleClose(inputEl.value);
+            } else if (type === 'confirm') {
+                handleClose(true);
             } else {
                 handleClose(true);
             }
@@ -155,6 +152,7 @@ function loadSettingsForCurrentUser() {
     }
     if(settings.matrixText1 === undefined) settings.matrixText1 = '01'; if(settings.matrixText2 === undefined) settings.matrixText2 = ''; if(settings.matrixText3 === undefined) settings.matrixText3 = '';
     if(settings.customCardEnable === undefined) settings.customCardEnable = false; if(settings.customCardBg === undefined) settings.customCardBg = '#ffffff'; if(settings.customCardOpacity === undefined) settings.customCardOpacity = 85;
+    
     if(settings.enableMap === undefined) settings.enableMap = true; 
     if(settings.confirmDelivery === undefined) settings.confirmDelivery = false; 
 }
@@ -191,25 +189,22 @@ function initMap() {
     if (mapInstance) return;
     
     mapInstance = L.map('map', {zoomControl: false}).setView(currentLoc, 15);
-    const isNightMode = document.body.classList.contains('night-mode');
-    currentTileLayer = L.tileLayer(isNightMode ? DARK_TILE : LIGHT_TILE, { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(mapInstance);
     
-    // 藍色脈衝定位點
-    const blueDotIcon = L.divIcon({
-        className: 'custom-blue-dot',
-        html: '<div class="blue-dot"></div><div class="blue-dot-pulse"></div>',
-        iconSize: [20, 20],
-        iconAnchor: [10, 10]
-    });
-    userMarker = L.marker(currentLoc, {icon: blueDotIcon, zIndexOffset: 1000}).addTo(mapInstance);
+    const isNightMode = document.body.classList.contains('night-mode');
+    currentTileLayer = L.tileLayer(isNightMode ? DARK_TILE : LIGHT_TILE, {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap'
+    }).addTo(mapInstance);
+    
+    userMarker = L.marker(currentLoc).addTo(mapInstance).bindPopup('<b style="color:#000;">目前定位</b>');
         
     if ("geolocation" in navigator) {
         geoWatchId = navigator.geolocation.watchPosition(
             (position) => {
                 currentLoc = [position.coords.latitude, position.coords.longitude];
                 if (userMarker) userMarker.setLatLng(currentLoc);
-                if (!hasCenteredMapInit || !mapInstance.getBounds().contains(currentLoc)) {
-                    centerMapOffset(currentLoc);
+                if (!hasCenteredMapInit) {
+                    mapInstance.setView(currentLoc, 15);
                     hasCenteredMapInit = true;
                 }
             },
@@ -219,19 +214,10 @@ function initMap() {
     }
 }
 
-// 將地圖焦點定於畫面偏上半部 (避開底部面板遮擋)
-function centerMapOffset(latlng) {
-    if (!mapInstance) return;
-    const targetPoint = mapInstance.project(latlng, 15);
-    // Y 軸向上移 25% 螢幕高度
-    targetPoint.y -= (window.innerHeight * 0.25);
-    const offsetLatLng = mapInstance.unproject(targetPoint, 15);
-    mapInstance.flyTo(offsetLatLng, 15, { animate: true, duration: 0.5 });
-}
-
 function recenterMap() {
     if (mapInstance && currentLoc) {
-        centerMapOffset(currentLoc);
+        mapInstance.flyTo(currentLoc, 15, { animate: true, duration: 0.5 });
+        if (userMarker) userMarker.openPopup();
     }
 }
 
@@ -245,15 +231,15 @@ function initBottomPanel() {
     let initialTranslateY = 0;
     let panelHeight = 0;
     let snapPoints = [];
-    let hasMoved = false;
+    let hasMoved = false; // 用於判斷點擊還是拖曳
 
     function updatePanelDimensions() {
         panelHeight = panel.offsetHeight;
         let viewH = window.innerHeight;
         snapPoints = [
-            viewH * 0.33,  // 最高
+            viewH * 0.33,  // 最高：保留頂部 1/3 的地圖空間
             viewH * 0.65,  // 中間
-            viewH - 100    // 最低：確保拖曳把手可見
+            viewH - 120    // 最低：確保拖曳把手與回到定位按鈕可見
         ];
     }
 
@@ -263,20 +249,26 @@ function initBottomPanel() {
         hasMoved = false;
         updatePanelDimensions(); 
         startY = e.touches[0].clientY;
+        
         const match = panel.style.transform.match(/translateY\(([-\d.]+)px\)/);
         initialTranslateY = match ? parseFloat(match[1]) : snapPoints[1];
+        
         panel.classList.add('dragging');
     }, {passive: true});
 
     document.addEventListener('touchmove', (e) => {
         if (!isDraggingPanel || !document.body.classList.contains('map-enabled')) return;
+        
         const currentY = e.touches[0].clientY;
         const deltaY = currentY - startY;
         if (Math.abs(deltaY) > 5) hasMoved = true;
+        
         if (e.cancelable) e.preventDefault(); 
         let newY = initialTranslateY + deltaY;
+        
         if (newY < snapPoints[0]) newY = snapPoints[0] - (snapPoints[0] - newY) * 0.2; 
         if (newY > snapPoints[2]) newY = snapPoints[2] + (newY - snapPoints[2]) * 0.2;
+
         panel.style.transform = `translateY(${newY}px)`;
     }, {passive: false});
 
@@ -286,9 +278,11 @@ function initBottomPanel() {
         panel.classList.remove('dragging');
 
         if (!hasMoved) {
+            // 單擊觸發：一鍵展開到最高 (1/3 位置)
             panel.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)';
             panel.style.transform = `translateY(${snapPoints[0]}px)`;
         } else {
+            // 拖曳結束：尋找最近吸附點
             const match = panel.style.transform.match(/translateY\(([-\d.]+)px\)/);
             const endY = match ? parseFloat(match[1]) : snapPoints[1];
 
@@ -303,6 +297,7 @@ function initBottomPanel() {
             }
             panel.style.transform = `translateY(${closest}px)`;
         }
+        
         if (mapInstance) setTimeout(() => mapInstance.invalidateSize(), 300);
     }
 
@@ -552,7 +547,7 @@ function loadData() {
 
 let currentViewIndex = 0, isSearchResultOpen = false; 
 const views = ['home', 'income', 'tips', 'costs', 'rate', 'settings']; 
-const viewTitles = ['預設使用者', '收入紀錄', '小費統計', '成本管控', '分析與單量', '系統設定']; 
+const viewTitles = ['預設使用者', '收入', '小費', '成本', '取單率與單量', '設定']; 
 const viewHasSearch = [false, true, true, true, false, false]; 
 
 function switchView(index, isInstant = false) { 
@@ -590,7 +585,7 @@ let appTouchStartX = 0, appTouchStartY = 0, isSwipingApp = false;
 function initSwipeNavigation() { 
     const appContainer = document.getElementById('app-container'); 
     appContainer.addEventListener('touchstart', (e) => { 
-        if (e.target.closest('.swipe-content') || e.target.closest('.record-swipe-content') || e.target.closest('.horizontal-scroll-ignore') || e.target.type === 'range' || e.target.closest('.bottom-panel') || e.target.closest('.map-btn-recenter') || e.target.closest('.leaflet-container') || e.target.closest('#map')) return; 
+        if (e.target.closest('.swipe-content') || e.target.closest('.record-swipe-content') || e.target.closest('.horizontal-scroll-ignore') || e.target.type === 'range' || e.target.closest('.bottom-panel') || e.target.closest('.map-btn-recenter')) return; 
         appTouchStartX = e.changedTouches[0].screenX; appTouchStartY = e.changedTouches[0].screenY; isSwipingApp = true; 
     }, {passive: true}); 
     appContainer.addEventListener('touchmove', (e) => { 
@@ -607,39 +602,25 @@ function initSwipeNavigation() {
 }
 
 function updateUIState() { 
-    document.querySelectorAll('.sidebar .nav-item').forEach((el) => el.classList.remove('active')); 
-    const activeNav = document.getElementById(`nav-${currentViewIndex}`);
-    if(activeNav) activeNav.classList.add('active'); 
+    const unselectedIcons = ['☖', '＄', '♡', '☇', '◑', '⛭'], selectedIcons = ['☗', '＄', '♥\uFE0E', '☈', '◕', '⛯'];
+    document.querySelectorAll('.nav-item').forEach((el, index) => { el.classList.remove('active'); const iconSpan = el.querySelector('.nav-icon'); if (iconSpan) { iconSpan.innerText = unselectedIcons[index]; iconSpan.style.transform = 'scale(1)'; } }); 
+    const activeNav = document.getElementById(`nav-${currentViewIndex}`); activeNav.classList.add('active'); 
+    const activeIconSpan = activeNav.querySelector('.nav-icon');
+    if (activeIconSpan) { activeIconSpan.innerText = selectedIcons[currentViewIndex]; if ([2, 4].includes(currentViewIndex)) activeIconSpan.style.transform = 'scale(1.25)'; }
 
-    const title = document.getElementById('header-title'), 
-          btnSearch = document.getElementById('btn-search'), 
-          btnBack = document.getElementById('btn-back'), 
-          btnMenu = document.getElementById('btn-menu'),
-          shiftBadge = document.getElementById('shift-status-badge'),
-          header = document.getElementById('main-header');
-    
-    if (currentViewIndex === 0 && document.body.classList.contains('map-enabled')) {
-        header.classList.add('map-transparent');
-    } else {
-        header.classList.remove('map-transparent');
-    }
-
+    const title = document.getElementById('header-title'), btnSearch = document.getElementById('btn-search'), btnBack = document.getElementById('btn-back'), shiftBadge = document.getElementById('shift-status-badge');
     if (isSearchResultOpen || document.getElementById('view-daily-detail').classList.contains('active')) { 
-        btnSearch.style.display = 'none'; btnBack.style.display = 'block'; btnMenu.style.display = 'none'; shiftBadge.style.display = 'none';
-        header.classList.remove('map-transparent'); 
+        btnSearch.style.display = 'none'; btnBack.style.visibility = 'visible'; shiftBadge.style.display = 'none';
         title.style.pointerEvents = 'none'; title.style.cursor = 'default'; title.onclick = null;
         title.innerText = document.getElementById('view-daily-detail').classList.contains('active') ? '單日明細' : '查照結果';
     } else { 
-        btnBack.style.display = 'none'; btnMenu.style.display = 'block';
         if (currentViewIndex === 0) {
             title.innerHTML = `${currentUser} <span style="font-size: 0.8rem; vertical-align: middle;">▾</span>`;
             title.style.pointerEvents = 'auto'; title.style.cursor = 'pointer'; title.onclick = openUserModal;
-            shiftBadge.style.display = 'inline-block';
         } else {
             title.innerText = viewTitles[currentViewIndex]; title.style.pointerEvents = 'none'; title.style.cursor = 'default'; title.onclick = null;
-            shiftBadge.style.display = 'none';
         }
-        btnSearch.style.display = viewHasSearch[currentViewIndex] ? 'block' : 'none'; 
+        btnSearch.style.display = viewHasSearch[currentViewIndex] ? 'block' : 'none'; btnBack.style.visibility = 'hidden'; shiftBadge.style.display = (currentViewIndex === 0) ? 'inline-block' : 'none';
     } 
 }
 
@@ -1297,37 +1278,7 @@ async function applyFilter() { if (!calSelStart) return await appAlert('請先�
 /* ================== 準時率 / 取單率邏輯 ================== */
 function calculatePunctuality() {
     const buffer = Number(document.getElementById('rate-buffer-time').value) || 0;
-    
-    // 實作雙週 (14 天) 週期邏輯 (本週為第一週)
-    const now = new Date();
-    const currentWeekNum = getWeekNumber(now);
-    const dayOfWeek = now.getDay() || 7;
-    
-    let cycleStart = new Date(now);
-    cycleStart.setHours(0, 0, 0, 0);
-    cycleStart.setDate(now.getDate() - dayOfWeek + 1); // 推至本週一
-
-    // 若週數為偶數，表示此為週期的第二週，將起點推至上週一
-    if (currentWeekNum % 2 === 0) {
-        cycleStart.setDate(cycleStart.getDate() - 7);
-    }
-
-    const cycleEnd = new Date(cycleStart);
-    cycleEnd.setDate(cycleEnd.getDate() + 13);
-    cycleEnd.setHours(23, 59, 59, 999); // 14天週期結束
-
-    const cycleStartStr = `${cycleStart.getMonth()+1}/${cycleStart.getDate()}`;
-    const cycleEndStr = `${cycleEnd.getMonth()+1}/${cycleEnd.getDate()}`;
-    
-    // 更新說明文字
-    const infoText = document.getElementById('rate-period-info');
-    if (infoText) infoText.innerText = `* 僅計算本週期 (${cycleStartStr} ~ ${cycleEndStr}) 內已寫入「預估時間」之訂單。`;
-
-    // 篩選雙週期內的紀錄
-    const validRecords = historyRecords.filter(r => 
-        r.estimatedTime && r.estimatedTime > 0 && 
-        r.timestamp >= cycleStart.getTime() && r.timestamp <= cycleEnd.getTime()
-    );
+    const validRecords = historyRecords.filter(r => r.estimatedTime && r.estimatedTime > 0);
     
     if (validRecords.length === 0) {
         document.getElementById('punctuality-ontime').innerText = '--%';

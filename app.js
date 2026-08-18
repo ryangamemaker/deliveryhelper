@@ -60,7 +60,7 @@ function ensureRateViewDOM() {
             </div>
             
             <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 15px; line-height: 1.4;">
-                * 僅計算已寫入「預估時間」之歷史訂單。目前採用全時段累計計算。
+                * 以每兩週為一個結算週期（本週為第一週）。僅計算已寫入「預估時間」之訂單。
             </p>
         </div>`;
         rateView.insertAdjacentHTML('afterbegin', cardHtml);
@@ -196,7 +196,14 @@ function initMap() {
         attribution: '© OpenStreetMap'
     }).addTo(mapInstance);
     
-    userMarker = L.marker(currentLoc).addTo(mapInstance).bindPopup('<b style="color:#000;">目前定位</b>');
+    // 【修改】使用純藍色圓點，且移除對話框
+    userMarker = L.circleMarker(currentLoc, {
+        radius: 8,
+        fillColor: "#3b82f6",
+        color: "#ffffff",
+        weight: 3,
+        fillOpacity: 1
+    }).addTo(mapInstance);
         
     if ("geolocation" in navigator) {
         geoWatchId = navigator.geolocation.watchPosition(
@@ -204,7 +211,7 @@ function initMap() {
                 currentLoc = [position.coords.latitude, position.coords.longitude];
                 if (userMarker) userMarker.setLatLng(currentLoc);
                 if (!hasCenteredMapInit) {
-                    mapInstance.setView(currentLoc, 15);
+                    recenterMap(); // 初次定位立刻置中（套用偏移邏輯）
                     hasCenteredMapInit = true;
                 }
             },
@@ -216,8 +223,12 @@ function initMap() {
 
 function recenterMap() {
     if (mapInstance && currentLoc) {
-        mapInstance.flyTo(currentLoc, 15, { animate: true, duration: 0.5 });
-        if (userMarker) userMarker.openPopup();
+        // 利用 Leaflet 的投影計算，將定位點往上平移 (將地圖中心往下方平移約畫面高度的 25%)
+        let point = mapInstance.project(currentLoc, 16);
+        point.y -= mapInstance.getSize().y * 0.25; 
+        let target = mapInstance.unproject(point, 16);
+        
+        mapInstance.flyTo(target, 16, { animate: true, duration: 0.5 });
     }
 }
 
@@ -231,15 +242,16 @@ function initBottomPanel() {
     let initialTranslateY = 0;
     let panelHeight = 0;
     let snapPoints = [];
-    let hasMoved = false; // 用於判斷點擊還是拖曳
+    let hasMoved = false; 
 
     function updatePanelDimensions() {
-        panelHeight = panel.offsetHeight;
-        let viewH = window.innerHeight;
+        panelHeight = panel.offsetHeight; 
+        // panel.style.top 是 33vh, 所以 0 就是在 33vh 的位置 (螢幕上方的 1/3)
+        // 為了確保把手永遠露出來，我們將最低點設為只保留 60px 可見度
         snapPoints = [
-            viewH * 0.33,  // 最高：保留頂部 1/3 的地圖空間
-            viewH * 0.65,  // 中間
-            viewH - 120    // 最低：確保拖曳把手與回到定位按鈕可見
+            0,                     // 最高點 (充滿 67vh 空間)
+            panelHeight * 0.45,    // 中間點 
+            panelHeight - 60       // 最低點 (僅露出 60px，不被 bottom nav 擋住)
         ];
     }
 
@@ -278,7 +290,7 @@ function initBottomPanel() {
         panel.classList.remove('dragging');
 
         if (!hasMoved) {
-            // 單擊觸發：一鍵展開到最高 (1/3 位置)
+            // 單擊把手觸發：一鍵展開到最高
             panel.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)';
             panel.style.transform = `translateY(${snapPoints[0]}px)`;
         } else {
@@ -311,6 +323,25 @@ function initBottomPanel() {
         }
     }, 300);
     window.addEventListener('resize', updatePanelDimensions);
+}
+
+// 側邊欄控制
+function toggleSidebar() {
+    const sidebar = document.getElementById('map-sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    sidebar.classList.toggle('active');
+    overlay.classList.toggle('active');
+}
+
+function updateSidebarShiftUI() {
+    const btn = document.getElementById('sidebar-shift-btn');
+    if (activeShift) {
+        btn.innerHTML = '時段結束'; 
+        btn.style.background = 'transparent'; btn.style.border = '2px solid var(--danger)'; btn.style.color = 'var(--danger)';
+    } else {
+        btn.innerHTML = '時段開始'; 
+        btn.style.background = 'var(--primary)'; btn.style.border = 'none'; btn.style.color = 'var(--btn-text)';
+    }
 }
 
 function getLuminance(r, g, b) { return (0.299 * r + 0.587 * g + 0.114 * b) / 255; }
@@ -349,7 +380,7 @@ function applySettings() {
             setTimeout(() => mapInstance.invalidateSize(), 300); 
             const panel = document.getElementById('bottom-panel');
             if (panel && (!panel.style.transform || panel.style.transform === 'none')) {
-                const snapMiddle = window.innerHeight * 0.65;
+                const snapMiddle = panel.offsetHeight * 0.45;
                 panel.style.transform = `translateY(${snapMiddle}px)`;
             }
         }
@@ -357,6 +388,10 @@ function applySettings() {
         document.body.classList.remove('map-enabled');
         const panel = document.getElementById('bottom-panel');
         if (panel) panel.style.transform = 'none';
+        
+        // Ensure sidebar is closed
+        document.getElementById('map-sidebar').classList.remove('active');
+        document.getElementById('sidebar-overlay').classList.remove('active');
     }
 
     applyNightMode();
@@ -382,7 +417,7 @@ function applyNightMode() {
 }
 function toggleAutoNight() { settings.autoNightMode = document.getElementById('auto-night-toggle').checked; saveSettings(); applyNightMode(); }
 
-function toggleMapSetting() { settings.enableMap = document.getElementById('setting-map-toggle').checked; saveSettings(); applySettings(); }
+function toggleMapSetting() { settings.enableMap = document.getElementById('setting-map-toggle').checked; saveSettings(); applySettings(); updateUIState(); }
 function toggleConfirmDelivery() { settings.confirmDelivery = document.getElementById('setting-confirm-delivery').checked; saveSettings(); applySettings(); }
 
 /* ================== UI 摺疊互動 ================== */
@@ -543,6 +578,7 @@ function loadData() {
     activeWait = JSON.parse(localStorage.getItem(getStoreKey('order_active_wait'))) || null;
     waitRecords = JSON.parse(localStorage.getItem(getStoreKey('order_waits'))) || [];
     renderActiveTimers(); updateShiftUI(); initWeeklyView(); renderWeeklyData(); 
+    updateSidebarShiftUI();
 }
 
 let currentViewIndex = 0, isSearchResultOpen = false; 
@@ -585,7 +621,8 @@ let appTouchStartX = 0, appTouchStartY = 0, isSwipingApp = false;
 function initSwipeNavigation() { 
     const appContainer = document.getElementById('app-container'); 
     appContainer.addEventListener('touchstart', (e) => { 
-        if (e.target.closest('.swipe-content') || e.target.closest('.record-swipe-content') || e.target.closest('.horizontal-scroll-ignore') || e.target.type === 'range' || e.target.closest('.bottom-panel') || e.target.closest('.map-btn-recenter')) return; 
+        // 排除地圖區塊與面板拖曳的干擾
+        if (e.target.closest('.swipe-content') || e.target.closest('.record-swipe-content') || e.target.closest('.horizontal-scroll-ignore') || e.target.type === 'range' || e.target.closest('.bottom-panel') || e.target.closest('.map-btn-recenter') || e.target.closest('#map')) return; 
         appTouchStartX = e.changedTouches[0].screenX; appTouchStartY = e.changedTouches[0].screenY; isSwipingApp = true; 
     }, {passive: true}); 
     appContainer.addEventListener('touchmove', (e) => { 
@@ -604,23 +641,36 @@ function initSwipeNavigation() {
 function updateUIState() { 
     const unselectedIcons = ['☖', '＄', '♡', '☇', '◑', '⛭'], selectedIcons = ['☗', '＄', '♥\uFE0E', '☈', '◕', '⛯'];
     document.querySelectorAll('.nav-item').forEach((el, index) => { el.classList.remove('active'); const iconSpan = el.querySelector('.nav-icon'); if (iconSpan) { iconSpan.innerText = unselectedIcons[index]; iconSpan.style.transform = 'scale(1)'; } }); 
-    const activeNav = document.getElementById(`nav-${currentViewIndex}`); activeNav.classList.add('active'); 
-    const activeIconSpan = activeNav.querySelector('.nav-icon');
-    if (activeIconSpan) { activeIconSpan.innerText = selectedIcons[currentViewIndex]; if ([2, 4].includes(currentViewIndex)) activeIconSpan.style.transform = 'scale(1.25)'; }
+    const activeNav = document.getElementById(`nav-${currentViewIndex}`); 
+    if (activeNav) {
+        activeNav.classList.add('active'); 
+        const activeIconSpan = activeNav.querySelector('.nav-icon');
+        if (activeIconSpan) { activeIconSpan.innerText = selectedIcons[currentViewIndex]; if ([2, 4].includes(currentViewIndex)) activeIconSpan.style.transform = 'scale(1.25)'; }
+    }
 
     const title = document.getElementById('header-title'), btnSearch = document.getElementById('btn-search'), btnBack = document.getElementById('btn-back'), shiftBadge = document.getElementById('shift-status-badge');
+    const btnSidebar = document.getElementById('btn-sidebar-toggle');
+    
     if (isSearchResultOpen || document.getElementById('view-daily-detail').classList.contains('active')) { 
-        btnSearch.style.display = 'none'; btnBack.style.visibility = 'visible'; shiftBadge.style.display = 'none';
+        btnSearch.style.display = 'none'; btnBack.style.display = 'block'; btnSidebar.style.display = 'none'; shiftBadge.style.display = 'none';
         title.style.pointerEvents = 'none'; title.style.cursor = 'default'; title.onclick = null;
         title.innerText = document.getElementById('view-daily-detail').classList.contains('active') ? '單日明細' : '查照結果';
     } else { 
+        btnBack.style.display = 'none';
         if (currentViewIndex === 0) {
             title.innerHTML = `${currentUser} <span style="font-size: 0.8rem; vertical-align: middle;">▾</span>`;
             title.style.pointerEvents = 'auto'; title.style.cursor = 'pointer'; title.onclick = openUserModal;
+            
+            if (document.body.classList.contains('map-enabled')) {
+                btnSidebar.style.display = 'block';
+            } else {
+                btnSidebar.style.display = 'none';
+            }
         } else {
             title.innerText = viewTitles[currentViewIndex]; title.style.pointerEvents = 'none'; title.style.cursor = 'default'; title.onclick = null;
+            btnSidebar.style.display = 'none';
         }
-        btnSearch.style.display = viewHasSearch[currentViewIndex] ? 'block' : 'none'; btnBack.style.visibility = 'hidden'; shiftBadge.style.display = (currentViewIndex === 0) ? 'inline-block' : 'none';
+        btnSearch.style.display = viewHasSearch[currentViewIndex] ? 'block' : 'none'; shiftBadge.style.display = (currentViewIndex === 0) ? 'inline-block' : 'none';
     } 
 }
 
@@ -651,7 +701,7 @@ function toggleShift() {
         if (diffMins >= 0) { shiftRecords.push({ id: 'shift_' + now, dateKey: getDateKey(activeShift.startTime), startTime: activeShift.startTime, endTime: now, durationMins: diffMins, timestamp: now }); localStorage.setItem(getStoreKey('order_shifts'), JSON.stringify(shiftRecords)); }
         activeShift = null; localStorage.setItem(getStoreKey('order_active_shift'), JSON.stringify(null)); if(activeWait) checkWaitState();
     } else { activeShift = { startTime: now }; localStorage.setItem(getStoreKey('order_active_shift'), JSON.stringify(activeShift)); }
-    updateShiftUI(); checkWaitState(); renderWeeklyData();
+    updateShiftUI(); updateSidebarShiftUI(); checkWaitState(); renderWeeklyData();
 }
 
 function updateShiftUI() {
@@ -1276,9 +1326,30 @@ function selectCalDate(y, m, d) { const t = new Date(y, m, d, 0, 0, 0).getTime()
 async function applyFilter() { if (!calSelStart) return await appAlert('請先選擇日期', '操作錯誤'); const sTime = calSelStart, eTime = (calSelEnd || calSelStart) + 86399999; const fInc = historyRecords.filter(r => r.timestamp >= sTime && r.timestamp <= eTime), fTip = tipRecords.filter(r => r.timestamp >= sTime && r.timestamp <= eTime), fCost = costRecords.filter(r => r.timestamp >= sTime && r.timestamp <= eTime); document.getElementById('search-total-income').innerText = fmtMoney(fInc.reduce((s, r)=>s+r.amount,0)); document.getElementById('search-total-tips').innerText = fmtMoney(fTip.reduce((s, r)=>s+r.amount,0)); document.getElementById('search-total-costs').innerText = '-' + fmtMoney(fCost.reduce((s, r)=>s+r.amount,0)); const sd = new Date(sTime), ed = new Date(eTime), sStr = `${sd.getFullYear()}/${sd.getMonth()+1}/${sd.getDate()}`, eStr = `${ed.getFullYear()}/${ed.getMonth()+1}/${ed.getDate()}`; document.getElementById('search-date-range').innerText = sStr === eStr ? sStr : `${sStr} ~ ${eStr}`; renderStats(fInc, 'search-income-list'); renderTips(fTip, 'search-tips-list'); renderCosts(fCost, 'search-costs-list'); closeModal('filter-modal'); isSearchResultOpen = true; document.getElementById('view-search-result').classList.add('active'); updateUIState(); }
 
 /* ================== 準時率 / 取單率邏輯 ================== */
+function getTwoWeekCycleRange(nowTimestamp) {
+    // 預設以 2026/08/17 (一) 作為第一週起始的基準點
+    const anchorTime = new Date('2026-08-17T00:00:00+08:00').getTime();
+    let diffMs = nowTimestamp - anchorTime;
+    let diffWeeks = Math.floor(diffMs / (7 * 86400000));
+    
+    // 每兩週為一個循環，找到當前循環的起始週
+    let cycleIndex = Math.floor(diffWeeks / 2);
+    let startMs = anchorTime + (cycleIndex * 14 * 86400000);
+    let endMs = startMs + (14 * 86400000) - 1;
+
+    return { start: startMs, end: endMs };
+}
+
 function calculatePunctuality() {
     const buffer = Number(document.getElementById('rate-buffer-time').value) || 0;
-    const validRecords = historyRecords.filter(r => r.estimatedTime && r.estimatedTime > 0);
+    
+    // 只抓取「符合本雙週週期」且「有設定預估時間」的紀錄
+    const cycle = getTwoWeekCycleRange(Date.now());
+    const validRecords = historyRecords.filter(r => 
+        r.timestamp >= cycle.start && 
+        r.timestamp <= cycle.end && 
+        r.estimatedTime && r.estimatedTime > 0
+    );
     
     if (validRecords.length === 0) {
         document.getElementById('punctuality-ontime').innerText = '--%';
@@ -1337,4 +1408,4 @@ function importData(event) {
     }; 
     reader.readAsText(file); 
 }
-async function clearAllData() { if (await appConfirm(`確定要清除 [${currentUser}] 的所有紀錄嗎？\n（此動作無法復原）`, '警告', true)) { activeTimers = []; historyRecords = []; tipRecords = []; costRecords = []; shiftRecords = []; activeShift = null; waitRecords = []; activeWait = null; ['order_active_timers', 'order_history_records', 'order_tips', 'order_costs', 'order_shifts', 'order_active_shift', 'order_waits', 'order_active_wait'].forEach(k => localStorage.setItem(getStoreKey(k), k.includes('active') ? 'null' : '[]')); renderActiveTimers(); renderWeeklyData(); updateShiftUI(); checkWaitState(); await appAlert('清理完成', '成功'); } }
+async function clearAllData() { if (await appConfirm(`確定要清除 [${currentUser}] 的所有紀錄嗎？\n（此動作無法復原）`, '警告', true)) { activeTimers = []; historyRecords = []; tipRecords = []; costRecords = []; shiftRecords = []; activeShift = null; waitRecords = []; activeWait = null; ['order_active_timers', 'order_history_records', 'order_tips', 'order_costs', 'order_shifts', 'order_active_shift', 'order_waits', 'order_active_wait'].forEach(k => localStorage.setItem(getStoreKey(k), k.includes('active') ? 'null' : '[]')); renderActiveTimers(); renderWeeklyData(); updateShiftUI(); updateSidebarShiftUI(); checkWaitState(); await appAlert('清理完成', '成功'); } }

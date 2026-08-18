@@ -4,10 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>訂單計時與報酬統計</title>
-    
-    <!-- 引入 Leaflet 地圖 CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-    <!-- 引入外部 CSS 樣式表 -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
     <link rel="stylesheet" href="style.css">
 </head>
 <body class="map-enabled">
@@ -15,7 +12,11 @@
     <div class="advanced-bg"></div>
 
     <div class="header" id="main-header">
-        <div style="width: 70px;"><button class="btn-icon" id="btn-back" onclick="handleBack()" style="visibility: hidden;">⇠</button></div>
+        <div style="width: 70px; display:flex; align-items:center;">
+            <!-- 地圖模式專用側邊欄開關 -->
+            <button class="btn-icon" id="btn-sidebar-toggle" onclick="toggleSidebar()" style="display:none; margin-left: 4px;">☰</button>
+            <button class="btn-icon" id="btn-back" onclick="handleBack()" style="display: none;">⇠</button>
+        </div>
         <div class="header-center">
             <h1 id="header-title">預設使用者</h1>
         </div>
@@ -25,16 +26,31 @@
         </div>
     </div>
 
+    <!-- 左側側邊欄 (地圖模式專用) -->
+    <div id="map-sidebar" class="map-sidebar">
+        <div class="sidebar-content">
+            <a class="sidebar-item" onclick="switchView(0, true); toggleSidebar();"><span class="nav-icon">☗</span>首頁</a>
+            <a class="sidebar-item" onclick="switchView(1, true); toggleSidebar();"><span class="nav-icon">＄</span>收入</a>
+            <a class="sidebar-item" onclick="switchView(2, true); toggleSidebar();"><span class="nav-icon">♥&#xFE0E;</span>小費</a>
+            <a class="sidebar-item" onclick="switchView(3, true); toggleSidebar();"><span class="nav-icon">☈</span>成本</a>
+            <a class="sidebar-item" onclick="switchView(4, true); toggleSidebar();"><span class="nav-icon">◕</span>取單率</a>
+            <a class="sidebar-item" onclick="switchView(5, true); toggleSidebar();"><span class="nav-icon">⛯</span>設定</a>
+        </div>
+        <div class="sidebar-footer">
+            <button id="sidebar-shift-btn" class="btn" onclick="toggleShift(); toggleSidebar();" style="width:100%; padding:16px; font-size:1.1rem;">時段開始</button>
+        </div>
+    </div>
+    <div id="sidebar-overlay" class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
     <div id="app-container">
-        
-        <!-- 視圖 0: 主畫面 (支援地圖或一般模式) -->
+        <!-- 視圖 0: 主畫面 -->
         <div id="view-home" class="view-section map-view-override">
             <!-- 滿版地圖容器 -->
             <div id="map"></div>
             
             <!-- 底部可拖曳式面板 -->
             <div id="bottom-panel" class="bottom-panel">
-                <!-- 🎯 回到定位按鈕 (使用 Unicode 標準定位圖示) -->
+                <!-- 回到定位按鈕 -->
                 <button id="btn-recenter" class="map-btn-recenter" onclick="recenterMap()" title="回到定位">&#x2316;</button>
 
                 <!-- 面板拖曳把手 -->
@@ -59,7 +75,7 @@
                     </div>
                     
                     <div class="section-title"><span>進行中的訂單</span><span class="badge" id="active-count">0 個進行中</span></div>
-                    <p style="font-size:0.8rem; color:var(--text-muted); margin:0 0 10px 4px;">提示：長按卡片即可拖曳排序，往左滑動可刪除，點擊標題可綁定店家</p>
+                    <p style="font-size:0.8rem; color:var(--text-muted); margin:0 0 10px 4px;">提示：長按卡片拖曳排序，往左滑動刪除，往右滑動寫入預估時間</p>
                     
                     <div id="wait-time-container" style="display:none; text-align:center; padding:15px; background:var(--timer-bg); border-radius:12px; border:1px dashed var(--primary); margin-bottom:15px; box-shadow: inset 0 2px 10px rgba(0,0,0,0.02), 0 4px 10px rgba(0,0,0,0.05);">
                         <div style="font-size:0.9rem; color:var(--text-muted); font-weight:bold;">◷ 目前等單時間</div>
@@ -68,7 +84,7 @@
 
                     <div class="timer-list" id="active-timers-list"></div>
 
-                    <div class="card" style="text-align: center; margin-top: 20px;">
+                    <div class="card" id="home-shift-card" style="text-align: center; margin-top: 20px;">
                         <h2 style="justify-content: center; font-size: 1.2rem; margin-bottom: 15px;"><span>上線時段</span></h2>
                         <button id="btn-shift-toggle" class="btn" onclick="toggleShift()" style="font-size: 1.2rem; padding: 16px;">時段開始</button>
                         <div id="shift-current-duration" style="font-size: 2rem; font-family: monospace; font-weight: bold; color: var(--primary); margin-top: 15px; display: none; text-shadow: 0 2px 4px rgba(0,0,0,0.1);">00:00:00</div>
@@ -193,7 +209,6 @@
 
         <!-- 視圖 5: 設定 -->
         <div id="view-settings" class="view-section">
-            
             <div class="card">
                 <h2>功能與操作設定</h2>
                 <div class="input-group" style="margin-top: 15px; display: flex; align-items: center; justify-content: space-between;">
@@ -297,13 +312,6 @@
                     </select>
                 </div>
 
-                <div id="custom-matrix-input-group" style="display:none; margin-top: 10px; background:var(--timer-bg); padding:16px; border-radius:12px; border:1px dashed var(--primary); margin-bottom:15px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);">
-                    <label style="color:var(--primary); font-weight:bold; margin-bottom: 8px;">駭客掉落文字內容 (最多輸入三行)</label>
-                    <input type="text" id="custom-matrix-text-1" class="form-control" placeholder="第一行文字 (例: 01)" style="margin-bottom:8px;" onchange="saveMatrixText()">
-                    <input type="text" id="custom-matrix-text-2" class="form-control" placeholder="第二行文字 (例: 駭客)" style="margin-bottom:8px;" onchange="saveMatrixText()">
-                    <input type="text" id="custom-matrix-text-3" class="form-control" placeholder="第三行文字 (例: 訂單)" onchange="saveMatrixText()">
-                </div>
-
                 <div class="input-group" style="margin-top: 20px; padding-top: 15px; border-top: 1px dashed var(--border);">
                     <label style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0; cursor:pointer;">
                         <span style="font-weight:bold;">卡片底色自訂 (自由決定透明度)</span>
@@ -396,7 +404,7 @@
         <div class="section-title"><span>成本明細</span></div><div id="search-costs-list"></div>
     </div>
 
-    <div class="bottom-nav">
+    <div class="bottom-nav" id="main-bottom-nav">
         <a class="nav-item active" id="nav-0" onclick="switchView(0, true)"><span class="nav-icon">☗</span><span>首頁</span></a>
         <a class="nav-item" id="nav-1" onclick="switchView(1, true)"><span class="nav-icon">＄</span><span>收入</span></a>
         <a class="nav-item" id="nav-2" onclick="switchView(2, true)"><span class="nav-icon">♥&#xFE0E;</span><span>小費</span></a>
@@ -502,7 +510,7 @@
     </div>
 
     <!-- 引入 Leaflet 地圖 JS 核心 -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
     
     <!-- 引入外部 JavaScript -->
     <script src="data.js"></script>

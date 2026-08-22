@@ -44,6 +44,22 @@ function injectNewStyles() {
         /* 未啟用滿版地圖時，隱藏把手但保留文字區塊 */
         body:not(.map-enabled) .handle-bar-wrapper { display: none !important; }
         body:not(.map-enabled) .panel-header { cursor: default !important; }
+        
+        /* ===== 左側選單 (狀態列) 樣式 ===== */
+        .side-menu-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); z-index: 2999; opacity: 0; visibility: hidden; transition: opacity 0.3s, visibility 0.3s; backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); }
+        .side-menu-overlay.active { opacity: 1; visibility: visible; }
+        
+        .side-menu { position: fixed; top: 0; left: -100%; width: 280px; max-width: 80vw; height: 100vh; background: var(--card-bg); z-index: 3000; box-shadow: 4px 0 15px rgba(0,0,0,0.1); transition: left 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); display: flex; flex-direction: column; backdrop-filter: var(--card-backdrop); -webkit-backdrop-filter: var(--card-backdrop); }
+        .side-menu.active { left: 0; }
+        
+        .side-menu-header { padding: 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+        .side-menu-header h2 { font-size: 1.2rem; color: var(--primary); margin: 0; font-weight: bold; }
+        
+        .side-menu-content { flex: 1; overflow-y: auto; padding: 10px 0; -webkit-overflow-scrolling: touch; }
+        .side-nav-item { display: flex; align-items: center; padding: 15px 20px; color: var(--text-main); text-decoration: none; font-size: 1.05rem; cursor: pointer; transition: background 0.2s, color 0.2s; }
+        .side-nav-item:active { background: var(--timer-bg); }
+        .side-nav-item .nav-icon { margin-right: 15px; width: 24px; text-align: center; font-size: 1.2rem; }
+        .side-nav-item.active { background: var(--timer-bg); color: var(--primary); font-weight: bold; border-left: 4px solid var(--primary); }
     `;
     document.head.appendChild(style);
 }
@@ -397,8 +413,14 @@ function applySettings() {
         document.body.style.setProperty('--card-bg', `rgba(${cardRgb.r}, ${cardRgb.g}, ${cardRgb.b}, ${op})`, 'important'); document.body.style.setProperty('--timer-bg', `rgba(${cardRgb.r}, ${cardRgb.g}, ${cardRgb.b}, ${opTimer})`, 'important');
     }
     
+    // 依據是否開啟地圖，切換打卡區塊顯示位置
     if (settings.enableMap !== false) {
         document.body.classList.add('map-enabled');
+        const sideShift = document.getElementById('side-menu-shift-section');
+        if (sideShift) sideShift.style.display = 'block';
+        const bottomShift = document.getElementById('bottom-panel-shift-card');
+        if (bottomShift) bottomShift.style.display = 'none';
+
         if (mapInstance) { 
             setTimeout(() => mapInstance.invalidateSize(), 300); 
             const panel = document.getElementById('bottom-panel');
@@ -409,6 +431,11 @@ function applySettings() {
         }
     } else {
         document.body.classList.remove('map-enabled');
+        const sideShift = document.getElementById('side-menu-shift-section');
+        if (sideShift) sideShift.style.display = 'none';
+        const bottomShift = document.getElementById('bottom-panel-shift-card');
+        if (bottomShift) bottomShift.style.display = 'block';
+
         const panel = document.getElementById('bottom-panel');
         if (panel) panel.style.transform = 'none';
     }
@@ -428,7 +455,6 @@ function applyNightMode() {
     const isNight = settings.autoNightMode && (hour >= 18 || hour < 6);
     if (isNight) document.body.classList.add('night-mode'); 
     else document.body.classList.remove('night-mode'); 
-    // 地圖日夜模式由 style.css 的 CSS filter 處理，不再重新換網址，以維持水域美觀
 }
 function toggleAutoNight() { settings.autoNightMode = document.getElementById('auto-night-toggle').checked; saveSettings(); applyNightMode(); }
 function toggleMapSetting() { 
@@ -436,7 +462,7 @@ function toggleMapSetting() {
     saveSettings(); 
     applySettings(); 
     updateUIState(); 
-    updateShiftUI(); // 確保徽章即時切換位置
+    updateShiftUI(); 
 }
 function toggleConfirmDelivery() { settings.confirmDelivery = document.getElementById('setting-confirm-delivery').checked; saveSettings(); applySettings(); }
 

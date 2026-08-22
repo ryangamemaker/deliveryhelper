@@ -37,6 +37,13 @@ function injectNewStyles() {
     style.id = 'injected-new-styles';
     style.innerHTML = `
         .swipe-edit { position: absolute; top: 0; left: -80px; bottom: 0; width: 80px; background: var(--primary); color: var(--btn-text); display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 1rem; cursor: pointer; z-index: 10; box-shadow: inset -2px 0 5px rgba(0,0,0,0.1); }
+        /* 解決非滿版地圖時，各明細最底端被導航列擋住的問題 */
+        body:not(.map-enabled) #stats-list, 
+        body:not(.map-enabled) #tips-list, 
+        body:not(.map-enabled) #costs-list { padding-bottom: 80px; }
+        /* 未啟用滿版地圖時，隱藏把手但保留文字區塊 */
+        body:not(.map-enabled) .handle-bar-wrapper { display: none !important; }
+        body:not(.map-enabled) .panel-header { cursor: default !important; }
     `;
     document.head.appendChild(style);
 }
@@ -159,15 +166,17 @@ function initMap() {
     if (mapInstance) return;
     
     mapInstance = L.map('map', {zoomControl: false}).setView(currentLoc, 15);
+    // 日夜模式皆用同一個圖層，夜間會藉由 style.css 內的 filter 翻轉顏色，確保道路清楚、水域仍是藍色
     currentTileLayer = L.tileLayer(MAP_TILE, { maxZoom: 19 }).addTo(mapInstance);
     
+    // 初始化假路況圖層
     trafficLayer = L.layerGroup().addTo(mapInstance);
     
-    // 客製化藍點 (帶有 Google Map 視線擴散效果)
+    // 視線擴散的藍色圓點
     const blueDotIcon = L.divIcon({
         className: 'custom-blue-dot',
         html: `<div id="map-dir-marker" style="width: 18px; height: 18px; background-color: #007aff; border: 2.5px solid white; border-radius: 50%; box-shadow: 0 2px 6px rgba(0,0,0,0.4); position: relative; transition: transform 0.2s ease-out; display: flex; justify-content: center; align-items: center;">
-                  <!-- 視線擴散光暈 -->
+                  <!-- 視線擴散光暈 (Google Map 風格) -->
                   <div style="position: absolute; bottom: 50%; width: 70px; height: 70px; background: radial-gradient(circle at bottom center, rgba(0, 122, 255, 0.4) 0%, rgba(0, 122, 255, 0) 65%); clip-path: polygon(50% 100%, 15% 0, 85% 0); transform-origin: bottom center;"></div>
                </div>`,
         iconSize: [18, 18],
@@ -199,6 +208,7 @@ function initMap() {
         );
     }
 
+    // 地圖移動後觸發擷取假路況
     mapInstance.on('moveend', () => {
         clearTimeout(window.trafficTimer);
         window.trafficTimer = setTimeout(loadFakeTraffic, 800);
@@ -206,6 +216,7 @@ function initMap() {
     setTimeout(loadFakeTraffic, 1000);
 }
 
+// 動態讀取 OSM 道路產生逼真且美觀的綠/黃/紅路況
 function loadFakeTraffic() {
     if (!document.body.classList.contains('map-enabled') || !mapInstance) return;
     if (mapInstance.getZoom() < 13) {
@@ -221,6 +232,7 @@ function loadFakeTraffic() {
     const w = bounds.getWest() - 0.01;
     const e = bounds.getEast() + 0.01;
     
+    // 向真實地圖庫要主要道路資料
     const query = `[out:json][timeout:5];(way["highway"~"primary|secondary"](${s},${w},${n},${e}););out geom;`;
     
     fetch('https://overpass-api.de/api/interpreter', {
@@ -232,31 +244,34 @@ function loadFakeTraffic() {
             if (el.type === 'way' && el.geometry) {
                 const latlngs = el.geometry.map(g => [g.lat, g.lon]);
                 const rand = Math.random();
-                let color = '#22c55e'; // 綠色
+                let color = '#22c55e'; // 綠色路況 (佔多數，美觀舒適)
                 if (rand > 0.8) color = '#eab308'; // 黃色
                 if (rand > 0.95) color = '#ef4444'; // 紅色
                 
-                // 畫兩層線營造沿著路線兩邊做顏色的感覺
+                // 背景線 (負責形成邊線顏色)
                 L.polyline(latlngs, {
                     color: color,
                     weight: 6,
                     opacity: 0.9,
                     lineCap: 'round',
-                    lineJoin: 'round'
+                    lineJoin: 'round',
+                    className: 'fake-traffic-line-bg'
                 }).addTo(trafficLayer);
 
+                // 前景線 (負責實體軌道鏤空白線)
                 L.polyline(latlngs, {
-                    color: '#ffffff',
+                    color: '#ffffff', 
                     weight: 2,
                     opacity: 1,
                     lineCap: 'round',
-                    lineJoin: 'round'
+                    lineJoin: 'round',
+                    className: 'fake-traffic-line-fg'
                 }).addTo(trafficLayer);
             }
         });
         isFetchingTraffic = false;
     }).catch(() => {
-        isFetchingTraffic = false;
+        isFetchingTraffic = false; // 失敗則默默忽略
     });
 }
 
@@ -264,6 +279,7 @@ function recenterMap() {
     if (mapInstance && currentLoc) {
         const zoom = mapInstance.getZoom() || 15;
         const targetPoint = mapInstance.project(currentLoc, zoom);
+        // 將中心點往下偏移1/4螢幕高度，這樣定位藍點就會跑在畫面「上半部」而不被下方拖曳區蓋住
         targetPoint.y += (window.innerHeight / 4); 
         const targetLatLng = mapInstance.unproject(targetPoint, zoom);
         mapInstance.flyTo(targetLatLng, zoom, { animate: true, duration: 0.5 });
@@ -282,7 +298,7 @@ function initBottomPanel() {
         snapPoints = [
             70,             // 最高
             viewH * 0.5,    // 中間
-            viewH - 120     // 最低 (留足空間讓提示那排字可露出)
+            viewH - 120     // 最低：稍微拉高，確保「提示那排字」完全露出
         ];
     }
 
@@ -412,14 +428,15 @@ function applyNightMode() {
     const isNight = settings.autoNightMode && (hour >= 18 || hour < 6);
     if (isNight) document.body.classList.add('night-mode'); 
     else document.body.classList.remove('night-mode'); 
+    // 地圖日夜模式由 style.css 的 CSS filter 處理，不再重新換網址，以維持水域美觀
 }
 function toggleAutoNight() { settings.autoNightMode = document.getElementById('auto-night-toggle').checked; saveSettings(); applyNightMode(); }
 function toggleMapSetting() { 
     settings.enableMap = document.getElementById('setting-map-toggle').checked; 
     saveSettings(); 
     applySettings(); 
-    updateUIState();
-    updateShiftUI(); // 確保地圖模式切換時，徽章位置立刻跟著調整
+    updateUIState(); 
+    updateShiftUI(); // 確保徽章即時切換位置
 }
 function toggleConfirmDelivery() { settings.confirmDelivery = document.getElementById('setting-confirm-delivery').checked; saveSettings(); applySettings(); }
 
@@ -428,11 +445,6 @@ function toggleCollapse(header) {
     header.classList.toggle('collapsed');
     const wrap = header.nextElementSibling;
     if(wrap && wrap.classList.contains('collapsible-wrap')) wrap.classList.toggle('collapsed');
-}
-
-// 開啟訂單數量的彈出視窗
-function openOrderQuantityModal() {
-    document.getElementById('order-quantity-modal').classList.add('active');
 }
 
 /* ================== 單號專用 Modal ================== */
@@ -683,7 +695,7 @@ function updateUIState() {
             document.body.classList.add('on-home-view');
             title.innerHTML = `${currentUser} <span style="font-size: 0.8rem; vertical-align: middle;">▾</span>`;
             titleWrapper.style.pointerEvents = 'auto'; titleWrapper.style.cursor = 'pointer'; titleWrapper.onclick = openUserModal;
-            if (activeShift) updateShiftUI(); // 確保重新回到首頁時徽章可正確顯示
+            if (activeShift) updateShiftUI();
         } else {
             document.body.classList.remove('on-home-view');
             title.innerHTML = viewTitles[currentViewIndex]; 
@@ -727,19 +739,6 @@ function toggleShift() {
     updateShiftUI(); checkWaitState(); renderWeeklyData();
 }
 
-// 根據訂單數量動態更改標題
-function updateActiveOrdersTitle() {
-    const titleEl = document.getElementById('active-orders-title');
-    if (!titleEl) return;
-    if (activeTimers.length === 0) {
-        titleEl.innerText = '目前沒有訂單…';
-        titleEl.style.color = 'var(--text-muted)';
-    } else {
-        titleEl.innerText = '進行中的訂單';
-        titleEl.style.color = 'inherit';
-    }
-}
-
 function updateShiftUI() {
     const btns = document.querySelectorAll('.btn-shift-toggle-class');
     const durations = document.querySelectorAll('.shift-current-duration-class');
@@ -754,15 +753,15 @@ function updateShiftUI() {
         
         if (currentViewIndex === 0) {
             if (isMapEnabled) {
-                // 滿版地圖時：顯示在姓名下方，透明背景
+                // 滿版地圖：放名字下方，無底色
                 badgeCenter.style.display = 'inline-block';
-                badgeCenter.innerText = '上線中'; 
-                badgeCenter.style.background = 'transparent'; 
-                badgeCenter.style.color = 'var(--success)'; 
+                badgeCenter.innerText = '上線中';
+                badgeCenter.style.background = 'transparent';
+                badgeCenter.style.color = 'var(--success)';
                 badgeCenter.style.border = 'none';
                 if (badgeRight) badgeRight.style.display = 'none';
             } else {
-                // 未啟用滿版地圖時：顯示在右上角，綠底
+                // 無滿版地圖：放右上角
                 badgeCenter.style.display = 'none';
                 if (badgeRight) badgeRight.style.display = 'inline-block';
             }
@@ -774,11 +773,8 @@ function updateShiftUI() {
         badgeCenter.style.display = 'none';
         if (badgeRight) badgeRight.style.display = 'none';
         
-        badgeCenter.innerText = '未上線'; 
-        badgeCenter.style.background = 'var(--timer-bg)'; 
-        badgeCenter.style.color = 'var(--text-main)'; 
-        badgeCenter.style.border = '1px solid var(--border)';
-        
+        badgeCenter.innerText = '未上線'; badgeCenter.style.background = 'var(--timer-bg)'; badgeCenter.style.color = 'var(--text-main)'; badgeCenter.style.border = '1px solid var(--border)';
+
         durations.forEach(el => el.style.display = 'none'); 
         startBtns.forEach(b => { b.disabled = true; b.style.opacity = '0.5'; b.style.cursor = 'not-allowed'; });
     }
@@ -937,22 +933,38 @@ function handleItemTouchEnd(e) {
     itemSwipingEl = null; 
 }
 
+function openOrderQuantityModal() {
+    document.getElementById('order-quantity-modal').classList.add('active');
+}
+
+function updateActiveOrdersTitle() {
+    const titleEl = document.getElementById('active-orders-title');
+    if (!titleEl) return;
+    if (activeShift && activeTimers.length === 0) {
+        titleEl.innerText = '目前沒有訂單…';
+        titleEl.style.color = 'var(--text-muted)';
+    } else {
+        titleEl.innerText = '進行中的訂單';
+        titleEl.style.color = 'inherit';
+    }
+}
+
 function renderActiveTimers() {
     forceCleanupDrag();
     const listEl = document.getElementById('active-timers-list'); 
     document.getElementById('active-count').innerText = `${activeTimers.length} 個進行中`;
     if (activeTimers.length === 0) {
-        listEl.innerHTML = '';
-        // 清空時的提示文字狀態已在 updateActiveOrdersTitle 處理
-    } else {
-        let html = '';
-        activeTimers.forEach((timer, idx) => {
-            const titleStr = timer.storeName ? `${timer.storeName} #${timer.orderNumber}` : `訂單計時 #${idx + 1}`;
-            const estStr = timer.estimatedTime ? `<span style="white-space:nowrap; color:var(--primary); font-size:0.85rem; margin-left:8px; border:1px solid var(--primary); padding:1px 4px; border-radius:4px;">預估 ${timer.estimatedTime}m</span>` : '';
-            html += `<div class="swipe-container active-timer-container" data-id="${timer.id}"><div class="swipe-content active-timer-content" onmousedown="handleItemTouchStart(event)" ontouchstart="handleItemTouchStart(event)" onmousemove="handleItemTouchMove(event)" ontouchmove="handleItemTouchMove(event)" onmouseup="handleItemTouchEnd(event)" ontouchend="handleItemTouchEnd(event)" ontouchcancel="handleItemTouchEnd(event)" onmouseleave="handleItemTouchEnd(event)"><div class="swipe-edit" style="background:var(--success);" onclick="setEstimatedTime('${timer.id}')">預估</div><div class="timer-info"><h3 onclick="handleTimerTitleClick('${timer.id}')">${titleStr} ${estStr}</h3><p>開始時間：${formatTime(new Date(timer.startTime))}</p><div class="timer-duration" id="duration_${timer.id}">00:00:00</div></div><button class="btn-stop" onclick="stopTimer('${timer.id}')">配送</button><div class="swipe-delete" onclick="cancelTimer('${timer.id}')">刪除</div></div></div>`;
-        });
-        listEl.innerHTML = html; 
+        listEl.innerHTML = '<div class="empty-state">目前沒有進行中的訂單</div>';
+        updateActiveOrdersTitle();
+        return;
     }
+    let html = '';
+    activeTimers.forEach((timer, idx) => {
+        const titleStr = timer.storeName ? `${timer.storeName} #${timer.orderNumber}` : `訂單計時 #${idx + 1}`;
+        const estStr = timer.estimatedTime ? `<span style="white-space:nowrap; color:var(--primary); font-size:0.85rem; margin-left:8px; border:1px solid var(--primary); padding:1px 4px; border-radius:4px;">預估 ${timer.estimatedTime}m</span>` : '';
+        html += `<div class="swipe-container active-timer-container" data-id="${timer.id}"><div class="swipe-content active-timer-content" onmousedown="handleItemTouchStart(event)" ontouchstart="handleItemTouchStart(event)" onmousemove="handleItemTouchMove(event)" ontouchmove="handleItemTouchMove(event)" onmouseup="handleItemTouchEnd(event)" ontouchend="handleItemTouchEnd(event)" ontouchcancel="handleItemTouchEnd(event)" onmouseleave="handleItemTouchEnd(event)"><div class="swipe-edit" style="background:var(--success);" onclick="setEstimatedTime('${timer.id}')">預估</div><div class="timer-info"><h3 onclick="handleTimerTitleClick('${timer.id}')">${titleStr} ${estStr}</h3><p>開始時間：${formatTime(new Date(timer.startTime))}</p><div class="timer-duration" id="duration_${timer.id}">00:00:00</div></div><button class="btn-stop" onclick="stopTimer('${timer.id}')">配送</button><div class="swipe-delete" onclick="cancelTimer('${timer.id}')">刪除</div></div></div>`;
+    });
+    listEl.innerHTML = html; 
     updateTimersDisplay();
     updateActiveOrdersTitle();
 }

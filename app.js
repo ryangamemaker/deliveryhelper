@@ -1012,7 +1012,11 @@ function updateActiveOrdersTitle() {
     
     if (!activeShift || activeTimers.length === 0) {
         titleEl.innerText = '目前沒有訂單...';
-        titleEl.style.color = '#000000'; // 將這裡改成 'black' 或 '#000000'
+        // 1. 強制設定為黑色，並加上 !important 蓋過所有 CSS
+    titleEl.style.setProperty('color', 'black', 'important');
+    
+    // 2. 確保透明度是 100% (不透明)
+    titleEl.style.opacity = '1';
     } else {
         titleEl.innerText = '進行中的訂單';
         titleEl.style.color = 'inherit';

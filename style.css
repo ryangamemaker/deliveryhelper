@@ -411,16 +411,3 @@ body:not(.map-enabled) .map-btn-recenter {
 /* 確保 Leaflet 控制項不會蓋到 Header */
 .leaflet-top, .leaflet-bottom { z-index: 9 !important; }
 .leaflet-control-container .leaflet-top { top: 70px; }
-
-/* 針對非滿版地圖狀態時的補丁樣式 */
-body:not(.map-enabled) #stats-list, 
-body:not(.map-enabled) #tips-list, 
-body:not(.map-enabled) #costs-list { 
-    padding-bottom: 80px; 
-}
-body:not(.map-enabled) .handle-bar-wrapper { 
-    display: none !important; 
-}
-body:not(.map-enabled) .panel-header { 
-    cursor: default !important; 
-}

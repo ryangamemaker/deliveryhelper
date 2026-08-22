@@ -63,6 +63,43 @@ function injectNewStyles() {
         .side-nav-item:active { background: var(--timer-bg); }
         .side-nav-item .nav-icon { margin-right: 15px; width: 24px; text-align: center; font-size: 1.2rem; }
         .side-nav-item.active { background: var(--timer-bg); color: var(--primary); font-weight: bold; border-left: 4px solid var(--primary); }
+
+        /* ===== 滿版地圖模式下的頂部 Header 透明化 (僅限於首頁) ===== */
+        body.map-enabled.on-home-view .header {
+            background: transparent !important;
+            box-shadow: none !important;
+            border-bottom: none !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+            pointer-events: none; 
+        }
+        body.map-enabled.on-home-view #btn-menu, 
+        body.map-enabled.on-home-view #btn-back {
+            background: var(--card-bg);
+            border-radius: 50%;
+            width: 44px;
+            height: 44px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+            pointer-events: auto;
+        }
+        body.map-enabled.on-home-view #header-title-wrapper {
+            background: var(--card-bg);
+            padding: 8px 18px;
+            border-radius: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+            pointer-events: auto;
+            display: flex;
+            align-items: center;
+        }
+        body.map-enabled.on-home-view #btn-search {
+            pointer-events: auto;
+        }
+        body.map-enabled.on-home-view #shift-status-badge {
+            margin-left: 6px;
+        }
     `;
     document.head.appendChild(style);
 }
@@ -191,12 +228,12 @@ function initMap() {
     // 初始化假路況圖層
     trafficLayer = L.layerGroup().addTo(mapInstance);
     
-    // 視線擴散的藍色圓點
+    // 視線擴散的藍色圓點 (改為梯形/鈍角的照射範圍)
     const blueDotIcon = L.divIcon({
         className: 'custom-blue-dot',
         html: `<div id="map-dir-marker" style="width: 18px; height: 18px; background-color: #007aff; border: 2.5px solid white; border-radius: 50%; box-shadow: 0 2px 6px rgba(0,0,0,0.4); position: relative; transition: transform 0.2s ease-out; display: flex; justify-content: center; align-items: center;">
-                  <!-- 視線擴散光暈 (Google Map 風格) -->
-                  <div style="position: absolute; bottom: 50%; width: 70px; height: 70px; background: radial-gradient(circle at bottom center, rgba(0, 122, 255, 0.4) 0%, rgba(0, 122, 255, 0) 65%); clip-path: polygon(50% 100%, 15% 0, 85% 0); transform-origin: bottom center;"></div>
+                  <!-- 梯形擴散光暈 -->
+                  <div style="position: absolute; bottom: 50%; left: 50%; transform: translateX(-50%); width: 140px; height: 90px; background: radial-gradient(circle at bottom center, rgba(0, 122, 255, 0.4) 0%, rgba(0, 122, 255, 0) 70%); clip-path: polygon(50% 100%, 0% 0%, 100% 0%); transform-origin: bottom center;"></div>
                </div>`,
         iconSize: [18, 18],
         iconAnchor: [9, 9]
@@ -317,7 +354,7 @@ function initBottomPanel() {
         snapPoints = [
             70,             // 最高
             viewH * 0.5,    // 中間
-            viewH - 120     // 最低：稍微拉高，確保「提示那排字」完全露出
+            viewH - 160     // 最低：稍微拉高，確保「提示那排字」完全露出
         ];
     }
 
@@ -713,6 +750,8 @@ function updateUIState() {
     const shiftBadgeRight = document.getElementById('shift-status-badge-right');
 
     if (isSearchResultOpen || document.getElementById('view-daily-detail').classList.contains('active')) { 
+        // 進入細節畫面時，移除透明化效果
+        document.body.classList.remove('on-home-view');
         btnSearch.style.display = 'none'; btnBack.style.display = 'block'; 
         if(btnMenu) btnMenu.style.display = 'none';
         shiftBadge.style.display = 'none';
@@ -726,6 +765,7 @@ function updateUIState() {
             titleWrapper.style.pointerEvents = 'auto'; titleWrapper.style.cursor = 'pointer'; titleWrapper.onclick = openUserModal;
             if (activeShift) updateShiftUI();
         } else {
+            // 切換至其他大分頁時，移除透明化效果
             document.body.classList.remove('on-home-view');
             title.innerHTML = viewTitles[currentViewIndex]; 
             titleWrapper.style.pointerEvents = 'none'; titleWrapper.style.cursor = 'default'; titleWrapper.onclick = null;
@@ -970,9 +1010,8 @@ function updateActiveOrdersTitle() {
     const titleEl = document.getElementById('active-orders-title');
     if (!titleEl) return;
     
-    // 只要是「沒有訂單」的狀態，就顯示「目前沒有訂單...」，不論有沒有打卡
-    if (activeTimers.length === 0) {
-        titleEl.innerText = '目前沒有訂單…';
+    if (!activeShift || activeTimers.length === 0) {
+        titleEl.innerText = '目前沒有訂單...';
         titleEl.style.color = 'var(--text-muted)';
     } else {
         titleEl.innerText = '進行中的訂單';

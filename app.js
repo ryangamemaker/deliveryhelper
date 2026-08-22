@@ -1012,7 +1012,7 @@ function updateActiveOrdersTitle() {
     
     if (!activeShift || activeTimers.length === 0) {
         titleEl.innerText = '目前沒有訂單...';
-        titleEl.style.color = 'var(--text-muted)';
+        titleEl.style.color = 'black'; // 將這裡改成 'black' 或 '#000000'
     } else {
         titleEl.innerText = '進行中的訂單';
         titleEl.style.color = 'inherit';

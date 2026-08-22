@@ -45,6 +45,9 @@ function injectNewStyles() {
         body:not(.map-enabled) .handle-bar-wrapper { display: none !important; }
         body:not(.map-enabled) .panel-header { cursor: default !important; }
         
+        /* ===== 啟用滿版地圖時，隱藏底部導航列 ===== */
+        body.map-enabled .bottom-nav { display: none !important; }
+
         /* ===== 左側選單 (狀態列) 樣式 ===== */
         .side-menu-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); z-index: 2999; opacity: 0; visibility: hidden; transition: opacity 0.3s, visibility 0.3s; backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); }
         .side-menu-overlay.active { opacity: 1; visibility: visible; }
@@ -966,7 +969,9 @@ function openOrderQuantityModal() {
 function updateActiveOrdersTitle() {
     const titleEl = document.getElementById('active-orders-title');
     if (!titleEl) return;
-    if (activeShift && activeTimers.length === 0) {
+    
+    // 只要是「沒有訂單」的狀態，就顯示「目前沒有訂單...」，不論有沒有打卡
+    if (activeTimers.length === 0) {
         titleEl.innerText = '目前沒有訂單…';
         titleEl.style.color = 'var(--text-muted)';
     } else {

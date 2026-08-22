@@ -1,8 +1,8 @@
 /* ==============================================================
    全域狀態與資料初始化
    ============================================================== */
-let currentUser = localStorage.getItem('app_current_user') || '預設使用者';
-let usersList = JSON.parse(localStorage.getItem('app_users_list')) || ['預設使用者'];
+let currentUser = localStorage.getItem('app_current_user') || '新使用者';
+let usersList = JSON.parse(localStorage.getItem('app_users_list')) || ['新使用者'];
 let customStores = JSON.parse(localStorage.getItem('app_custom_stores')) || [];
 function getStoreKey(key) { return `${currentUser}_${key}`; }
 
@@ -130,7 +130,7 @@ function loadSettingsForCurrentUser() {
 
 window.onload = function() {
     injectNewStyles();
-    if (currentUser === '預設使用者' && !localStorage.getItem(getStoreKey('order_history_records')) && localStorage.getItem('order_history_records')) {
+    if (currentUser === '新使用者' && !localStorage.getItem(getStoreKey('order_history_records')) && localStorage.getItem('order_history_records')) {
         ['order_active_timers', 'order_history_records', 'order_tips', 'order_costs'].forEach(k => { localStorage.setItem(getStoreKey(k), localStorage.getItem(k) || '[]'); });
     }
     initWeeklyView(); 
@@ -559,7 +559,7 @@ function loadData() {
 
 let currentViewIndex = 0, isSearchResultOpen = false; 
 const views = ['home', 'income', 'tips', 'costs', 'rate', 'settings']; 
-const viewTitles = ['預設使用者', '收入', '小費', '成本', '取單率與單量', '設定']; 
+const viewTitles = ['新使用者', '收入', '小費', '成本', '取單率', '設定']; 
 const viewHasSearch = [false, true, true, true, false, false]; 
 
 function switchView(index, isInstant = false) { 
@@ -779,7 +779,7 @@ async function addCustomStore() { const kw = document.getElementById('store-keyw
 function searchStore() {
     const keyword = document.getElementById('store-keyword').value.trim().toLowerCase(), listEl = document.getElementById('store-result-list'); listEl.innerHTML = '';
     if (!keyword) return; const allStores = STORE_LIST.concat(customStores); const results = allStores.filter(s => s.code.toLowerCase().includes(keyword) || s.name.toLowerCase().includes(keyword));
-    if (results.length === 0) return listEl.innerHTML = '<div style="padding:10px; text-align:center; color:var(--text-muted);">無符合的店家，請點擊上方 [+ 新增]</div>';
+    if (results.length === 0) return listEl.innerHTML = '<div style="padding:10px; text-align:center; color:var(--text-muted);">無符合的店家，請點擊上方 [新增]</div>';
     results.forEach(s => {
         const div = document.createElement('div'); div.style.padding = '12px'; div.style.borderBottom = '1px solid var(--border)'; div.style.cursor = 'pointer'; div.style.color = 'var(--text-main)';
         div.innerHTML = `<span style="font-size:0.8rem; background:var(--primary); color:var(--btn-text); padding:2px 6px; border-radius:4px; margin-right:8px; box-shadow:0 1px 2px rgba(0,0,0,0.1);">${s.code}</span><strong>${s.name}</strong>`;

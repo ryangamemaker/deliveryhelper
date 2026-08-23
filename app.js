@@ -15,7 +15,6 @@ let sideMenuOpen = false;
 let mapInstance = null;
 let currentTileLayer = null;
 let userMarker = null;
-let currentLoc = [25.0645, 121.1928]; // 預設大園
 let geoWatchId = null;
 let hasCenteredMapInit = false; 
 

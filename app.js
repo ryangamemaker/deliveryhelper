@@ -83,8 +83,7 @@ function injectNewStyles() {
             -webkit-backdrop-filter: none !important;
             pointer-events: none; 
         }
-        body.map-enabled.on-home-view #btn-menu, 
-        body.map-enabled.on-home-view #btn-back {
+        body.map-enabled.on-home-view #btn-menu {
             background: var(--card-bg) !important;
             border-radius: 50% !important;
             width: 44px !important;
@@ -94,6 +93,9 @@ function injectNewStyles() {
             align-items: center !important;
             box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
             pointer-events: auto !important;
+        }
+        body.map-enabled.on-home-view #btn-back {
+            display: none !important; /* 強制隱藏不需要的箭頭 */
         }
         body.map-enabled.on-home-view #header-title-wrapper {
             background: var(--card-bg) !important;
@@ -242,7 +244,7 @@ function initMap() {
         className: 'custom-blue-dot',
         html: `<div id="map-dir-marker" style="width: 18px; height: 18px; background-color: #007aff; border: 2.5px solid white; border-radius: 50%; box-shadow: 0 2px 6px rgba(0,0,0,0.4); position: relative; transition: transform 0.2s ease-out; display: flex; justify-content: center; align-items: center;">
                   <!-- 梯形擴散光暈 -->
-                  <div style="position: absolute; bottom: 50%; left: 50%; transform: translateX(-50%); width: 140px; height: 90px; background: radial-gradient(circle at bottom center, rgba(0, 122, 255, 0.4) 0%, rgba(0, 122, 255, 0) 70%); clip-path: polygon(50% 100%, 0% 0%, 100% 0%); transform-origin: bottom center;"></div>
+                  <div style="position: absolute; bottom: 50%; left: 50%; transform: translateX(-50%); width: 220px; height: 100px; background: radial-gradient(circle at bottom center, rgba(0, 122, 255, 0.4) 0%, rgba(0, 122, 255, 0) 70%); clip-path: polygon(50% 100%, 0% 0%, 100% 0%); transform-origin: bottom center;"></div>
                </div>`,
         iconSize: [18, 18],
         iconAnchor: [9, 9]
@@ -1038,7 +1040,7 @@ function renderActiveTimers() {
     }
     let html = '';
     activeTimers.forEach((timer, idx) => {
-        const titleStr = timer.storeName ? `${timer.storeName} #${timer.orderNumber}` : `訂單 #${idx + 1}`;
+        const titleStr = timer.storeName ? `${timer.storeName} #${timer.orderNumber}` : `訂單計時 #${idx + 1}`;
         const estStr = timer.estimatedTime ? `<span style="white-space:nowrap; color:var(--primary); font-size:0.85rem; margin-left:8px; border:1px solid var(--primary); padding:1px 4px; border-radius:4px;">預估 ${timer.estimatedTime}m</span>` : '';
         html += `<div class="swipe-container active-timer-container" data-id="${timer.id}"><div class="swipe-content active-timer-content" onmousedown="handleItemTouchStart(event)" ontouchstart="handleItemTouchStart(event)" onmousemove="handleItemTouchMove(event)" ontouchmove="handleItemTouchMove(event)" onmouseup="handleItemTouchEnd(event)" ontouchend="handleItemTouchEnd(event)" ontouchcancel="handleItemTouchEnd(event)" onmouseleave="handleItemTouchEnd(event)"><div class="swipe-edit" style="background:var(--success);" onclick="setEstimatedTime('${timer.id}')">預估</div><div class="timer-info"><h3 onclick="handleTimerTitleClick('${timer.id}')">${titleStr} ${estStr}</h3><p>開始時間：${formatTime(new Date(timer.startTime))}</p><div class="timer-duration" id="duration_${timer.id}">00:00:00</div></div><button class="btn-stop" onclick="stopTimer('${timer.id}')">配送</button><div class="swipe-delete" onclick="cancelTimer('${timer.id}')">刪除</div></div></div>`;
     });

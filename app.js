@@ -15,7 +15,7 @@ let sideMenuOpen = false;
 let mapInstance = null;
 let currentTileLayer = null;
 let userMarker = null;
-let currentLoc = [25.0478, 121.5170]; // 預設改為台北車站
+let currentLoc = [25.0478, 121.5170]; // 預設為台北車站
 let geoWatchId = null;
 let hasCenteredMapInit = false; 
 
@@ -44,6 +44,9 @@ function injectNewStyles() {
         /* 未啟用滿版地圖時，隱藏把手但保留文字區塊 */
         body:not(.map-enabled) .handle-bar-wrapper { display: none !important; }
         body:not(.map-enabled) .panel-header { cursor: default !important; }
+        
+        /* ===== 未啟用滿版地圖時，隱藏左上角狀態列(漢堡)按鈕 ===== */
+        body:not(.map-enabled) #btn-menu { display: none !important; }
         
         /* ===== 保證 Leaflet 地圖在各裝置上絕對能顯示尺寸 ===== */
         body.map-enabled #map {
@@ -234,12 +237,12 @@ function initMap() {
     // 初始化假路況圖層
     trafficLayer = L.layerGroup().addTo(mapInstance);
     
-    // 視線擴散的藍色圓點 (改為寬廣的鈍角/梯形照射範圍)
+    // 視線擴散的藍色圓點 (改為梯形/鈍角的照射範圍)
     const blueDotIcon = L.divIcon({
         className: 'custom-blue-dot',
         html: `<div id="map-dir-marker" style="width: 18px; height: 18px; background-color: #007aff; border: 2.5px solid white; border-radius: 50%; box-shadow: 0 2px 6px rgba(0,0,0,0.4); position: relative; transition: transform 0.2s ease-out; display: flex; justify-content: center; align-items: center;">
-                  <!-- 寬廣鈍角/梯形擴散光暈 -->
-                  <div style="position: absolute; bottom: 50%; left: 50%; transform: translateX(-50%); width: 220px; height: 100px; background: radial-gradient(circle at bottom center, rgba(0, 122, 255, 0.4) 0%, rgba(0, 122, 255, 0) 70%); clip-path: polygon(50% 100%, 0% 0%, 100% 0%); transform-origin: bottom center;"></div>
+                  <!-- 梯形擴散光暈 -->
+                  <div style="position: absolute; bottom: 50%; left: 50%; transform: translateX(-50%); width: 140px; height: 90px; background: radial-gradient(circle at bottom center, rgba(0, 122, 255, 0.4) 0%, rgba(0, 122, 255, 0) 70%); clip-path: polygon(50% 100%, 0% 0%, 100% 0%); transform-origin: bottom center;"></div>
                </div>`,
         iconSize: [18, 18],
         iconAnchor: [9, 9]
@@ -1015,8 +1018,7 @@ function updateActiveOrdersTitle() {
     const titleEl = document.getElementById('active-orders-title');
     if (!titleEl) return;
     
-    // 只要是「沒有訂單」的狀態，就顯示「目前沒有訂單...」，不論有沒有打卡
-    if (activeTimers.length === 0) {
+    if (!activeShift || activeTimers.length === 0) {
         titleEl.innerText = '目前沒有訂單...';
         titleEl.style.color = 'var(--text-muted)';
     } else {

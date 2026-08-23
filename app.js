@@ -15,7 +15,7 @@ let sideMenuOpen = false;
 let mapInstance = null;
 let currentTileLayer = null;
 let userMarker = null;
-let currentLoc = [25.0478, 121.5170]; // 預設改為台北車站 (作為等待 GPS 自動定位前的過渡畫面)
+let currentLoc = [25.0478, 121.5170]; // 預設改為台北車站
 let geoWatchId = null;
 let hasCenteredMapInit = false; 
 
@@ -45,6 +45,13 @@ function injectNewStyles() {
         body:not(.map-enabled) .handle-bar-wrapper { display: none !important; }
         body:not(.map-enabled) .panel-header { cursor: default !important; }
         
+        /* ===== 保證 Leaflet 地圖在各裝置上絕對能顯示尺寸 ===== */
+        body.map-enabled #map {
+            display: block !important;
+            width: 100vw !important;
+            height: 100vh !important;
+        }
+
         /* ===== 啟用滿版地圖時，隱藏底部導航列 ===== */
         body.map-enabled .bottom-nav { display: none !important; }
 
@@ -75,30 +82,29 @@ function injectNewStyles() {
         }
         body.map-enabled.on-home-view #btn-menu, 
         body.map-enabled.on-home-view #btn-back {
-            background: var(--card-bg);
-            border-radius: 50%;
-            width: 44px;
-            height: 44px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.15);
-            pointer-events: auto;
+            background: var(--card-bg) !important;
+            border-radius: 50% !important;
+            width: 44px !important;
+            height: 44px !important;
+            display: flex !important;
+            justify-content: center !important;
+            align-items: center !important;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+            pointer-events: auto !important;
         }
         body.map-enabled.on-home-view #header-title-wrapper {
-            background: var(--card-bg);
-            padding: 8px 18px;
-            border-radius: 20px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.15);
-            pointer-events: auto;
-            display: flex;
-            align-items: center;
+            background: var(--card-bg) !important;
+            padding: 8px 20px !important;
+            border-radius: 20px !important;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+            pointer-events: auto !important;
         }
         body.map-enabled.on-home-view #btn-search {
-            pointer-events: auto;
+            pointer-events: auto !important;
         }
-        body.map-enabled.on-home-view #shift-status-badge {
-            margin-left: 6px;
+        body.map-enabled.on-home-view #shift-status-badge,
+        body.map-enabled.on-home-view #shift-status-badge-right {
+            display: none !important; /* 強制隱藏上線色塊 */
         }
     `;
     document.head.appendChild(style);
@@ -228,12 +234,12 @@ function initMap() {
     // 初始化假路況圖層
     trafficLayer = L.layerGroup().addTo(mapInstance);
     
-    // 視線擴散的藍色圓點 (改為梯形/鈍角的照射範圍)
+    // 視線擴散的藍色圓點 (改為寬廣的鈍角/梯形照射範圍)
     const blueDotIcon = L.divIcon({
         className: 'custom-blue-dot',
         html: `<div id="map-dir-marker" style="width: 18px; height: 18px; background-color: #007aff; border: 2.5px solid white; border-radius: 50%; box-shadow: 0 2px 6px rgba(0,0,0,0.4); position: relative; transition: transform 0.2s ease-out; display: flex; justify-content: center; align-items: center;">
-                  <!-- 梯形擴散光暈 -->
-                  <div style="position: absolute; bottom: 50%; left: 50%; transform: translateX(-50%); width: 140px; height: 90px; background: radial-gradient(circle at bottom center, rgba(0, 122, 255, 0.4) 0%, rgba(0, 122, 255, 0) 70%); clip-path: polygon(50% 100%, 0% 0%, 100% 0%); transform-origin: bottom center;"></div>
+                  <!-- 寬廣鈍角/梯形擴散光暈 -->
+                  <div style="position: absolute; bottom: 50%; left: 50%; transform: translateX(-50%); width: 220px; height: 100px; background: radial-gradient(circle at bottom center, rgba(0, 122, 255, 0.4) 0%, rgba(0, 122, 255, 0) 70%); clip-path: polygon(50% 100%, 0% 0%, 100% 0%); transform-origin: bottom center;"></div>
                </div>`,
         iconSize: [18, 18],
         iconAnchor: [9, 9]
@@ -270,6 +276,9 @@ function initMap() {
         window.trafficTimer = setTimeout(loadFakeTraffic, 800);
     });
     setTimeout(loadFakeTraffic, 1000);
+    
+    // 確保地圖尺寸完全刷新，避免白畫面/灰畫面問題
+    setTimeout(() => { if (mapInstance) mapInstance.invalidateSize(); }, 500);
 }
 
 // 動態讀取 OSM 道路產生逼真且美觀的綠/黃/紅路況
@@ -354,7 +363,7 @@ function initBottomPanel() {
         snapPoints = [
             70,             // 最高
             viewH * 0.5,    // 中間
-            viewH - 160     // 最低：稍微拉高，確保「提示那排字」完全露出
+            viewH - 160     // 最低：稍微拉高，確保「提示那排字」能完全露出
         ];
     }
 
@@ -822,12 +831,8 @@ function updateShiftUI() {
         
         if (currentViewIndex === 0) {
             if (isMapEnabled) {
-                // 滿版地圖：放名字下方，無底色
-                badgeCenter.style.display = 'inline-block';
-                badgeCenter.innerText = '上線中';
-                badgeCenter.style.background = 'transparent';
-                badgeCenter.style.color = 'var(--success)';
-                badgeCenter.style.border = 'none';
+                // 滿版地圖模式下，強制隱藏所有上線色塊 (維持畫面乾淨)
+                badgeCenter.style.display = 'none';
                 if (badgeRight) badgeRight.style.display = 'none';
             } else {
                 // 無滿版地圖：放右上角
@@ -1010,11 +1015,10 @@ function updateActiveOrdersTitle() {
     const titleEl = document.getElementById('active-orders-title');
     if (!titleEl) return;
     
- if (!activeShift || activeTimers.length === 0) {
-
+    // 只要是「沒有訂單」的狀態，就顯示「目前沒有訂單...」，不論有沒有打卡
+    if (activeTimers.length === 0) {
         titleEl.innerText = '目前沒有訂單...';
-
-        titleEl.style.color = 'inherit';
+        titleEl.style.color = 'var(--text-muted)';
     } else {
         titleEl.innerText = '進行中的訂單';
         titleEl.style.color = 'inherit';

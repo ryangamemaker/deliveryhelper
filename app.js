@@ -263,7 +263,7 @@ function initMap() {
                     }
                 }
                 if (!hasCenteredMapInit) {
-                    recenterMap();
+                    recenterMap(true); // 第一次定位直接瞬間跳轉，不要動畫
                     hasCenteredMapInit = true;
                 } else if (mapInstance) {
                     const bounds = mapInstance.getBounds();
@@ -345,14 +345,22 @@ function loadFakeTraffic() {
     });
 }
 
-function recenterMap() {
+// 支援瞬間跳轉或快速平滑移動
+function recenterMap(instant = false) {
     if (mapInstance && currentLoc) {
         const zoom = mapInstance.getZoom() || 15;
         const targetPoint = mapInstance.project(currentLoc, zoom);
         // 將中心點往下偏移1/4螢幕高度，這樣定位藍點就會跑在畫面「上半部」而不被下方拖曳區蓋住
         targetPoint.y += (window.innerHeight / 4); 
         const targetLatLng = mapInstance.unproject(targetPoint, zoom);
-        mapInstance.flyTo(targetLatLng, zoom, { animate: true, duration: 0.5 });
+        
+        if (instant) {
+            // 瞬間切換位置 (用於首次 GPS 定位)
+            mapInstance.setView(targetLatLng, zoom, { animate: false });
+        } else {
+            // 快速直線平移，取代原本緩慢的拋物線 flyTo
+            mapInstance.setView(targetLatLng, zoom, { animate: true, duration: 0.25 });
+        }
     }
 }
 
@@ -1020,7 +1028,7 @@ function updateActiveOrdersTitle() {
     const titleEl = document.getElementById('active-orders-title');
     if (!titleEl) return;
     
-    if (!activeShift || activeTimers.length === 0) {
+    if (activeTimers.length === 0) {
         titleEl.innerText = '目前沒有訂單...';
         titleEl.style.color = 'inherit';
     } else {

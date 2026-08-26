@@ -15,7 +15,7 @@ let sideMenuOpen = false;
 let mapInstance = null;
 let currentTileLayer = null;
 let userMarker = null;
-let currentLoc = [25.0478, 121.5170]; // 預設為台北車站
+let currentLoc = [25.0478, 121.5170]; // 預設改為台北車站
 let geoWatchId = null;
 let hasCenteredMapInit = false; 
 
@@ -367,9 +367,10 @@ function recenterMap(instant = false) {
 function initBottomPanel() {
     const panel = document.getElementById('bottom-panel');
     const header = document.getElementById('panel-drag-handle');
-    if (!panel || !header) return;
+    const content = document.getElementById('panel-scroll-content');
+    if (!panel || !header || !content) return;
 
-    let isDraggingPanel = false, startY = 0, initialTranslateY = 0, snapPoints = [], hasMoved = false;
+    let isDraggingPanel = false, isContentDragging = false, startY = 0, contentStartY = 0, initialTranslateY = 0, snapPoints = [], hasMoved = false;
 
     function updatePanelDimensions() {
         let viewH = window.innerHeight;
@@ -380,52 +381,115 @@ function initBottomPanel() {
         ];
     }
 
+    function getTranslateY() {
+        const match = panel.style.transform.match(/translateY\(([-\d.]+)px\)/);
+        return match ? parseFloat(match[1]) : snapPoints[1];
+    }
+
+    // 觸發拖曳把手
     header.addEventListener('touchstart', (e) => {
         if (!document.body.classList.contains('map-enabled')) return;
         isDraggingPanel = true; hasMoved = false;
         updatePanelDimensions(); 
         startY = e.touches[0].clientY;
-        const match = panel.style.transform.match(/translateY\(([-\d.]+)px\)/);
-        initialTranslateY = match ? parseFloat(match[1]) : snapPoints[1];
+        initialTranslateY = getTranslateY();
         panel.classList.add('dragging');
     }, {passive: true});
 
-    document.addEventListener('touchmove', (e) => {
-        if (!isDraggingPanel || !document.body.classList.contains('map-enabled')) return;
-        const currentY = e.touches[0].clientY;
-        const deltaY = currentY - startY;
-        if (Math.abs(deltaY) > 5) hasMoved = true;
-        
-        if (e.cancelable) e.preventDefault(); 
-        let newY = initialTranslateY + deltaY;
-        if (newY < snapPoints[0]) newY = snapPoints[0] - (snapPoints[0] - newY) * 0.2; 
-        if (newY > snapPoints[2]) newY = snapPoints[2] + (newY - snapPoints[2]) * 0.2;
+    // 觸碰內容區時記錄起始點
+    content.addEventListener('touchstart', (e) => {
+        if (!document.body.classList.contains('map-enabled')) return;
+        contentStartY = e.touches[0].clientY;
+        updatePanelDimensions();
+        initialTranslateY = getTranslateY();
+        isContentDragging = false;
+    }, {passive: true});
 
-        panel.style.transform = `translateY(${newY}px)`;
+    // 統一處理拖曳邏輯
+    document.addEventListener('touchmove', (e) => {
+        if (!document.body.classList.contains('map-enabled')) return;
+        const currentY = e.touches[0].clientY;
+
+        // 如果按住的是把手，純粹拖曳面板
+        if (isDraggingPanel) {
+            const deltaY = currentY - startY;
+            if (Math.abs(deltaY) > 5) hasMoved = true;
+            if (e.cancelable) e.preventDefault(); 
+            let newY = initialTranslateY + deltaY;
+            if (newY < snapPoints[0]) newY = snapPoints[0] - (snapPoints[0] - newY) * 0.2; 
+            if (newY > snapPoints[2]) newY = snapPoints[2] + (newY - snapPoints[2]) * 0.2;
+            panel.style.transform = `translateY(${newY}px)`;
+        } 
+        // 如果在內容區塊內滾動
+        else if (e.target.closest('#panel-scroll-content')) {
+            const deltaY = currentY - contentStartY;
+            const isScrollingUp = deltaY > 0; // 手指往下滑動 (內容往上)
+            const isScrollingDown = deltaY < 0; // 手指往上滑動 (內容往下)
+            
+            let shouldDrag = false;
+            
+            // 條件 1：面板不在最頂端，且使用者試圖將內容往上滑（手指上滑） -> 應該先把面板拉上來
+            if (isScrollingDown && initialTranslateY > snapPoints[0] + 5) {
+                shouldDrag = true;
+            }
+            // 條件 2：內容已經滾到最上面了，且使用者試圖將內容往下壓（手指向下） -> 應該把面板推下去
+            else if (isScrollingUp && content.scrollTop <= 0) {
+                shouldDrag = true;
+            }
+            
+            if (shouldDrag) {
+                if (e.cancelable) e.preventDefault(); // 停止原生的滾動行為
+                
+                // 初次觸發拖曳模式時，重置拖曳基準點，避免跳躍
+                if (!isContentDragging) {
+                    isContentDragging = true;
+                    hasMoved = false;
+                    startY = currentY; // 以當前位置作為新基準
+                    initialTranslateY = getTranslateY();
+                    panel.classList.add('dragging');
+                }
+                
+                const dragDelta = currentY - startY;
+                if (Math.abs(dragDelta) > 5) hasMoved = true;
+                
+                let newY = initialTranslateY + dragDelta;
+                if (newY < snapPoints[0]) newY = snapPoints[0] - (snapPoints[0] - newY) * 0.2; 
+                if (newY > snapPoints[2]) newY = snapPoints[2] + (newY - snapPoints[2]) * 0.2;
+                panel.style.transform = `translateY(${newY}px)`;
+            } else if (isContentDragging) {
+                // 如果曾經在拖曳，但條件突然不成立（例如反向滑動），維持阻止預設行為以防畫面抖動
+                if (e.cancelable) e.preventDefault();
+            }
+        }
     }, {passive: false});
 
     function handlePanelEndOrCancel() {
-        if (!isDraggingPanel || !document.body.classList.contains('map-enabled')) return;
+        if (!isDraggingPanel && !isContentDragging) return;
+        const wasDragging = isDraggingPanel || isContentDragging;
         isDraggingPanel = false;
+        isContentDragging = false;
         panel.classList.remove('dragging');
 
-        const match = panel.style.transform.match(/translateY\(([-\d.]+)px\)/);
-        let endY = match ? parseFloat(match[1]) : snapPoints[1];
+        if (!wasDragging || !document.body.classList.contains('map-enabled')) return;
+
+        let endY = getTranslateY();
         let closest = snapPoints[0];
         
-        if (!hasMoved) closest = snapPoints[0];
-        else {
+        if (!hasMoved) {
+            closest = initialTranslateY;
+        } else {
             let minDiff = Math.abs(endY - snapPoints[0]);
             for(let i=1; i<snapPoints.length; i++) {
                 let diff = Math.abs(endY - snapPoints[i]);
                 if(diff < minDiff) { minDiff = diff; closest = snapPoints[i]; }
             }
         }
+        
         panel.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)';
         panel.style.transform = `translateY(${closest}px)`;
         
-        const content = document.getElementById('panel-scroll-content');
-        if (content) content.style.paddingBottom = `${closest + 40}px`;
+        const contentEl = document.getElementById('panel-scroll-content');
+        if (contentEl) contentEl.style.paddingBottom = `${closest + 40}px`;
         
         if (mapInstance) setTimeout(() => mapInstance.invalidateSize(), 300);
     }
@@ -438,8 +502,8 @@ function initBottomPanel() {
         if(document.body.classList.contains('map-enabled') && (!panel.style.transform || panel.style.transform === 'none')) {
             let initY = snapPoints[1];
             panel.style.transform = `translateY(${initY}px)`;
-            const content = document.getElementById('panel-scroll-content');
-            if (content) content.style.paddingBottom = `${initY + 40}px`;
+            const contentEl = document.getElementById('panel-scroll-content');
+            if (contentEl) contentEl.style.paddingBottom = `${initY + 40}px`;
         }
     }, 300);
     window.addEventListener('resize', updatePanelDimensions);
@@ -784,7 +848,8 @@ function updateUIState() {
         if (currentViewIndex === 0) {
             document.body.classList.add('on-home-view');
             title.innerHTML = `${currentUser} <span style="font-size: 0.8rem; vertical-align: middle;">▾</span>`;
-            titleWrapper.style.pointerEvents = 'auto'; titleWrapper.style.cursor = 'pointer'; titleWrapper.onclick = openUserModal;
+            titleWrapper.style.pointerEvents = 'auto'; titleWrapper.style.cursor = 'pointer'; 
+            titleWrapper.onclick = () => openUserModal('switch');
             if (activeShift) updateShiftUI();
         } else {
             // 切換至其他大分頁時，移除透明化效果
@@ -802,18 +867,55 @@ function updateUIState() {
 
 function handleBack() { if(document.getElementById('view-daily-detail').classList.contains('active')) closeDailyDetail(); else if (isSearchResultOpen) { document.getElementById('view-search-result').classList.remove('active'); isSearchResultOpen = false; updateUIState(); } }
 
-function openUserModal() {
+function openUserModal(mode = 'switch') {
     const container = document.getElementById('user-list-container'); container.innerHTML = '';
-    usersList.forEach(u => {
-        const btn = document.createElement('button'); btn.className = (u === currentUser) ? 'btn' : 'btn-outline';
-        btn.style.width = '100%'; btn.style.padding = '12px'; btn.innerText = u; btn.onclick = () => switchUser(u); container.appendChild(btn);
-    });
+    const title = document.getElementById('user-modal-title');
+    
+    if (mode === 'remove') {
+        title.innerText = '移除使用者';
+        usersList.forEach(u => {
+            const wrap = document.createElement('div');
+            wrap.style.display = 'flex'; wrap.style.gap = '8px'; wrap.style.alignItems = 'center'; wrap.style.marginBottom = '8px';
+            const nameDiv = document.createElement('div');
+            nameDiv.className = 'form-control'; nameDiv.style.flex = '1'; nameDiv.style.padding = '10px'; nameDiv.innerText = u;
+            const delBtn = document.createElement('button');
+            delBtn.className = 'btn'; delBtn.style.background = 'var(--danger)'; delBtn.style.borderColor = 'var(--danger)'; delBtn.style.padding = '10px'; delBtn.style.width = '70px'; delBtn.innerText = '移除';
+            if (usersList.length <= 1) delBtn.disabled = true;
+            delBtn.onclick = () => confirmDeleteUser(u);
+            wrap.appendChild(nameDiv); wrap.appendChild(delBtn);
+            container.appendChild(wrap);
+        });
+    } else {
+        title.innerText = '切換使用者';
+        usersList.forEach(u => {
+            const btn = document.createElement('button'); btn.className = (u === currentUser) ? 'btn' : 'btn-outline';
+            btn.style.width = '100%'; btn.style.padding = '12px'; btn.innerText = u; btn.onclick = () => switchUser(u); container.appendChild(btn);
+        });
+    }
     document.getElementById('user-modal').classList.add('active');
 }
 
 function switchUser(name) {
     currentUser = name; localStorage.setItem('app_current_user', currentUser);
     loadSettingsForCurrentUser(); applySettings(); loadData(); updateUIState(); closeModal('user-modal');
+}
+
+async function confirmDeleteUser(name) {
+    if (usersList.length <= 1) return await appAlert('至少需保留一位使用者！', '錯誤');
+    if (await appConfirm(`確定要永久移除使用者 [${name}] 嗎？\n此動作將清空該使用者的所有紀錄，且無法復原！`, '移除確認', true)) {
+        ['order_active_timers', 'order_history_records', 'order_tips', 'order_costs', 'order_settings', 'order_last_weather', 'order_active_shift', 'order_shifts', 'order_active_wait', 'order_waits'].forEach(key => {
+            localStorage.removeItem(`${name}_${key}`);
+        });
+        usersList = usersList.filter(u => u !== name);
+        localStorage.setItem('app_users_list', JSON.stringify(usersList));
+        
+        if (currentUser === name) {
+            switchUser(usersList[0]);
+        } else {
+            openUserModal('remove'); 
+        }
+        await appAlert(`已移除使用者 [${name}]`, '成功');
+    }
 }
 
 async function addUser() { const name = await appPrompt('請輸入新使用者名稱：', '', '新增使用者'); if (name && name.trim() !== '') { if (usersList.includes(name.trim())) return await appAlert('該使用者已存在！', '錯誤'); usersList.push(name.trim()); localStorage.setItem('app_users_list', JSON.stringify(usersList)); switchUser(name.trim()); } }
@@ -1226,4 +1328,3 @@ function calculatePunctuality() {
 
 function exportData() { const data = {}; for(let i=0; i<localStorage.length; i++){ const key = localStorage.key(i); if(key.includes('order_') || key.includes('app_')) data[key] = localStorage.getItem(key); } const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), url = URL.createObjectURL(blob), a = document.createElement('a'), d = new Date(); a.href = url; a.download = `訂單統計備份_${d.getFullYear()}${(d.getMonth()+1).toString().padStart(2,'0')}${d.getDate().toString().padStart(2,'0')}.json`; a.click(); URL.revokeObjectURL(url); }
 function importData(event) { const file = event.target.files[0]; if(!file) return; const reader = new FileReader(); reader.onload = async function(e) { try { const data = JSON.parse(e.target.result); let valid = false; Object.keys(data).forEach(k => { if(k.includes('order_') || k.includes('app_')) { localStorage.setItem(k, data[k]); valid = true; } }); if(valid) { await appAlert('資料匯入成功！即將重新載入頁面。', '匯入成功'); location.reload(); } else await appAlert('無效的備份檔案格式。', '匯入失敗'); } catch(err) { await appAlert('匯入失敗：檔案損毀或格式錯誤。', '錯誤'); } }; reader.readAsText(file); }
-async function clearAllData() { if (await appConfirm(`確定要清除 [${currentUser}] 的所有紀錄嗎？\n（此動作無法復原）`, '警告', true)) { activeTimers = []; historyRecords = []; tipRecords = []; costRecords = []; shiftRecords = []; activeShift = null; waitRecords = []; activeWait = null; ['order_active_timers', 'order_history_records', 'order_tips', 'order_costs', 'order_shifts', 'order_active_shift', 'order_waits', 'order_active_wait'].forEach(k => localStorage.setItem(getStoreKey(k), k.includes('active') ? 'null' : '[]')); renderActiveTimers(); renderWeeklyData(); updateShiftUI(); checkWaitState(); await appAlert('清理完成', '成功'); } }

@@ -15,7 +15,7 @@ let sideMenuOpen = false;
 let mapInstance = null;
 let currentTileLayer = null;
 let userMarker = null;
-let currentLoc = [25.0478, 121.5170]; // 預設為台北車站
+let currentLoc = [25.0478, 121.5170]; // 預設改為台北車站
 let geoWatchId = null;
 let hasCenteredMapInit = false; 
 
@@ -672,7 +672,7 @@ function loadData() {
 
 let currentViewIndex = 0, isSearchResultOpen = false; 
 const views = ['home', 'income', 'tips', 'costs', 'rate', 'settings']; 
-const viewTitles = ['新使用者', '收入', '小費', '成本', '取單率', '設定']; 
+const viewTitles = ['新使用者', '收入', '小費', '成本', '準時率', '設定']; 
 const viewHasSearch = [false, true, true, true, false, false]; 
 
 function switchView(index, isInstant = false) { 
@@ -1026,14 +1026,17 @@ function openOrderQuantityModal() {
 
 function updateActiveOrdersTitle() {
     const titleEl = document.getElementById('active-orders-title');
+    const hintEl = document.querySelector('#panel-drag-handle p');
     if (!titleEl) return;
     
     if (activeTimers.length === 0) {
         titleEl.innerText = '目前沒有訂單...';
         titleEl.style.color = 'inherit';
+        if (hintEl) hintEl.innerText = '前往熱點地區將更有機會接到訂單';
     } else {
         titleEl.innerText = '進行中的訂單';
         titleEl.style.color = 'inherit';
+        if (hintEl) hintEl.innerText = '提示：長按卡片拖曳排序，往左滑動刪除，點擊標題綁定店家';
     }
 }
 
@@ -1220,9 +1223,6 @@ function calculatePunctuality() {
     document.getElementById('punctuality-avg-timeout').innerText = avgTimeoutRate.toFixed(1) + '%';
     document.getElementById('punctuality-total-timeout').innerText = totalTimeoutRate.toFixed(1) + '%';
 }
-
-function calculateRateTotal() { const total = Number(document.getElementById('rate-input-total').value), box = document.getElementById('rate-result-total'); if(total && total > 0) { box.style.display = 'block'; document.getElementById('rate-number-reject').innerText = Math.floor(total * 0.2); } else box.style.display = 'none'; }
-function calculateRateCurrent() { const pct = Number(document.getElementById('rate-current-pct').value), total = Number(document.getElementById('rate-current-total').value), box = document.getElementById('rate-result-current'); if(pct && total && pct > 0 && total > 0) { box.style.display = 'block'; document.getElementById('rate-current-ans').innerText = Math.max(0, total - Math.round(total * (pct / 100))); } else box.style.display = 'none'; }
 
 function exportData() { const data = {}; for(let i=0; i<localStorage.length; i++){ const key = localStorage.key(i); if(key.includes('order_') || key.includes('app_')) data[key] = localStorage.getItem(key); } const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), url = URL.createObjectURL(blob), a = document.createElement('a'), d = new Date(); a.href = url; a.download = `訂單統計備份_${d.getFullYear()}${(d.getMonth()+1).toString().padStart(2,'0')}${d.getDate().toString().padStart(2,'0')}.json`; a.click(); URL.revokeObjectURL(url); }
 function importData(event) { const file = event.target.files[0]; if(!file) return; const reader = new FileReader(); reader.onload = async function(e) { try { const data = JSON.parse(e.target.result); let valid = false; Object.keys(data).forEach(k => { if(k.includes('order_') || k.includes('app_')) { localStorage.setItem(k, data[k]); valid = true; } }); if(valid) { await appAlert('資料匯入成功！即將重新載入頁面。', '匯入成功'); location.reload(); } else await appAlert('無效的備份檔案格式。', '匯入失敗'); } catch(err) { await appAlert('匯入失敗：檔案損毀或格式錯誤。', '錯誤'); } }; reader.readAsText(file); }

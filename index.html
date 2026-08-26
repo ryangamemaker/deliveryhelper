@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Delivery helper</title>
+    <title>Divery Master</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
     <link rel="stylesheet" href="style.css">
 </head>
@@ -169,7 +169,7 @@
             <div id="costs-list"></div>
         </div>
 
-        <!-- 視圖 4: 取單率 -->
+        <!-- 視圖 4: 準時率 -->
         <div id="view-rate" class="view-section">
             <div class="card" id="card-punctuality">
                 <h2 style="display:flex; justify-content:space-between; align-items:center;">
@@ -186,19 +186,9 @@
                     <div class="summary-item"><span>總超時率</span><strong style="color:var(--danger);" id="punctuality-total-timeout">--%</strong></div>
                 </div>
                 <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 15px; line-height: 1.4;">
-                    * 僅計算已寫入「預估時間」之訂單。週期為每兩週結算一次。
+                    * 僅計算已寫入「預估時間」之訂單。週期為每兩週結算一次。<br><br>
+                    <span style="color: var(--primary); font-weight: bold;">* 本系統內所有數據內容僅供參考，實際數據以官方公布為主。</span>
                 </p>
-            </div>
-            <div class="card">
-                <h2>總單量評估 (80%標準)</h2>
-                <div class="input-group"><label>請輸入總單量 (目標要達到的單量)</label><input type="number" id="rate-input-total" class="form-control" oninput="calculateRateTotal()" autocomplete="off" autocorrect="off" spellcheck="false"></div>
-                <div class="result-box" id="rate-result-total" style="display: none;"><p>您可以拒絕的單量為：</p><h3 id="rate-number-reject">0</h3><p style="font-size: 0.85rem; color: var(--text-muted);">代表在固定 80% 標準下，最多可拒絕的單數</p></div>
-            </div>
-            <div class="card">
-                <h2>當前取單率換算</h2>
-                <div class="input-group"><label>目前取單率 (%)</label><input type="number" id="rate-current-pct" class="form-control" oninput="calculateRateCurrent()" autocomplete="off" autocorrect="off" spellcheck="false"></div>
-                <div class="input-group"><label>目前總單量</label><input type="number" id="rate-current-total" class="form-control" oninput="calculateRateCurrent()" autocomplete="off" autocorrect="off" spellcheck="false"></div>
-                <div class="result-box" id="rate-result-current" style="display: none;"><p>您目前已經拒絕的單數為：</p><h3 id="rate-current-ans">0</h3></div>
             </div>
         </div>
 
@@ -360,7 +350,7 @@
         <a class="nav-item" id="nav-1" onclick="switchView(1, true)"><span class="nav-icon">＄</span><span>收入</span></a>
         <a class="nav-item" id="nav-2" onclick="switchView(2, true)"><span class="nav-icon">♥&#xFE0E;</span><span>小費</span></a>
         <a class="nav-item" id="nav-3" onclick="switchView(3, true)"><span class="nav-icon">☈</span><span>成本</span></a>
-        <a class="nav-item" id="nav-4" onclick="switchView(4, true)"><span class="nav-icon">◕</span><span>取單率</span></a>
+        <a class="nav-item" id="nav-4" onclick="switchView(4, true)"><span class="nav-icon">◕</span><span>準時率</span></a>
         <a class="nav-item" id="nav-5" onclick="switchView(5, true)"><span class="nav-icon">⛯</span><span>設定</span></a>
     </div>
 
@@ -375,7 +365,7 @@
             <a class="side-nav-item" id="side-nav-1" onclick="switchView(1, true); toggleSideMenu()"><span class="nav-icon">＄</span>收入</a>
             <a class="side-nav-item" id="side-nav-2" onclick="switchView(2, true); toggleSideMenu()"><span class="nav-icon">♥&#xFE0E;</span>小費</a>
             <a class="side-nav-item" id="side-nav-3" onclick="switchView(3, true); toggleSideMenu()"><span class="nav-icon">☈</span>成本</a>
-            <a class="side-nav-item" id="side-nav-4" onclick="switchView(4, true); toggleSideMenu()"><span class="nav-icon">◕</span>取單率</a>
+            <a class="side-nav-item" id="side-nav-4" onclick="switchView(4, true); toggleSideMenu()"><span class="nav-icon">◕</span>準時率</a>
             <a class="side-nav-item" id="side-nav-5" onclick="switchView(5, true); toggleSideMenu()"><span class="nav-icon">⛯</span>設定</a>
         </div>
         <!-- 漢堡列底部的打卡按鈕 (僅滿版地圖顯示) -->

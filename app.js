@@ -15,7 +15,7 @@ let sideMenuOpen = false;
 let mapInstance = null;
 let currentTileLayer = null;
 let userMarker = null;
-let currentLoc = [25.0478, 121.5170]; // 預設改為台北車站
+let currentLoc = [25.0478, 121.5170]; // 預設為台北車站
 let geoWatchId = null;
 let hasCenteredMapInit = false; 
 

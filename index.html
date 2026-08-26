@@ -215,6 +215,8 @@
                 <div class="btn-grid" style="margin-top: 10px;">
                     <button class="btn btn-outline" onclick="addUser()">新增使用者</button>
                     <button class="btn btn-outline" onclick="renameUser()">重新命名</button>
+                    <!-- 新增移除使用者功能，佔據兩個網格寬度 -->
+                    <button class="btn btn-outline" onclick="openUserModal('remove')" style="grid-column: span 2; border-color:var(--danger); color:var(--danger);">移除使用者</button>
                 </div>
             </div>
 
@@ -428,10 +430,10 @@
         </div>
     </div>
 
-    <!-- 切換使用者 Modal -->
+    <!-- 切換與移除使用者 Modal 共用 -->
     <div class="modal-overlay" id="user-modal" onclick="if(event.target === this) closeModal('user-modal')">
         <div class="modal-content" style="max-width: 300px; padding: 25px 20px;">
-            <h2 style="margin-bottom: 15px; text-align: center;">切換使用者</h2>
+            <h2 id="user-modal-title" style="margin-bottom: 15px; text-align: center;">切換使用者</h2>
             <div id="user-list-container" style="display: flex; flex-direction: column; gap: 10px; max-height: 300px; overflow-y: auto;"></div>
             <p style="text-align:center; font-size:0.8rem; color:var(--text-muted); margin-top:15px; margin-bottom: 0;">點擊視窗外圍任意處即可關閉</p>
         </div>
@@ -443,7 +445,6 @@
             <h2 style="margin-bottom: 15px;">設定店家</h2>
             <input type="hidden" id="store-target-id">
             <div class="input-group" style="display: flex; gap: 8px;">
-                <!-- 關閉選字預測核心：加入 autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" -->
                 <input type="text" id="store-keyword" class="form-control" placeholder="輸入代碼或關鍵字" oninput="searchStore()" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
                 <button class="btn" style="width: auto; padding: 0 16px; white-space: nowrap;" onclick="addCustomStore()">+ 新增</button>
             </div>

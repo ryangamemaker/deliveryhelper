@@ -411,3 +411,9 @@ body:not(.map-enabled) .map-btn-recenter {
 /* 確保 Leaflet 控制項不會蓋到 Header */
 .leaflet-top, .leaflet-bottom { z-index: 9 !important; }
 .leaflet-control-container .leaflet-top { top: 70px; }
+
+/* --- 單日明細頁籤 --- */
+.detail-tabs-container { display: flex; gap: 15px; border-bottom: 1px solid var(--border); padding-bottom: 5px; margin-bottom: 15px; justify-content: flex-start; }
+.detail-tab { font-size: 1.05rem; cursor: pointer; color: var(--text-muted); transition: 0.2s; position: relative; padding: 0 4px 4px 4px; }
+.detail-tab.active { color: var(--primary); font-weight: bold; }
+.detail-tab.active::after { content: ''; position: absolute; bottom: -6px; left: 0; width: 100%; height: 3px; background: var(--primary); border-radius: 3px; }

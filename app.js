@@ -10,6 +10,14 @@ let activeTimers = [], historyRecords = [], tipRecords = [], costRecords = [], s
 let viewedWeekStart = new Date(), currentDailyContext = 'income', currentDailyDateObj = new Date();
 
 let sideMenuOpen = false;
+let currentDailyTab = 'completed'; // 記錄單日明細分頁狀態
+
+function switchDailyTab(tab) {
+    currentDailyTab = tab;
+    document.getElementById('tab-completed').classList.toggle('active', tab === 'completed');
+    document.getElementById('tab-cancelled').classList.toggle('active', tab === 'cancelled');
+    renderDailyDetail();
+}
 
 // Leaflet 地圖變數
 let mapInstance = null;
@@ -233,17 +241,13 @@ function initMap() {
     if (mapInstance) return;
     
     mapInstance = L.map('map', {zoomControl: false}).setView(currentLoc, 15);
-    // 日夜模式皆用同一個圖層，夜間會藉由 style.css 內的 filter 翻轉顏色，確保道路清楚、水域仍是藍色
     currentTileLayer = L.tileLayer(MAP_TILE, { maxZoom: 19 }).addTo(mapInstance);
     
-    // 初始化假路況圖層
     trafficLayer = L.layerGroup().addTo(mapInstance);
     
-    // 視線擴散的藍色圓點 (改為梯形/鈍角的照射範圍)
     const blueDotIcon = L.divIcon({
         className: 'custom-blue-dot',
         html: `<div id="map-dir-marker" style="width: 18px; height: 18px; background-color: #007aff; border: 2.5px solid white; border-radius: 50%; box-shadow: 0 2px 6px rgba(0,0,0,0.4); position: relative; transition: transform 0.2s ease-out; display: flex; justify-content: center; align-items: center;">
-                  <!-- 梯形擴散光暈 -->
                   <div style="position: absolute; bottom: 50%; left: 50%; transform: translateX(-50%); width: 220px; height: 100px; background: radial-gradient(circle at bottom center, rgba(0, 122, 255, 0.4) 0%, rgba(0, 122, 255, 0) 70%); clip-path: polygon(50% 100%, 0% 0%, 100% 0%); transform-origin: bottom center;"></div>
                </div>`,
         iconSize: [18, 18],
@@ -263,7 +267,7 @@ function initMap() {
                     }
                 }
                 if (!hasCenteredMapInit) {
-                    recenterMap(true); // 第一次定位直接瞬間跳轉，不要動畫
+                    recenterMap(true); 
                     hasCenteredMapInit = true;
                 } else if (mapInstance) {
                     const bounds = mapInstance.getBounds();
@@ -275,18 +279,15 @@ function initMap() {
         );
     }
 
-    // 地圖移動後觸發擷取假路況
     mapInstance.on('moveend', () => {
         clearTimeout(window.trafficTimer);
         window.trafficTimer = setTimeout(loadFakeTraffic, 800);
     });
     setTimeout(loadFakeTraffic, 1000);
     
-    // 確保地圖尺寸完全刷新，避免白畫面/灰畫面問題
     setTimeout(() => { if (mapInstance) mapInstance.invalidateSize(); }, 500);
 }
 
-// 動態讀取 OSM 道路產生逼真且美觀的綠/黃/紅路況
 function loadFakeTraffic() {
     if (!document.body.classList.contains('map-enabled') || !mapInstance) return;
     if (mapInstance.getZoom() < 13) {
@@ -302,7 +303,6 @@ function loadFakeTraffic() {
     const w = bounds.getWest() - 0.01;
     const e = bounds.getEast() + 0.01;
     
-    // 向真實地圖庫要主要道路資料
     const query = `[out:json][timeout:5];(way["highway"~"primary|secondary"](${s},${w},${n},${e}););out geom;`;
     
     fetch('https://overpass-api.de/api/interpreter', {
@@ -314,11 +314,10 @@ function loadFakeTraffic() {
             if (el.type === 'way' && el.geometry) {
                 const latlngs = el.geometry.map(g => [g.lat, g.lon]);
                 const rand = Math.random();
-                let color = '#22c55e'; // 綠色路況 (佔多數，美觀舒適)
-                if (rand > 0.8) color = '#eab308'; // 黃色
-                if (rand > 0.95) color = '#ef4444'; // 紅色
+                let color = '#22c55e';
+                if (rand > 0.8) color = '#eab308';
+                if (rand > 0.95) color = '#ef4444';
                 
-                // 背景線 (負責形成邊線顏色)
                 L.polyline(latlngs, {
                     color: color,
                     weight: 6,
@@ -328,7 +327,6 @@ function loadFakeTraffic() {
                     className: 'fake-traffic-line-bg'
                 }).addTo(trafficLayer);
 
-                // 前景線 (負責實體軌道鏤空白線)
                 L.polyline(latlngs, {
                     color: '#ffffff', 
                     weight: 2,
@@ -341,24 +339,20 @@ function loadFakeTraffic() {
         });
         isFetchingTraffic = false;
     }).catch(() => {
-        isFetchingTraffic = false; // 失敗則默默忽略
+        isFetchingTraffic = false; 
     });
 }
 
-// 支援瞬間跳轉或快速平滑移動
 function recenterMap(instant = false) {
     if (mapInstance && currentLoc) {
         const zoom = mapInstance.getZoom() || 15;
         const targetPoint = mapInstance.project(currentLoc, zoom);
-        // 將中心點往下偏移1/4螢幕高度，這樣定位藍點就會跑在畫面「上半部」而不被下方拖曳區蓋住
         targetPoint.y += (window.innerHeight / 4); 
         const targetLatLng = mapInstance.unproject(targetPoint, zoom);
         
         if (instant) {
-            // 瞬間切換位置 (用於首次 GPS 定位)
             mapInstance.setView(targetLatLng, zoom, { animate: false });
         } else {
-            // 快速直線平移，取代原本緩慢的拋物線 flyTo
             mapInstance.setView(targetLatLng, zoom, { animate: true, duration: 0.25 });
         }
     }
@@ -377,7 +371,7 @@ function initBottomPanel() {
         snapPoints = [
             70,             // 最高
             viewH * 0.5,    // 中間
-            viewH - 160     // 最低：稍微拉高，確保「提示那排字」能完全露出
+            viewH - 160     // 最低
         ];
     }
 
@@ -386,7 +380,6 @@ function initBottomPanel() {
         return match ? parseFloat(match[1]) : snapPoints[1];
     }
 
-    // 觸發拖曳把手
     header.addEventListener('touchstart', (e) => {
         if (!document.body.classList.contains('map-enabled')) return;
         isDraggingPanel = true; hasMoved = false;
@@ -396,7 +389,6 @@ function initBottomPanel() {
         panel.classList.add('dragging');
     }, {passive: true});
 
-    // 觸碰內容區時記錄起始點
     content.addEventListener('touchstart', (e) => {
         if (!document.body.classList.contains('map-enabled')) return;
         contentStartY = e.touches[0].clientY;
@@ -405,12 +397,10 @@ function initBottomPanel() {
         isContentDragging = false;
     }, {passive: true});
 
-    // 統一處理拖曳邏輯
     document.addEventListener('touchmove', (e) => {
         if (!document.body.classList.contains('map-enabled')) return;
         const currentY = e.touches[0].clientY;
 
-        // 如果按住的是把手，純粹拖曳面板
         if (isDraggingPanel) {
             const deltaY = currentY - startY;
             if (Math.abs(deltaY) > 5) hasMoved = true;
@@ -420,31 +410,25 @@ function initBottomPanel() {
             if (newY > snapPoints[2]) newY = snapPoints[2] + (newY - snapPoints[2]) * 0.2;
             panel.style.transform = `translateY(${newY}px)`;
         } 
-        // 如果在內容區塊內滾動
         else if (e.target.closest('#panel-scroll-content')) {
             const deltaY = currentY - contentStartY;
-            const isScrollingUp = deltaY > 0; // 手指往下滑動 (內容往上)
-            const isScrollingDown = deltaY < 0; // 手指往上滑動 (內容往下)
+            const isScrollingUp = deltaY > 0;
+            const isScrollingDown = deltaY < 0; 
             
             let shouldDrag = false;
-            
-            // 條件 1：面板不在最頂端，且使用者試圖將內容往上滑（手指上滑） -> 應該先把面板拉上來
             if (isScrollingDown && initialTranslateY > snapPoints[0] + 5) {
                 shouldDrag = true;
-            }
-            // 條件 2：內容已經滾到最上面了，且使用者試圖將內容往下壓（手指向下） -> 應該把面板推下去
-            else if (isScrollingUp && content.scrollTop <= 0) {
+            } else if (isScrollingUp && content.scrollTop <= 0) {
                 shouldDrag = true;
             }
             
             if (shouldDrag) {
-                if (e.cancelable) e.preventDefault(); // 停止原生的滾動行為
+                if (e.cancelable) e.preventDefault();
                 
-                // 初次觸發拖曳模式時，重置拖曳基準點，避免跳躍
                 if (!isContentDragging) {
                     isContentDragging = true;
                     hasMoved = false;
-                    startY = currentY; // 以當前位置作為新基準
+                    startY = currentY;
                     initialTranslateY = getTranslateY();
                     panel.classList.add('dragging');
                 }
@@ -457,7 +441,6 @@ function initBottomPanel() {
                 if (newY > snapPoints[2]) newY = snapPoints[2] + (newY - snapPoints[2]) * 0.2;
                 panel.style.transform = `translateY(${newY}px)`;
             } else if (isContentDragging) {
-                // 如果曾經在拖曳，但條件突然不成立（例如反向滑動），維持阻止預設行為以防畫面抖動
                 if (e.cancelable) e.preventDefault();
             }
         }
@@ -539,7 +522,6 @@ function applySettings() {
         document.body.style.setProperty('--card-bg', `rgba(${cardRgb.r}, ${cardRgb.g}, ${cardRgb.b}, ${op})`, 'important'); document.body.style.setProperty('--timer-bg', `rgba(${cardRgb.r}, ${cardRgb.g}, ${cardRgb.b}, ${opTimer})`, 'important');
     }
     
-    // 依據是否開啟地圖，切換打卡區塊顯示位置
     if (settings.enableMap !== false) {
         document.body.classList.add('map-enabled');
         const sideShift = document.getElementById('side-menu-shift-section');
@@ -660,7 +642,8 @@ function renderWeeklyData() {
     });
 
     const startTs = viewedWeekStart.getTime(), endTs = end.getTime();
-    const weeklyRecords = historyRecords.filter(r => r.timestamp >= startTs && r.timestamp <= endTs);
+    // 過濾時，將 status !== cancelled 的皆當作有效收入 (相容舊資料)
+    const weeklyRecords = historyRecords.filter(r => r.timestamp >= startTs && r.timestamp <= endTs && (r.status || 'completed') === 'completed');
     document.getElementById('weekly-total-amount').innerText = fmtMoney(weeklyRecords.reduce((sum, r) => sum + r.amount, 0));
     document.getElementById('weekly-online-hours').innerText = `上線時數: ${formatMins(shiftRecords.filter(r => r.timestamp >= startTs && r.timestamp <= endTs).reduce((s, r) => s + r.durationMins, 0))}`;
     renderStats(weeklyRecords, 'stats-list'); renderWeeklyChart('weekly-chart-income', weeklyRecords, 'income');
@@ -801,7 +784,6 @@ function toggleSideMenu() {
 function updateUIState() { 
     const unselectedIcons = ['☖', '＄', '♡', '☇', '◑', '⛭'], selectedIcons = ['☗', '＄', '♥\uFE0E', '☈', '◕', '⛯'];
     
-    // 底部導航同步
     document.querySelectorAll('.bottom-nav .nav-item').forEach((el, index) => { 
         el.classList.remove('active'); 
         const iconSpan = el.querySelector('.nav-icon'); 
@@ -814,7 +796,6 @@ function updateUIState() {
         if (activeIconSpan) { activeIconSpan.innerText = selectedIcons[currentViewIndex]; if ([2, 4].includes(currentViewIndex)) activeIconSpan.style.transform = 'scale(1.25)'; }
     }
 
-    // 側邊選單同步
     document.querySelectorAll('.side-nav-item').forEach((el, index) => { 
         el.classList.remove('active'); 
         const iconSpan = el.querySelector('.nav-icon'); 
@@ -836,7 +817,6 @@ function updateUIState() {
     const shiftBadgeRight = document.getElementById('shift-status-badge-right');
 
     if (isSearchResultOpen || document.getElementById('view-daily-detail').classList.contains('active')) { 
-        // 進入細節畫面時，移除透明化效果
         document.body.classList.remove('on-home-view');
         btnSearch.style.display = 'none'; btnBack.style.display = 'block'; 
         if(btnMenu) btnMenu.style.display = 'none';
@@ -852,7 +832,6 @@ function updateUIState() {
             titleWrapper.onclick = () => openUserModal('switch');
             if (activeShift) updateShiftUI();
         } else {
-            // 切換至其他大分頁時，移除透明化效果
             document.body.classList.remove('on-home-view');
             title.innerHTML = viewTitles[currentViewIndex]; 
             titleWrapper.style.pointerEvents = 'none'; titleWrapper.style.cursor = 'default'; titleWrapper.onclick = null;
@@ -946,11 +925,9 @@ function updateShiftUI() {
         
         if (currentViewIndex === 0) {
             if (isMapEnabled) {
-                // 滿版地圖模式下，強制隱藏所有上線色塊 (維持畫面乾淨)
                 badgeCenter.style.display = 'none';
                 if (badgeRight) badgeRight.style.display = 'none';
             } else {
-                // 無滿版地圖：放右上角
                 badgeCenter.style.display = 'none';
                 if (badgeRight) badgeRight.style.display = 'inline-block';
             }
@@ -978,7 +955,27 @@ function checkWaitState() {
     if (activeWait) { waitContainer.style.display = 'block'; document.getElementById('wait-current-duration').innerText = formatDuration(now - activeWait.startTime); } else { waitContainer.style.display = 'none'; }
 }
 
-async function startTimers(count) { if (!activeShift) return await appAlert('請先點擊「時段開始」進入上線狀態，才能開始接單！'); const now = Date.now(); for (let i = 0; i < count; i++) activeTimers.push({ id: 'timer_' + now + '_' + Math.random().toString(36).substr(2, 5), startTime: now }); localStorage.setItem(getStoreKey('order_active_timers'), JSON.stringify(activeTimers)); renderActiveTimers(); checkWaitState(); }
+function submitStartTimers(count) {
+    closeModal('order-quantity-modal');
+    const platform = document.querySelector('input[name="platform-select"]:checked').value;
+    startTimers(count, platform);
+}
+
+async function startTimers(count, platform = 'foodpanda') { 
+    if (!activeShift) return await appAlert('請先點擊「時段開始」進入上線狀態，才能開始接單！'); 
+    const now = Date.now(); 
+    const tripId = 'trip_' + now; // 相同趟數綁定同一個 tripId
+    for (let i = 0; i < count; i++) {
+        activeTimers.push({ 
+            id: 'timer_' + now + '_' + Math.random().toString(36).substr(2, 5), 
+            startTime: now,
+            platform: platform,
+            tripId: tripId
+        });
+    }
+    localStorage.setItem(getStoreKey('order_active_timers'), JSON.stringify(activeTimers)); 
+    renderActiveTimers(); checkWaitState(); 
+}
 
 async function stopTimer(id) { 
     closeAllSwipes();
@@ -988,10 +985,24 @@ async function stopTimer(id) {
     }
     const index = activeTimers.findIndex(t => t.id === id); if (index === -1) return; 
     const timer = activeTimers[index], endTime = Date.now(), diffMins = Math.max(1, Math.round((endTime - timer.startTime) / 60000)); 
-    const billableMins = Math.max(diffMins, timer.estimatedTime || 0);
-    let amount = (billableMins / 60) * RATE_PER_HOUR; if (amount < MIN_AMOUNT) amount = MIN_AMOUNT; 
+    
+    let amount = 0;
+    if (timer.platform === 'ubereats' && timer.estimatedAmount) {
+        amount = timer.estimatedAmount; 
+    } else {
+        const billableMins = Math.max(diffMins, timer.estimatedTime || 0);
+        amount = (billableMins / 60) * RATE_PER_HOUR; 
+        if (amount < MIN_AMOUNT) amount = MIN_AMOUNT; 
+    }
+    
     const endDateObj = new Date(endTime); 
-    historyRecords.push({ id: timer.id, dateKey: getDateKey(endTime), year: endDateObj.getFullYear(), month: endDateObj.getMonth() + 1, day: endDateObj.getDate(), dayOfWeek: DAYS_MAP[endDateObj.getDay()], startTimeStr: formatTime(new Date(timer.startTime)), endTimeStr: formatTime(endDateObj), durationMins: diffMins, estimatedTime: timer.estimatedTime || 0, amount: Number(amount.toFixed(2)), timestamp: endTime, storeName: timer.storeName || '', orderNumber: timer.orderNumber || '' }); 
+    historyRecords.push({ 
+        id: timer.id, tripId: timer.tripId, platform: timer.platform, status: 'completed',
+        dateKey: getDateKey(endTime), year: endDateObj.getFullYear(), month: endDateObj.getMonth() + 1, day: endDateObj.getDate(), dayOfWeek: DAYS_MAP[endDateObj.getDay()], 
+        startTimeStr: formatTime(new Date(timer.startTime)), endTimeStr: formatTime(endDateObj), 
+        durationMins: diffMins, estimatedTime: timer.estimatedTime || 0, estimatedAmount: timer.estimatedAmount || 0,
+        amount: Number(amount.toFixed(2)), timestamp: endTime, storeName: timer.storeName || '', orderNumber: timer.orderNumber || '' 
+    }); 
     activeTimers.splice(index, 1); 
     localStorage.setItem(getStoreKey('order_active_timers'), JSON.stringify(activeTimers)); 
     localStorage.setItem(getStoreKey('order_history_records'), JSON.stringify(historyRecords)); 
@@ -1000,6 +1011,46 @@ async function stopTimer(id) {
 }
 
 function cancelTimer(id) { closeAllSwipes(); const index = activeTimers.findIndex(t => t.id === id); if (index > -1) { activeTimers.splice(index, 1); localStorage.setItem(getStoreKey('order_active_timers'), JSON.stringify(activeTimers)); renderActiveTimers(); checkWaitState(); } }
+
+/* ================== UberEats預估金額與取消邏輯 ================== */
+async function setEstimatedAmount(id) { 
+    closeAllSwipes(); const timer = activeTimers.find(t => t.id === id); if (!timer) return; 
+    const val = await appPrompt('請輸入預估金額 ($):', timer.estimatedAmount || '', '設定預估金額'); 
+    if (val !== null && val.trim() !== '') { 
+        const num = parseFloat(val); 
+        if (!isNaN(num) && num >= 0) { 
+            timer.estimatedAmount = num; localStorage.setItem(getStoreKey('order_active_timers'), JSON.stringify(activeTimers)); renderActiveTimers(); 
+        } else { await appAlert('請輸入有效的數字', '錯誤'); } 
+    } 
+}
+
+function promptCancelTimer(id) {
+    closeAllSwipes(); document.getElementById('cancel-target-id').value = id; document.getElementById('cancel-timer-modal').classList.add('active');
+}
+
+function confirmCancelTimer(reason) {
+    const id = document.getElementById('cancel-target-id').value; closeModal('cancel-timer-modal');
+    if (reason === 'picked_up') settleAndCancelTimer(id); else cancelTimer(id); 
+}
+
+async function settleAndCancelTimer(id) {
+    const index = activeTimers.findIndex(t => t.id === id); if (index === -1) return; 
+    const timer = activeTimers[index], endTime = Date.now(), diffMins = Math.max(1, Math.round((endTime - timer.startTime) / 60000)); 
+    let amount = 0;
+    if (timer.platform === 'ubereats' && timer.estimatedAmount) amount = timer.estimatedAmount;
+    else { const billableMins = Math.max(diffMins, timer.estimatedTime || 0); amount = (billableMins / 60) * RATE_PER_HOUR; if (amount < MIN_AMOUNT) amount = MIN_AMOUNT; }
+    
+    const endDateObj = new Date(endTime); 
+    historyRecords.push({ 
+        id: timer.id, tripId: timer.tripId, platform: timer.platform, status: 'cancelled',
+        dateKey: getDateKey(endTime), year: endDateObj.getFullYear(), month: endDateObj.getMonth() + 1, day: endDateObj.getDate(), dayOfWeek: DAYS_MAP[endDateObj.getDay()], 
+        startTimeStr: formatTime(new Date(timer.startTime)), endTimeStr: formatTime(endDateObj), durationMins: diffMins, estimatedTime: timer.estimatedTime || 0, estimatedAmount: timer.estimatedAmount || 0,
+        amount: Number(amount.toFixed(2)), timestamp: endTime, storeName: timer.storeName || '', orderNumber: timer.orderNumber || '' 
+    }); 
+    activeTimers.splice(index, 1); 
+    localStorage.setItem(getStoreKey('order_active_timers'), JSON.stringify(activeTimers)); localStorage.setItem(getStoreKey('order_history_records'), JSON.stringify(historyRecords)); 
+    renderActiveTimers(); renderWeeklyData(); checkWaitState(); 
+}
 
 /* ================== 店家搜尋與綁定邏輯 ================== */
 function incrementOrderNumber(str) {
@@ -1038,7 +1089,35 @@ function selectStore(storeName) {
 
 /* ================== 預估時間與刪除紀錄邏輯 ================== */
 async function setEstimatedTime(id) { closeAllSwipes(); const timer = activeTimers.find(t => t.id === id); if (!timer) return; const val = await appPrompt('請輸入預估時間 (分鐘):', timer.estimatedTime || '', '設定預估時間'); if (val !== null && val.trim() !== '') { const num = parseInt(val, 10); if (!isNaN(num) && num >= 0) { timer.estimatedTime = num; localStorage.setItem(getStoreKey('order_active_timers'), JSON.stringify(activeTimers)); renderActiveTimers(); } else { await appAlert('請輸入有效的數字', '錯誤'); } } }
-async function editHistoryEstimatedTime(id) { closeAllSwipes(); const record = historyRecords.find(r => r.id === id); if (!record) return; const val = await appPrompt('請輸入預估時間 (分鐘):', record.estimatedTime || '', '設定預估時間'); if (val !== null && val.trim() !== '') { const num = parseInt(val, 10); if (!isNaN(num) && num >= 0) { record.estimatedTime = num; const billableMins = Math.max(record.durationMins, num); let amount = (billableMins / 60) * RATE_PER_HOUR; if (amount < MIN_AMOUNT) amount = MIN_AMOUNT; record.amount = Number(amount.toFixed(2)); localStorage.setItem(getStoreKey('order_history_records'), JSON.stringify(historyRecords)); renderWeeklyData(); if(document.getElementById('view-daily-detail').classList.contains('active')) renderDailyDetail(); if (currentViewIndex === 4) calculatePunctuality(); } else { await appAlert('請輸入有效的數字', '錯誤'); } } }
+async function editHistoryEstimatedTime(id) { 
+    closeAllSwipes(); const record = historyRecords.find(r => r.id === id); if (!record) return; 
+    
+    if (record.platform === 'ubereats') {
+        const val = await appPrompt('請輸入預估金額 ($):', record.estimatedAmount || '', '設定預估金額');
+        if (val !== null && val.trim() !== '') {
+            const num = parseFloat(val);
+            if (!isNaN(num) && num >= 0) {
+                record.estimatedAmount = num; record.amount = num;
+                localStorage.setItem(getStoreKey('order_history_records'), JSON.stringify(historyRecords)); 
+                renderWeeklyData(); if(document.getElementById('view-daily-detail').classList.contains('active')) renderDailyDetail();
+                if (currentViewIndex === 4) calculatePunctuality();
+            } else { await appAlert('請輸入有效的數字', '錯誤'); }
+        }
+    } else {
+        const val = await appPrompt('請輸入預估時間 (分鐘):', record.estimatedTime || '', '設定預估時間'); 
+        if (val !== null && val.trim() !== '') { 
+            const num = parseInt(val, 10); 
+            if (!isNaN(num) && num >= 0) { 
+                record.estimatedTime = num; const billableMins = Math.max(record.durationMins, num); 
+                let amount = (billableMins / 60) * RATE_PER_HOUR; if (amount < MIN_AMOUNT) amount = MIN_AMOUNT; record.amount = Number(amount.toFixed(2)); 
+                localStorage.setItem(getStoreKey('order_history_records'), JSON.stringify(historyRecords)); 
+                renderWeeklyData(); if(document.getElementById('view-daily-detail').classList.contains('active')) renderDailyDetail(); 
+                if (currentViewIndex === 4) calculatePunctuality(); 
+            } else { await appAlert('請輸入有效的數字', '錯誤'); } 
+        }
+    }
+}
+
 async function deleteHistoryRecord(id) { closeAllSwipes(); if(await appConfirm('確定刪除這筆收入紀錄嗎？', '刪除確認', true)) { historyRecords = historyRecords.filter(t => t.id !== id); localStorage.setItem(getStoreKey('order_history_records'), JSON.stringify(historyRecords)); renderWeeklyData(); if(document.getElementById('view-daily-detail').classList.contains('active')) renderDailyDetail(); if (currentViewIndex === 4) calculatePunctuality(); } }
 
 /* ================== 卡片拖曳排序邏輯 ================== */
@@ -1154,13 +1233,25 @@ function renderActiveTimers() {
     let html = '';
     activeTimers.forEach((timer, idx) => {
         const titleStr = timer.storeName ? `${timer.storeName} #${timer.orderNumber}` : `訂單計時 #${idx + 1}`;
-        const estStr = timer.estimatedTime ? `<span style="white-space:nowrap; color:var(--primary); font-size:0.85rem; margin-left:8px; border:1px solid var(--primary); padding:1px 4px; border-radius:4px;">預估 ${timer.estimatedTime}m</span>` : '';
-        html += `<div class="swipe-container active-timer-container" data-id="${timer.id}"><div class="swipe-content active-timer-content" onmousedown="handleItemTouchStart(event)" ontouchstart="handleItemTouchStart(event)" onmousemove="handleItemTouchMove(event)" ontouchmove="handleItemTouchMove(event)" onmouseup="handleItemTouchEnd(event)" ontouchend="handleItemTouchEnd(event)" ontouchcancel="handleItemTouchEnd(event)" onmouseleave="handleItemTouchEnd(event)"><div class="swipe-edit" style="background:var(--success);" onclick="setEstimatedTime('${timer.id}')">預估</div><div class="timer-info"><h3 onclick="handleTimerTitleClick('${timer.id}')">${titleStr} ${estStr}</h3><p>開始時間：${formatTime(new Date(timer.startTime))}</p><div class="timer-duration" id="duration_${timer.id}">00:00:00</div></div><button class="btn-stop" onclick="stopTimer('${timer.id}')">配送</button><div class="swipe-delete" onclick="cancelTimer('${timer.id}')">刪除</div></div></div>`;
+        const isUber = timer.platform === 'ubereats';
+        
+        const estAction = isUber ? `setEstimatedAmount('${timer.id}')` : `setEstimatedTime('${timer.id}')`;
+        const estLabel = isUber ? '預估金額' : '預估';
+        let estStr = '';
+        if (isUber) {
+            estStr = timer.estimatedAmount ? `<span style="white-space:nowrap; color:var(--success); font-size:0.85rem; margin-left:8px; border:1px solid var(--success); padding:1px 4px; border-radius:4px;">預估 $${timer.estimatedAmount}</span>` : '';
+        } else {
+            estStr = timer.estimatedTime ? `<span style="white-space:nowrap; color:var(--primary); font-size:0.85rem; margin-left:8px; border:1px solid var(--primary); padding:1px 4px; border-radius:4px;">預估 ${timer.estimatedTime}m</span>` : '';
+        }
+        
+        const platIcon = isUber ? '👜 ' : (timer.platform ? '🐼 ' : '');
+
+        html += `<div class="swipe-container active-timer-container" data-id="${timer.id}"><div class="swipe-content active-timer-content" onmousedown="handleItemTouchStart(event)" ontouchstart="handleItemTouchStart(event)" onmousemove="handleItemTouchMove(event)" ontouchmove="handleItemTouchMove(event)" onmouseup="handleItemTouchEnd(event)" ontouchend="handleItemTouchEnd(event)" ontouchcancel="handleItemTouchEnd(event)" onmouseleave="handleItemTouchEnd(event)"><div class="swipe-edit" style="background:var(--success);" onclick="${estAction}">${estLabel}</div><div class="timer-info"><h3 onclick="handleTimerTitleClick('${timer.id}')">${platIcon}${titleStr} ${estStr}</h3><p>開始時間：${formatTime(new Date(timer.startTime))}</p><div class="timer-duration" id="duration_${timer.id}">00:00:00</div></div><button class="btn-stop" onclick="stopTimer('${timer.id}')">配送</button><div class="swipe-delete" onclick="promptCancelTimer('${timer.id}')">刪除</div></div></div>`;
     });
     listEl.innerHTML = html; 
-    updateTimersDisplay();
-    updateActiveOrdersTitle();
+    updateTimersDisplay(); updateActiveOrdersTitle();
 }
+
 
 function updateTimersDisplay() {
     const now = Date.now();
@@ -1203,7 +1294,7 @@ function renderCosts(data = costRecords, containerId = 'costs-list') { renderRec
 function renderStats(data = historyRecords, containerId = 'stats-list') { renderRecordGroup(data, containerId, '此區間尚無收入紀錄', 'income', '張訂單'); }
 
 /* ================== 單日明細 Modal 邏輯 ================== */
-function openDailyDetail(context, dateKey) { currentDailyContext = context; currentDailyDateObj = new Date(dateKey); document.getElementById('view-daily-detail').classList.add('active'); updateUIState(); renderDailyDetail(); }
+function openDailyDetail(context, dateKey) { currentDailyContext = context; currentDailyDateObj = new Date(dateKey); currentDailyTab = 'completed'; document.getElementById('view-daily-detail').classList.add('active'); updateUIState(); renderDailyDetail(); }
 function closeDailyDetail() { document.getElementById('view-daily-detail').classList.remove('active'); updateUIState(); }
 function prevDailyDetail() { currentDailyDateObj.setDate(currentDailyDateObj.getDate() - 1); renderDailyDetail(); }
 function nextDailyDetail() { currentDailyDateObj.setDate(currentDailyDateObj.getDate() + 1); renderDailyDetail(); }
@@ -1217,10 +1308,15 @@ function renderDailyDetail() {
     let html = '';
     
     if (currentDailyContext === 'income') {
-        document.getElementById('daily-detail-type-label').innerText = '報酬 (當日總額)';
-        const dailyRecords = historyRecords.filter(r => r.dateKey === dateKey).sort((a,b)=>b.timestamp - a.timestamp);
+        const tabCancelled = document.getElementById('tab-cancelled');
+        if (tabCancelled) tabCancelled.style.display = 'inline-block';
+        document.getElementById('daily-detail-type-label').innerText = currentDailyTab === 'completed' ? '報酬 (當日總額)' : '取消 (當日總額)';
+        
+        const allDailyRecords = historyRecords.filter(r => r.dateKey === dateKey);
+        const dailyRecords = allDailyRecords.filter(r => (r.status || 'completed') === currentDailyTab).sort((a,b)=>b.timestamp - a.timestamp);
+        
         document.getElementById('daily-detail-amount').innerText = fmtMoney(dailyRecords.reduce((s,r)=>s+r.amount,0));
-        document.getElementById('daily-detail-amount').style.color = 'var(--success)';
+        document.getElementById('daily-detail-amount').style.color = currentDailyTab === 'completed' ? 'var(--success)' : 'var(--danger)';
         
         let totalShiftMins = shiftRecords.filter(r => r.dateKey === dateKey).reduce((s,r) => s + r.durationMins, 0) + (activeShift && getDateKey(activeShift.startTime) === dateKey ? Math.floor((Date.now() - activeShift.startTime) / 60000) : 0);
         const dailyWaits = waitRecords.filter(r => r.dateKey === dateKey);
@@ -1232,12 +1328,38 @@ function renderDailyDetail() {
         document.getElementById('daily-detail-wait-total').innerText = formatMins(totalWaitMins);
         document.getElementById('daily-detail-wait-max').innerText = formatMins(maxWaitMins);
 
-        if (dailyRecords.length === 0) html = '<div class="empty-state">今日無收入紀錄</div>';
-        else dailyRecords.forEach(r => {
-            const titleStr = r.storeName ? `<div style="font-weight:bold; color:var(--primary); margin-bottom:4px; font-size:1rem; word-break:break-word;">${r.storeName} #${r.orderNumber}</div>` : '';
-            html += `<div class="swipe-container record-swipe-container" data-id="${r.id}"><div class="swipe-content record-swipe-content" ontouchstart="handleItemTouchStart(event)" ontouchmove="handleItemTouchMove(event)" ontouchend="handleItemTouchEnd(event)" ontouchcancel="handleItemTouchEnd(event)"><div class="swipe-edit" style="background:var(--success);" onclick="editHistoryEstimatedTime('${r.id}')">預估</div><div class="record-info" onclick="editIncomeAmount('${r.id}')" style="cursor:pointer;">${titleStr}<div class="record-time" style="color:var(--text-main);">${r.startTimeStr} - ${r.endTimeStr}</div><div class="record-desc" style="color:var(--text-muted);">實際 ${r.durationMins} 分鐘 ${r.estimatedTime ? ` / 預估 ${r.estimatedTime} 分鐘` : ''}</div></div><div class="record-amount" onclick="editIncomeAmount('${r.id}')" style="cursor:pointer;">${fmtMoney(r.amount)}</div><div class="swipe-delete" onclick="deleteHistoryRecord('${r.id}')">刪除</div></div></div>`;
+        // 將訂單依照 tripId 群組，同屬一趟行程的訂單將顯示加總金額
+        const tripGroups = {};
+        dailyRecords.forEach(r => {
+            const tId = r.tripId || r.id; // 舊訂單沒有 tripId 則依 id 獨立成組
+            if (!tripGroups[tId]) tripGroups[tId] = [];
+            tripGroups[tId].push(r);
         });
+
+        if (Object.keys(tripGroups).length === 0) html = `<div class="empty-state">今日無${currentDailyTab === 'completed' ? '收入' : '取消'}紀錄</div>`;
+        else {
+            Object.values(tripGroups).forEach(group => {
+                group.forEach(r => {
+                    const isUber = r.platform === 'ubereats';
+                    const platIcon = isUber ? '👜 ' : (r.platform ? '🐼 ' : '');
+                    const titleStr = r.storeName ? `<div style="font-weight:bold; color:var(--primary); margin-bottom:4px; font-size:1rem; word-break:break-word;">${platIcon}${r.storeName} #${r.orderNumber}</div>` : '';
+                    
+                    const estAction = isUber ? '預估金額' : '預估';
+                    const estInfo = (isUber && r.estimatedAmount) ? ` / 預估 $${r.estimatedAmount}` : (r.estimatedTime ? ` / 預估 ${r.estimatedTime} 分鐘` : '');
+
+                    html += `<div class="swipe-container record-swipe-container" data-id="${r.id}"><div class="swipe-content record-swipe-content" ontouchstart="handleItemTouchStart(event)" ontouchmove="handleItemTouchMove(event)" ontouchend="handleItemTouchEnd(event)" ontouchcancel="handleItemTouchEnd(event)"><div class="swipe-edit" style="background:var(--success);" onclick="editHistoryEstimatedTime('${r.id}')">${estAction}</div><div class="record-info" onclick="editIncomeAmount('${r.id}')" style="cursor:pointer;">${titleStr}<div class="record-time" style="color:var(--text-main);">${r.startTimeStr} - ${r.endTimeStr}</div><div class="record-desc" style="color:var(--text-muted);">實際 ${r.durationMins} 分鐘 ${estInfo}</div></div><div class="record-amount" onclick="editIncomeAmount('${r.id}')" style="cursor:pointer;">${fmtMoney(r.amount)}</div><div class="swipe-delete" onclick="deleteHistoryRecord('${r.id}')">刪除</div></div></div>`;
+                });
+                
+                // 如果這趟行程有 2 張(含)以上的訂單，在下方顯示加總區塊
+                if (group.length > 1) {
+                    const tripTotal = group.reduce((sum, r) => sum + r.amount, 0);
+                    html += `<div style="text-align:right; font-size:0.9rem; color:var(--text-main); font-weight:bold; margin-top:-4px; margin-bottom:12px; padding-right:10px;">此趟行程總計： <span style="color:${currentDailyTab === 'completed' ? 'var(--success)' : 'var(--danger)'}; font-size:1.15rem; margin-left:4px;">${fmtMoney(tripTotal)}</span></div>`;
+                }
+            });
+        }
     } else if (currentDailyContext === 'tip') {
+        const tabCancelled = document.getElementById('tab-cancelled');
+        if (tabCancelled) tabCancelled.style.display = 'none'; // 隱藏取消標籤
         document.getElementById('daily-detail-type-label').innerText = '小費總額';
         const dailyRecords = tipRecords.filter(r => r.dateKey === dateKey).sort((a,b)=>b.timestamp - a.timestamp);
         document.getElementById('daily-detail-amount').innerText = fmtMoney(dailyRecords.reduce((s,r)=>s+r.amount,0));
@@ -1247,6 +1369,8 @@ function renderDailyDetail() {
         if (dailyRecords.length === 0) html = '<div class="empty-state">今日無小費紀錄</div>';
         else dailyRecords.forEach(r => html += `<div class="swipe-container record-swipe-container"><div class="swipe-content record-swipe-content" ontouchstart="handleItemTouchStart(event)" ontouchmove="handleItemTouchMove(event)" ontouchend="handleItemTouchEnd(event)" ontouchcancel="handleItemTouchEnd(event)"><div class="swipe-edit" onclick="openEdit('tip', '${r.id}')">編輯</div><div class="record-info"><div class="record-time">${r.timeStr}</div><div class="record-desc">支付方式: ${r.method}</div></div><div class="record-amount">${fmtMoney(r.amount)}</div><div class="swipe-delete" onclick="deleteTip('${r.id}')">刪除</div></div></div>`);
     } else if (currentDailyContext === 'cost') {
+        const tabCancelled = document.getElementById('tab-cancelled');
+        if (tabCancelled) tabCancelled.style.display = 'none'; // 隱藏取消標籤
         document.getElementById('daily-detail-type-label').innerText = '成本支出總額';
         const dailyRecords = costRecords.filter(r => r.dateKey === dateKey).sort((a,b)=>b.timestamp - a.timestamp);
         document.getElementById('daily-detail-amount').innerText = fmtMoney(dailyRecords.reduce((s,r)=>s+r.amount,0));
@@ -1267,7 +1391,7 @@ let currentCalDate = new Date(), calSelStart = null, calSelEnd = null;
 function openFilterModal() { calSelStart = null; calSelEnd = null; renderCalendar(); document.getElementById('filter-modal').classList.add('active'); } function closeModal(id) { document.getElementById(id).classList.remove('active'); } function calPrevMonth() { currentCalDate.setMonth(currentCalDate.getMonth() - 1); renderCalendar(); } function calNextMonth() { currentCalDate.setMonth(currentCalDate.getMonth() + 1); renderCalendar(); }
 function renderCalendar() { const y = currentCalDate.getFullYear(), m = currentCalDate.getMonth(); document.getElementById('cal-month-year').innerText = `${y}年${m + 1}月`; const firstDay = new Date(y, m, 1).getDay(), daysInMonth = new Date(y, m + 1, 0).getDate(), grid = document.getElementById('cal-days'); grid.innerHTML = ''; for (let i = 0; i < firstDay; i++) grid.innerHTML += `<div class="cal-day empty"></div>`; for (let i = 1; i <= daysInMonth; i++) { const dayTime = new Date(y, m, i, 0, 0, 0).getTime(); let classes = 'cal-day'; if (calSelStart === dayTime || calSelEnd === dayTime) classes += ' selected'; if (calSelStart && calSelEnd && dayTime > calSelStart && dayTime < calSelEnd) classes += ' in-range'; grid.innerHTML += `<div class="${classes}" onclick="selectCalDate(${y}, ${m}, ${i})">${i}</div>`; } document.getElementById('cal-selection-text').innerText = !calSelStart ? '請點選開始日期' : (!calSelEnd ? '請點選結束日期 (單日請直接按確認)' : '已選擇範圍，請點擊確認查詢'); }
 function selectCalDate(y, m, d) { const t = new Date(y, m, d, 0, 0, 0).getTime(); if (!calSelStart || (calSelStart && calSelEnd)) { calSelStart = t; calSelEnd = null; } else { if (t >= calSelStart) calSelEnd = t; else { calSelStart = t; calSelEnd = null; } } renderCalendar(); }
-async function applyFilter() { if (!calSelStart) return await appAlert('請先選擇日期', '操作錯誤'); const sTime = calSelStart, eTime = (calSelEnd || calSelStart) + 86399999; const fInc = historyRecords.filter(r => r.timestamp >= sTime && r.timestamp <= eTime), fTip = tipRecords.filter(r => r.timestamp >= sTime && r.timestamp <= eTime), fCost = costRecords.filter(r => r.timestamp >= sTime && r.timestamp <= eTime); document.getElementById('search-total-income').innerText = fmtMoney(fInc.reduce((s, r)=>s+r.amount,0)); document.getElementById('search-total-tips').innerText = fmtMoney(fTip.reduce((s, r)=>s+r.amount,0)); document.getElementById('search-total-costs').innerText = '-' + fmtMoney(fCost.reduce((s, r)=>s+r.amount,0)); const sd = new Date(sTime), ed = new Date(eTime), sStr = `${sd.getFullYear()}/${sd.getMonth()+1}/${sd.getDate()}`, eStr = `${ed.getFullYear()}/${ed.getMonth()+1}/${ed.getDate()}`; document.getElementById('search-date-range').innerText = sStr === eStr ? sStr : `${sStr} ~ ${eStr}`; renderStats(fInc, 'search-income-list'); renderTips(fTip, 'search-tips-list'); renderCosts(fCost, 'search-costs-list'); closeModal('filter-modal'); isSearchResultOpen = true; document.getElementById('view-search-result').classList.add('active'); updateUIState(); }
+async function applyFilter() { if (!calSelStart) return await appAlert('請先選擇日期', '操作錯誤'); const sTime = calSelStart, eTime = (calSelEnd || calSelStart) + 86399999; const fInc = historyRecords.filter(r => r.timestamp >= sTime && r.timestamp <= eTime && (r.status || 'completed') === 'completed'), fTip = tipRecords.filter(r => r.timestamp >= sTime && r.timestamp <= eTime), fCost = costRecords.filter(r => r.timestamp >= sTime && r.timestamp <= eTime); document.getElementById('search-total-income').innerText = fmtMoney(fInc.reduce((s, r)=>s+r.amount,0)); document.getElementById('search-total-tips').innerText = fmtMoney(fTip.reduce((s, r)=>s+r.amount,0)); document.getElementById('search-total-costs').innerText = '-' + fmtMoney(fCost.reduce((s, r)=>s+r.amount,0)); const sd = new Date(sTime), ed = new Date(eTime), sStr = `${sd.getFullYear()}/${sd.getMonth()+1}/${sd.getDate()}`, eStr = `${ed.getFullYear()}/${ed.getMonth()+1}/${ed.getDate()}`; document.getElementById('search-date-range').innerText = sStr === eStr ? sStr : `${sStr} ~ ${eStr}`; renderStats(fInc, 'search-income-list'); renderTips(fTip, 'search-tips-list'); renderCosts(fCost, 'search-costs-list'); closeModal('filter-modal'); isSearchResultOpen = true; document.getElementById('view-search-result').classList.add('active'); updateUIState(); }
 
 /* ================== 準時率 / 兩週週期計算邏輯 ================== */
 function calculatePunctuality() {
@@ -1284,7 +1408,8 @@ function calculatePunctuality() {
     let endMs = startMs + cycleMs - 1;
     let isWeek2 = (now - startMs) >= weekMs;
     
-    const validRecords = historyRecords.filter(r => r.estimatedTime && r.estimatedTime > 0 && r.timestamp >= startMs && r.timestamp <= endMs);
+    // 只抓取有效 (status === 'completed') 的訂單做計算
+    const validRecords = historyRecords.filter(r => r.estimatedTime && r.estimatedTime > 0 && r.timestamp >= startMs && r.timestamp <= endMs && (r.status || 'completed') === 'completed');
     
     const d1 = new Date(startMs), d2 = new Date(endMs);
     const cycleStr = `${d1.getFullYear()}/${d1.getMonth()+1}/${d1.getDate()} - ${d2.getMonth()+1}/${d2.getDate()}`;

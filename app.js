@@ -1340,7 +1340,7 @@ function renderDailyDetail() {
             Object.values(tripGroups).forEach(group => {
                 group.forEach(r => {
                     const isUber = r.platform === 'ubereats';
-                    const platIcon = isUber ? '👜 ' : (r.platform ? '🐼 ' : '');
+                    const platIcon = isUber ? ' ' : (r.platform ? ' ' : '');
                     const titleStr = r.storeName ? `<div style="font-weight:bold; color:var(--primary); margin-bottom:4px; font-size:1rem; word-break:break-word;">${platIcon}${r.storeName} #${r.orderNumber}</div>` : '';
                     
                     const estAction = isUber ? '預估金額' : '預估';

@@ -13,19 +13,16 @@
 
     <div class="header" id="main-header">
         <div style="width: 70px; display:flex; align-items:center;">
-            <!-- 漢堡按鈕 (滿版時為圓形) -->
             <button class="btn-icon" id="btn-menu" onclick="toggleSideMenu()">☰</button>
             <button class="btn-icon" id="btn-back" onclick="handleBack()" style="display: none;">⇠</button>
         </div>
         <div class="header-center" id="header-center-area">
-            <!-- 標題色塊 (滿版時為膠囊圓角形) -->
             <div id="header-title-wrapper">
                 <h1 id="header-title" style="margin: 0;">新使用者</h1>
                 <span id="shift-status-badge" class="badge" style="background:var(--timer-bg); font-size:0.75rem; padding:2px 6px; margin-top:2px; font-weight:normal; border:1px solid var(--border); display: none; white-space: nowrap;">未上線</span>
             </div>
         </div>
         <div style="width: 70px; text-align: right; display: flex; justify-content: flex-end; align-items: center; gap: 8px;">
-            <!-- 新增：未啟用滿版地圖時右上角的上線徽章 -->
             <span id="shift-status-badge-right" class="badge" style="display: none; background:var(--success); color:var(--btn-text); font-size:0.75rem; padding:2px 6px; font-weight:normal; border:1px solid var(--success); white-space: nowrap;">上線中</span>
             <button class="btn-icon" id="btn-search" onclick="openFilterModal()" style="display:none; margin: 0; padding: 4px; font-size: 1.2rem;">📅</button>
         </div>
@@ -39,7 +36,6 @@
             <div id="bottom-panel" class="bottom-panel">
                 <button id="btn-recenter" class="map-btn-recenter" onclick="recenterMap()" title="回到定位">&#x2316;</button>
                 
-                <!-- 加大拖曳範圍：將文字與標題移入 drag-handle -->
                 <div class="panel-header" id="panel-drag-handle" style="height: auto; padding: 12px 16px 4px 16px; display: flex; flex-direction: column; align-items: stretch; cursor: grab;">
                     <div style="display:flex; justify-content:center; width:100%; margin-bottom: 12px;" class="handle-bar-wrapper">
                         <div class="panel-handle-bar"></div>
@@ -61,7 +57,6 @@
 
                     <div class="timer-list" id="active-timers-list"></div>
 
-                    <!-- 首頁底部打卡 (非滿版地圖時顯示) -->
                     <div class="card" id="bottom-panel-shift-card" style="text-align: center; margin-top: 20px;">
                         <h2 style="justify-content: center; font-size: 1.2rem; margin-bottom: 15px;"><span>上線時段</span></h2>
                         <button class="btn btn-shift-toggle-class" onclick="toggleShift()" style="font-size: 1.2rem; padding: 16px;">時段開始</button>
@@ -215,7 +210,6 @@
                 <div class="btn-grid" style="margin-top: 10px;">
                     <button class="btn btn-outline" onclick="addUser()">新增使用者</button>
                     <button class="btn btn-outline" onclick="renameUser()">重新命名</button>
-                    <!-- 新增移除使用者功能，佔據兩個網格寬度 -->
                     <button class="btn btn-outline" onclick="openUserModal('remove')" style="grid-column: span 2; border-color:var(--danger); color:var(--danger);">移除使用者</button>
                 </div>
             </div>
@@ -346,7 +340,7 @@
         </div>
     </div>
 
-    <!-- 底部導航 (未啟用滿版地圖時顯示) -->
+    <!-- 底部導航 -->
     <div class="bottom-nav">
         <a class="nav-item active" id="nav-0" onclick="switchView(0, true)"><span class="nav-icon">☗</span><span>首頁</span></a>
         <a class="nav-item" id="nav-1" onclick="switchView(1, true)"><span class="nav-icon">＄</span><span>收入</span></a>
@@ -356,7 +350,7 @@
         <a class="nav-item" id="nav-5" onclick="switchView(5, true)"><span class="nav-icon">⛯</span><span>設定</span></a>
     </div>
 
-    <!-- 側邊攔選單 (滿版地圖時顯示) -->
+    <!-- 側邊攔選單 -->
     <div class="side-menu-overlay" id="side-menu-overlay" onclick="toggleSideMenu()"></div>
     <div class="side-menu" id="side-menu">
         <div class="side-menu-header">
@@ -370,7 +364,6 @@
             <a class="side-nav-item" id="side-nav-4" onclick="switchView(4, true); toggleSideMenu()"><span class="nav-icon">◕</span>準時率</a>
             <a class="side-nav-item" id="side-nav-5" onclick="switchView(5, true); toggleSideMenu()"><span class="nav-icon">⛯</span>設定</a>
         </div>
-        <!-- 漢堡列底部的打卡按鈕 (僅滿版地圖顯示) -->
         <div style="padding: 20px; border-top: 1px solid var(--border); background: var(--card-bg);" id="side-menu-shift-section">
             <h3 style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 10px; text-align: center;">上線時段</h3>
             <button class="btn btn-shift-toggle-class" onclick="toggleShift()" style="font-size: 1.1rem; padding: 14px;">時段開始</button>
@@ -378,7 +371,7 @@
         </div>
     </div>
 
-    <!-- 月曆過濾查詢 Modal -->
+    <!-- 查詢結果 Modal -->
     <div id="view-search-result">
         <div class="card">
             <h2 id="search-date-range" style="text-align:center; color:var(--primary);">日期範圍</h2>
@@ -425,12 +418,16 @@
                     </div>
                 </div>
             </div>
-            <div class="section-title"><span id="daily-detail-list-title">件數明細</span></div>
+            
+            <div class="section-title detail-tabs-container" id="daily-detail-list-title">
+                <div class="detail-tab active" id="tab-completed" onclick="switchDailyTab('completed')">件數明細</div>
+                <div class="detail-tab" id="tab-cancelled" onclick="switchDailyTab('cancelled')" style="display:none;">取消訂單</div>
+            </div>
             <div id="daily-detail-list"></div>
         </div>
     </div>
 
-    <!-- 切換與移除使用者 Modal 共用 -->
+    <!-- 切換與移除使用者 Modal -->
     <div class="modal-overlay" id="user-modal" onclick="if(event.target === this) closeModal('user-modal')">
         <div class="modal-content" style="max-width: 300px; padding: 25px 20px;">
             <h2 id="user-modal-title" style="margin-bottom: 15px; text-align: center;">切換使用者</h2>
@@ -453,16 +450,25 @@
         </div>
     </div>
 
-    <!-- 選擇訂單數量 Modal -->
+    <!-- 選擇訂單數量與平台 Modal -->
     <div class="modal-overlay" id="order-quantity-modal" onclick="if(event.target === this) closeModal('order-quantity-modal')">
         <div class="modal-content" style="max-width: 320px; padding: 25px 20px;">
-            <h2 style="margin-bottom: 15px; text-align: center;">選擇訂單數量</h2>
-            <div class="btn-grid" style="margin-top: 15px;">
-                <button class="btn btn-start" onclick="closeModal('order-quantity-modal'); startTimers(1)">1 張訂單</button>
-                <button class="btn btn-start" onclick="closeModal('order-quantity-modal'); startTimers(2)">2 張訂單</button>
-                <button class="btn btn-start" onclick="closeModal('order-quantity-modal'); startTimers(3)">3 張訂單</button>
-                <button class="btn btn-start" onclick="closeModal('order-quantity-modal'); startTimers(4)">4 張訂單</button>
+            <h2 style="margin-bottom: 15px; text-align: center;">選擇平台與訂單數量</h2>
+            <div class="input-group" style="display:flex; gap:15px; justify-content:center; margin-bottom:15px;">
+                <label style="display:flex; align-items:center; gap:5px; cursor:pointer; font-weight:bold; color:var(--primary);">
+                    <input type="radio" name="platform-select" value="foodpanda" checked> foodpanda
+                </label>
+                <label style="display:flex; align-items:center; gap:5px; cursor:pointer; font-weight:bold; color:var(--success);">
+                    <input type="radio" name="platform-select" value="ubereats"> Uber Eats
+                </label>
             </div>
+            <div class="btn-grid" style="margin-top: 15px;">
+                <button class="btn btn-start" onclick="submitStartTimers(1)">1 趟 (1張)</button>
+                <button class="btn btn-start" onclick="submitStartTimers(2)">1 趟 (2張)</button>
+                <button class="btn btn-start" onclick="submitStartTimers(3)">1 趟 (3張)</button>
+                <button class="btn btn-start" onclick="submitStartTimers(4)">1 趟 (4張)</button>
+            </div>
+            <p style="text-align:center; font-size:0.8rem; color:var(--text-muted); margin-top:15px; margin-bottom: 0;">註：多張訂單將視為同一趟行程加總金額</p>
         </div>
     </div>
 
@@ -476,6 +482,20 @@
             <div style="display: flex; gap: 10px; margin-top: 20px;">
                 <button class="btn btn-outline" onclick="closeModal('order-number-modal')">取消</button>
                 <button class="btn" onclick="confirmOrderNumber()">確認</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 刪除(取消)訂單 Modal -->
+    <div class="modal-overlay" id="cancel-timer-modal" onclick="if(event.target === this) closeModal('cancel-timer-modal')">
+        <div class="modal-content" style="max-width: 320px; padding: 25px 20px; text-align: center;">
+            <h2 style="margin-bottom: 15px; color: var(--danger);">刪除訂單</h2>
+            <p style="margin-bottom: 20px; font-size: 0.95rem; color: var(--text-muted);">請選擇此訂單目前的狀態：</p>
+            <input type="hidden" id="cancel-target-id">
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+                <button class="btn" style="background:var(--success); border-color:var(--success);" onclick="confirmCancelTimer('picked_up')">已取餐 (結算並移至取消明細)</button>
+                <button class="btn btn-outline" style="color:var(--danger); border-color:var(--danger);" onclick="confirmCancelTimer('not_picked_up')">未取餐 (直接刪除計數器)</button>
+                <button class="btn btn-outline" style="margin-top: 5px; color:var(--text-main); border-color:var(--border);" onclick="closeModal('cancel-timer-modal')">返回</button>
             </div>
         </div>
     </div>
@@ -523,7 +543,6 @@
         </div>
     </div>
     
-    <!-- 全局自訂對話框 -->
     <div class="modal-overlay" id="custom-dialog-modal" style="z-index: 5000;">
         <div class="modal-content" style="max-width: 320px; text-align: center; padding: 25px 20px;">
             <h2 id="custom-dialog-title" style="margin-bottom: 15px; color: var(--primary);">提示</h2>

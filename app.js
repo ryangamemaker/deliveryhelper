@@ -10,11 +10,12 @@ let activeTimers = [], historyRecords = [], tipRecords = [], costRecords = [], s
 let viewedWeekStart = new Date(), currentDailyContext = 'income', currentDailyDateObj = new Date();
 
 let sideMenuOpen = false;
-let currentDailyTab = 'completed'; // 記錄單日明細分頁狀態
+let currentDailyTab = 'foodpanda'; // 記錄單日明細分頁狀態，預設為foodpanda
 
 function switchDailyTab(tab) {
     currentDailyTab = tab;
-    document.getElementById('tab-completed').classList.toggle('active', tab === 'completed');
+    document.getElementById('tab-foodpanda').classList.toggle('active', tab === 'foodpanda');
+    document.getElementById('tab-ubereats').classList.toggle('active', tab === 'ubereats');
     document.getElementById('tab-cancelled').classList.toggle('active', tab === 'cancelled');
     renderDailyDetail();
 }
@@ -642,7 +643,6 @@ function renderWeeklyData() {
     });
 
     const startTs = viewedWeekStart.getTime(), endTs = end.getTime();
-    // 過濾時，將 status !== cancelled 的皆當作有效收入 (相容舊資料)
     const weeklyRecords = historyRecords.filter(r => r.timestamp >= startTs && r.timestamp <= endTs && (r.status || 'completed') === 'completed');
     document.getElementById('weekly-total-amount').innerText = fmtMoney(weeklyRecords.reduce((sum, r) => sum + r.amount, 0));
     document.getElementById('weekly-online-hours').innerText = `上線時數: ${formatMins(shiftRecords.filter(r => r.timestamp >= startTs && r.timestamp <= endTs).reduce((s, r) => s + r.durationMins, 0))}`;
@@ -1244,7 +1244,6 @@ function renderActiveTimers() {
             estStr = timer.estimatedTime ? `<span style="white-space:nowrap; color:var(--primary); font-size:0.85rem; margin-left:8px; border:1px solid var(--primary); padding:1px 4px; border-radius:4px;">預估 ${timer.estimatedTime}m</span>` : '';
         }
         
-        // 已經移除前面的 platIcon 變數以及圖示呈現
         html += `<div class="swipe-container active-timer-container" data-id="${timer.id}"><div class="swipe-content active-timer-content" onmousedown="handleItemTouchStart(event)" ontouchstart="handleItemTouchStart(event)" onmousemove="handleItemTouchMove(event)" ontouchmove="handleItemTouchMove(event)" onmouseup="handleItemTouchEnd(event)" ontouchend="handleItemTouchEnd(event)" ontouchcancel="handleItemTouchEnd(event)" onmouseleave="handleItemTouchEnd(event)"><div class="swipe-edit" style="background:var(--success);" onclick="${estAction}">${estLabel}</div><div class="timer-info"><h3 onclick="handleTimerTitleClick('${timer.id}')">${titleStr} ${estStr}</h3><p>開始時間：${formatTime(new Date(timer.startTime))}</p><div class="timer-duration" id="duration_${timer.id}">00:00:00</div></div><button class="btn-stop" onclick="stopTimer('${timer.id}')">配送</button><div class="swipe-delete" onclick="promptCancelTimer('${timer.id}')">刪除</div></div></div>`;
     });
     listEl.innerHTML = html; 
@@ -1293,7 +1292,7 @@ function renderCosts(data = costRecords, containerId = 'costs-list') { renderRec
 function renderStats(data = historyRecords, containerId = 'stats-list') { renderRecordGroup(data, containerId, '此區間尚無收入紀錄', 'income', '張訂單'); }
 
 /* ================== 單日明細 Modal 邏輯 ================== */
-function openDailyDetail(context, dateKey) { currentDailyContext = context; currentDailyDateObj = new Date(dateKey); currentDailyTab = 'completed'; document.getElementById('view-daily-detail').classList.add('active'); updateUIState(); renderDailyDetail(); }
+function openDailyDetail(context, dateKey) { currentDailyContext = context; currentDailyDateObj = new Date(dateKey); currentDailyTab = 'foodpanda'; document.getElementById('view-daily-detail').classList.add('active'); updateUIState(); renderDailyDetail(); }
 function closeDailyDetail() { document.getElementById('view-daily-detail').classList.remove('active'); updateUIState(); }
 function prevDailyDetail() { currentDailyDateObj.setDate(currentDailyDateObj.getDate() - 1); renderDailyDetail(); }
 function nextDailyDetail() { currentDailyDateObj.setDate(currentDailyDateObj.getDate() + 1); renderDailyDetail(); }
@@ -1309,13 +1308,28 @@ function renderDailyDetail() {
     if (currentDailyContext === 'income') {
         const tabCancelled = document.getElementById('tab-cancelled');
         if (tabCancelled) tabCancelled.style.display = 'inline-block';
-        document.getElementById('daily-detail-type-label').innerText = currentDailyTab === 'completed' ? '報酬 (當日總額)' : '取消 (當日總額)';
+        const tabFoodpanda = document.getElementById('tab-foodpanda');
+        if (tabFoodpanda) tabFoodpanda.style.display = 'inline-block';
+        const tabUbereats = document.getElementById('tab-ubereats');
+        if (tabUbereats) tabUbereats.style.display = 'inline-block';
+
+        let typeLabel = 'foodpanda 報酬';
+        if (currentDailyTab === 'ubereats') typeLabel = 'Uber Eats 報酬';
+        if (currentDailyTab === 'cancelled') typeLabel = '取消 (當日總額)';
+        document.getElementById('daily-detail-type-label').innerText = typeLabel;
         
         const allDailyRecords = historyRecords.filter(r => r.dateKey === dateKey);
-        const dailyRecords = allDailyRecords.filter(r => (r.status || 'completed') === currentDailyTab).sort((a,b)=>b.timestamp - a.timestamp);
+        
+        let dailyRecords = [];
+        if (currentDailyTab === 'cancelled') {
+            dailyRecords = allDailyRecords.filter(r => r.status === 'cancelled');
+        } else {
+            dailyRecords = allDailyRecords.filter(r => (r.status || 'completed') === 'completed' && (r.platform || 'foodpanda') === currentDailyTab);
+        }
+        dailyRecords.sort((a,b)=>b.timestamp - a.timestamp);
         
         document.getElementById('daily-detail-amount').innerText = fmtMoney(dailyRecords.reduce((s,r)=>s+r.amount,0));
-        document.getElementById('daily-detail-amount').style.color = currentDailyTab === 'completed' ? 'var(--success)' : 'var(--danger)';
+        document.getElementById('daily-detail-amount').style.color = currentDailyTab === 'cancelled' ? 'var(--danger)' : 'var(--success)';
         
         let totalShiftMins = shiftRecords.filter(r => r.dateKey === dateKey).reduce((s,r) => s + r.durationMins, 0) + (activeShift && getDateKey(activeShift.startTime) === dateKey ? Math.floor((Date.now() - activeShift.startTime) / 60000) : 0);
         const dailyWaits = waitRecords.filter(r => r.dateKey === dateKey);
@@ -1327,20 +1341,37 @@ function renderDailyDetail() {
         document.getElementById('daily-detail-wait-total').innerText = formatMins(totalWaitMins);
         document.getElementById('daily-detail-wait-max').innerText = formatMins(maxWaitMins);
 
-        // 將訂單依照 tripId 群組，同屬一趟行程的訂單將顯示加總金額
-        const tripGroups = {};
-        dailyRecords.forEach(r => {
-            const tId = r.tripId || r.id; // 舊訂單沒有 tripId 則依 id 獨立成組
-            if (!tripGroups[tId]) tripGroups[tId] = [];
-            tripGroups[tId].push(r);
-        });
+        if (dailyRecords.length === 0) {
+            let emptyLabel = currentDailyTab === 'cancelled' ? '取消' : '收入';
+            html = `<div class="empty-state">今日無${emptyLabel}紀錄</div>`;
+        } else {
+            if (currentDailyTab === 'ubereats') {
+                const tripGroups = {};
+                dailyRecords.forEach(r => {
+                    const tId = r.tripId || r.id; 
+                    if (!tripGroups[tId]) tripGroups[tId] = [];
+                    tripGroups[tId].push(r);
+                });
+                
+                Object.values(tripGroups).forEach(group => {
+                    group.forEach(r => {
+                        const isUber = r.platform === 'ubereats';
+                        const titleStr = r.storeName ? `<div style="font-weight:bold; color:var(--primary); margin-bottom:4px; font-size:1rem; word-break:break-word;">${r.storeName} #${r.orderNumber}</div>` : '';
+                        
+                        const estAction = isUber ? '預估金額' : '預估';
+                        const estInfo = (isUber && r.estimatedAmount) ? ` / 預估 $${r.estimatedAmount}` : (r.estimatedTime ? ` / 預估 ${r.estimatedTime} 分鐘` : '');
 
-        if (Object.keys(tripGroups).length === 0) html = `<div class="empty-state">今日無${currentDailyTab === 'completed' ? '收入' : '取消'}紀錄</div>`;
-        else {
-            Object.values(tripGroups).forEach(group => {
-                group.forEach(r => {
+                        html += `<div class="swipe-container record-swipe-container" data-id="${r.id}"><div class="swipe-content record-swipe-content" ontouchstart="handleItemTouchStart(event)" ontouchmove="handleItemTouchMove(event)" ontouchend="handleItemTouchEnd(event)" ontouchcancel="handleItemTouchEnd(event)"><div class="swipe-edit" style="background:var(--success);" onclick="editHistoryEstimatedTime('${r.id}')">${estAction}</div><div class="record-info" onclick="editIncomeAmount('${r.id}')" style="cursor:pointer;">${titleStr}<div class="record-time" style="color:var(--text-main);">${r.startTimeStr} - ${r.endTimeStr}</div><div class="record-desc" style="color:var(--text-muted);">實際 ${r.durationMins} 分鐘 ${estInfo}</div></div><div class="record-amount" onclick="editIncomeAmount('${r.id}')" style="cursor:pointer;">${fmtMoney(r.amount)}</div><div class="swipe-delete" onclick="deleteHistoryRecord('${r.id}')">刪除</div></div></div>`;
+                    });
+                    
+                    if (group.length > 1) {
+                        const tripTotal = group.reduce((sum, r) => sum + r.amount, 0);
+                        html += `<div style="text-align:right; font-size:0.9rem; color:var(--text-main); font-weight:bold; margin-top:-4px; margin-bottom:12px; padding-right:10px;">此趟行程總計： <span style="color:var(--success); font-size:1.15rem; margin-left:4px;">${fmtMoney(tripTotal)}</span></div>`;
+                    }
+                });
+            } else {
+                dailyRecords.forEach(r => {
                     const isUber = r.platform === 'ubereats';
-                    // 已經移除圖示
                     const titleStr = r.storeName ? `<div style="font-weight:bold; color:var(--primary); margin-bottom:4px; font-size:1rem; word-break:break-word;">${r.storeName} #${r.orderNumber}</div>` : '';
                     
                     const estAction = isUber ? '預估金額' : '預估';
@@ -1348,17 +1379,13 @@ function renderDailyDetail() {
 
                     html += `<div class="swipe-container record-swipe-container" data-id="${r.id}"><div class="swipe-content record-swipe-content" ontouchstart="handleItemTouchStart(event)" ontouchmove="handleItemTouchMove(event)" ontouchend="handleItemTouchEnd(event)" ontouchcancel="handleItemTouchEnd(event)"><div class="swipe-edit" style="background:var(--success);" onclick="editHistoryEstimatedTime('${r.id}')">${estAction}</div><div class="record-info" onclick="editIncomeAmount('${r.id}')" style="cursor:pointer;">${titleStr}<div class="record-time" style="color:var(--text-main);">${r.startTimeStr} - ${r.endTimeStr}</div><div class="record-desc" style="color:var(--text-muted);">實際 ${r.durationMins} 分鐘 ${estInfo}</div></div><div class="record-amount" onclick="editIncomeAmount('${r.id}')" style="cursor:pointer;">${fmtMoney(r.amount)}</div><div class="swipe-delete" onclick="deleteHistoryRecord('${r.id}')">刪除</div></div></div>`;
                 });
-                
-                // 如果這趟行程有 2 張(含)以上的訂單，在下方顯示加總區塊
-                if (group.length > 1) {
-                    const tripTotal = group.reduce((sum, r) => sum + r.amount, 0);
-                    html += `<div style="text-align:right; font-size:0.9rem; color:var(--text-main); font-weight:bold; margin-top:-4px; margin-bottom:12px; padding-right:10px;">此趟行程總計： <span style="color:${currentDailyTab === 'completed' ? 'var(--success)' : 'var(--danger)'}; font-size:1.15rem; margin-left:4px;">${fmtMoney(tripTotal)}</span></div>`;
-                }
-            });
+            }
         }
     } else if (currentDailyContext === 'tip') {
-        const tabCancelled = document.getElementById('tab-cancelled');
-        if (tabCancelled) tabCancelled.style.display = 'none'; // 隱藏取消標籤
+        const tabCancelled = document.getElementById('tab-cancelled'); if (tabCancelled) tabCancelled.style.display = 'none';
+        const tabFoodpanda = document.getElementById('tab-foodpanda'); if (tabFoodpanda) tabFoodpanda.style.display = 'none';
+        const tabUbereats = document.getElementById('tab-ubereats'); if (tabUbereats) tabUbereats.style.display = 'none';
+
         document.getElementById('daily-detail-type-label').innerText = '小費總額';
         const dailyRecords = tipRecords.filter(r => r.dateKey === dateKey).sort((a,b)=>b.timestamp - a.timestamp);
         document.getElementById('daily-detail-amount').innerText = fmtMoney(dailyRecords.reduce((s,r)=>s+r.amount,0));
@@ -1368,8 +1395,10 @@ function renderDailyDetail() {
         if (dailyRecords.length === 0) html = '<div class="empty-state">今日無小費紀錄</div>';
         else dailyRecords.forEach(r => html += `<div class="swipe-container record-swipe-container"><div class="swipe-content record-swipe-content" ontouchstart="handleItemTouchStart(event)" ontouchmove="handleItemTouchMove(event)" ontouchend="handleItemTouchEnd(event)" ontouchcancel="handleItemTouchEnd(event)"><div class="swipe-edit" onclick="openEdit('tip', '${r.id}')">編輯</div><div class="record-info"><div class="record-time">${r.timeStr}</div><div class="record-desc">支付方式: ${r.method}</div></div><div class="record-amount">${fmtMoney(r.amount)}</div><div class="swipe-delete" onclick="deleteTip('${r.id}')">刪除</div></div></div>`);
     } else if (currentDailyContext === 'cost') {
-        const tabCancelled = document.getElementById('tab-cancelled');
-        if (tabCancelled) tabCancelled.style.display = 'none'; // 隱藏取消標籤
+        const tabCancelled = document.getElementById('tab-cancelled'); if (tabCancelled) tabCancelled.style.display = 'none';
+        const tabFoodpanda = document.getElementById('tab-foodpanda'); if (tabFoodpanda) tabFoodpanda.style.display = 'none';
+        const tabUbereats = document.getElementById('tab-ubereats'); if (tabUbereats) tabUbereats.style.display = 'none';
+
         document.getElementById('daily-detail-type-label').innerText = '成本支出總額';
         const dailyRecords = costRecords.filter(r => r.dateKey === dateKey).sort((a,b)=>b.timestamp - a.timestamp);
         document.getElementById('daily-detail-amount').innerText = fmtMoney(dailyRecords.reduce((s,r)=>s+r.amount,0));

@@ -1244,9 +1244,8 @@ function renderActiveTimers() {
             estStr = timer.estimatedTime ? `<span style="white-space:nowrap; color:var(--primary); font-size:0.85rem; margin-left:8px; border:1px solid var(--primary); padding:1px 4px; border-radius:4px;">預估 ${timer.estimatedTime}m</span>` : '';
         }
         
-        const platIcon = isUber ? '👜 ' : (timer.platform ? '  ' : '');
-
-        html += `<div class="swipe-container active-timer-container" data-id="${timer.id}"><div class="swipe-content active-timer-content" onmousedown="handleItemTouchStart(event)" ontouchstart="handleItemTouchStart(event)" onmousemove="handleItemTouchMove(event)" ontouchmove="handleItemTouchMove(event)" onmouseup="handleItemTouchEnd(event)" ontouchend="handleItemTouchEnd(event)" ontouchcancel="handleItemTouchEnd(event)" onmouseleave="handleItemTouchEnd(event)"><div class="swipe-edit" style="background:var(--success);" onclick="${estAction}">${estLabel}</div><div class="timer-info"><h3 onclick="handleTimerTitleClick('${timer.id}')">${platIcon}${titleStr} ${estStr}</h3><p>開始時間：${formatTime(new Date(timer.startTime))}</p><div class="timer-duration" id="duration_${timer.id}">00:00:00</div></div><button class="btn-stop" onclick="stopTimer('${timer.id}')">配送</button><div class="swipe-delete" onclick="promptCancelTimer('${timer.id}')">刪除</div></div></div>`;
+        // 已經移除前面的 platIcon 變數以及圖示呈現
+        html += `<div class="swipe-container active-timer-container" data-id="${timer.id}"><div class="swipe-content active-timer-content" onmousedown="handleItemTouchStart(event)" ontouchstart="handleItemTouchStart(event)" onmousemove="handleItemTouchMove(event)" ontouchmove="handleItemTouchMove(event)" onmouseup="handleItemTouchEnd(event)" ontouchend="handleItemTouchEnd(event)" ontouchcancel="handleItemTouchEnd(event)" onmouseleave="handleItemTouchEnd(event)"><div class="swipe-edit" style="background:var(--success);" onclick="${estAction}">${estLabel}</div><div class="timer-info"><h3 onclick="handleTimerTitleClick('${timer.id}')">${titleStr} ${estStr}</h3><p>開始時間：${formatTime(new Date(timer.startTime))}</p><div class="timer-duration" id="duration_${timer.id}">00:00:00</div></div><button class="btn-stop" onclick="stopTimer('${timer.id}')">配送</button><div class="swipe-delete" onclick="promptCancelTimer('${timer.id}')">刪除</div></div></div>`;
     });
     listEl.innerHTML = html; 
     updateTimersDisplay(); updateActiveOrdersTitle();
@@ -1341,8 +1340,8 @@ function renderDailyDetail() {
             Object.values(tripGroups).forEach(group => {
                 group.forEach(r => {
                     const isUber = r.platform === 'ubereats';
-                    const platIcon = isUber ? '👜 ' : (r.platform ? '  ' : '');
-                    const titleStr = r.storeName ? `<div style="font-weight:bold; color:var(--primary); margin-bottom:4px; font-size:1rem; word-break:break-word;">${platIcon}${r.storeName} #${r.orderNumber}</div>` : '';
+                    // 已經移除圖示
+                    const titleStr = r.storeName ? `<div style="font-weight:bold; color:var(--primary); margin-bottom:4px; font-size:1rem; word-break:break-word;">${r.storeName} #${r.orderNumber}</div>` : '';
                     
                     const estAction = isUber ? '預估金額' : '預估';
                     const estInfo = (isUber && r.estimatedAmount) ? ` / 預估 $${r.estimatedAmount}` : (r.estimatedTime ? ` / 預估 ${r.estimatedTime} 分鐘` : '');

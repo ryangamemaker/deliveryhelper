@@ -342,12 +342,42 @@
 
     <!-- 底部導航 -->
     <div class="bottom-nav">
-        <a class="nav-item active" id="nav-0" onclick="switchView(0, true)"><span class="nav-icon">☗</span><span>首頁</span></a>
-        <a class="nav-item" id="nav-1" onclick="switchView(1, true)"><span class="nav-icon">＄</span><span>收入</span></a>
-        <a class="nav-item" id="nav-2" onclick="switchView(2, true)"><span class="nav-icon">♥&#xFE0E;</span><span>小費</span></a>
-        <a class="nav-item" id="nav-3" onclick="switchView(3, true)"><span class="nav-icon">☈</span><span>成本</span></a>
-        <a class="nav-item" id="nav-4" onclick="switchView(4, true)"><span class="nav-icon">◕</span><span>準時率</span></a>
-        <a class="nav-item" id="nav-5" onclick="switchView(5, true)"><span class="nav-icon">⛯</span><span>設定</span></a>
+        <a class="nav-item active" id="nav-0" onclick="switchView(0, true)">
+            <span class="nav-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5L12 3l9 7.5v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-10z"/><path d="M9 21.5V12h6v9.5"/></svg>
+            </span>
+            <span>首頁</span>
+        </a>
+        <a class="nav-item" id="nav-1" onclick="switchView(1, true)">
+            <span class="nav-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="15" rx="3"/><path d="M2 10h20"/><rect x="15" y="13.5" width="4" height="3" rx="1"/></svg>
+            </span>
+            <span>收入</span>
+        </a>
+        <a class="nav-item" id="nav-2" onclick="switchView(2, true)">
+            <span class="nav-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="16" cy="5.5" r="2.5"/><path d="M2 15l4.5-2.5 3.5 1.5a3 3 0 0 0 2.8 0L17 12"/><path d="M6 18.5l3.5-1.5 3 1.5a3 3 0 0 0 2.8 0L21 16"/><path d="M2 19h18a2 2 0 0 0 2-2v-2"/></svg>
+            </span>
+            <span>小費</span>
+        </a>
+        <a class="nav-item" id="nav-3" onclick="switchView(3, true)">
+            <span class="nav-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v20l3-2 3 2 3-2 3 2 3-2 1 2V2l-1 2-3-2-3 2-3-2-3 2-3-2z"/><path d="M8 8h8"/><path d="M8 12h8"/><path d="M8 16h5"/></svg>
+            </span>
+            <span>成本</span>
+        </a>
+        <a class="nav-item" id="nav-4" onclick="switchView(4, true)">
+            <span class="nav-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21a9 9 0 1 1 9-9"/><polyline points="12 7 12 12 15 14"/><polyline points="16 19 18.5 21.5 23 16.5"/></svg>
+            </span>
+            <span>準時率</span>
+        </a>
+        <a class="nav-item" id="nav-5" onclick="switchView(5, true)">
+            <span class="nav-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            </span>
+            <span>設定</span>
+        </a>
     </div>
 
     <!-- 側邊攔選單 -->
@@ -357,13 +387,38 @@
             <h2>功能選單</h2>
         </div>
         <div class="side-menu-content">
-            <a class="side-nav-item active" id="side-nav-0" onclick="switchView(0, true); toggleSideMenu()"><span class="nav-icon">☗</span>首頁</a>
-            <a class="side-nav-item" id="side-nav-1" onclick="switchView(1, true); toggleSideMenu()"><span class="nav-icon">＄</span>收入</a>
-            <a class="side-nav-item" id="side-nav-2" onclick="switchView(2, true); toggleSideMenu()"><span class="nav-icon">♥&#xFE0E;</span>小費</a>
-            <a class="side-nav-item" id="side-nav-3" onclick="switchView(3, true); toggleSideMenu()"><span class="nav-icon">☈</span>成本</a>
-            <a class="side-nav-item" id="side-nav-4" onclick="switchView(4, true); toggleSideMenu()"><span class="nav-icon">◕</span>準時率</a>
-            <a class="side-nav-item" id="side-nav-5" onclick="switchView(5, true); toggleSideMenu()"><span class="nav-icon">⛯</span>設定</a>
+            <a class="side-nav-item active" id="side-nav-0" onclick="switchView(0, true); toggleSideMenu()">
+                <span class="nav-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5L12 3l9 7.5v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-10z"/><path d="M9 21.5V12h6v9.5"/></svg>
+                </span>首頁
+            </a>
+            <a class="side-nav-item" id="side-nav-1" onclick="switchView(1, true); toggleSideMenu()">
+                <span class="nav-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="15" rx="3"/><path d="M2 10h20"/><rect x="15" y="13.5" width="4" height="3" rx="1"/></svg>
+                </span>收入
+            </a>
+            <a class="side-nav-item" id="side-nav-2" onclick="switchView(2, true); toggleSideMenu()">
+                <span class="nav-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="16" cy="5.5" r="2.5"/><path d="M2 15l4.5-2.5 3.5 1.5a3 3 0 0 0 2.8 0L17 12"/><path d="M6 18.5l3.5-1.5 3 1.5a3 3 0 0 0 2.8 0L21 16"/><path d="M2 19h18a2 2 0 0 0 2-2v-2"/></svg>
+                </span>小費
+            </a>
+            <a class="side-nav-item" id="side-nav-3" onclick="switchView(3, true); toggleSideMenu()">
+                <span class="nav-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v20l3-2 3 2 3-2 3 2 3-2 1 2V2l-1 2-3-2-3 2-3-2-3 2-3-2z"/><path d="M8 8h8"/><path d="M8 12h8"/><path d="M8 16h5"/></svg>
+                </span>成本
+            </a>
+            <a class="side-nav-item" id="side-nav-4" onclick="switchView(4, true); toggleSideMenu()">
+                <span class="nav-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21a9 9 0 1 1 9-9"/><polyline points="12 7 12 12 15 14"/><polyline points="16 19 18.5 21.5 23 16.5"/></svg>
+                </span>準時率
+            </a>
+            <a class="side-nav-item" id="side-nav-5" onclick="switchView(5, true); toggleSideMenu()">
+                <span class="nav-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                </span>設定
+            </a>
         </div>
+    
         <div style="padding: 20px; border-top: 1px solid var(--border); background: var(--card-bg);" id="side-menu-shift-section">
             <h3 style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 10px; text-align: center;">上線時段</h3>
             <button class="btn btn-shift-toggle-class" onclick="toggleShift()" style="font-size: 1.1rem; padding: 14px;">時段開始</button>

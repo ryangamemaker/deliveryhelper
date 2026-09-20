@@ -71,6 +71,53 @@ body.night-mode {
 }
 
 /* ==============================================================
+   Notion 風格狀態標籤 (預估時間)
+   ============================================================== */
+.notion-tag {
+    display: inline-block;
+    white-space: nowrap;
+    font-size: 0.8rem;
+    font-weight: 500;
+    line-height: 1.35;
+    padding: 2px 7px;
+    border-radius: 4px;
+    margin-left: 8px;
+    vertical-align: middle;
+    transition: background-color 0.3s ease, color 0.3s ease;
+    border: none !important;
+}
+
+/* 預估時間內 - Notion 竹綠色 */
+.notion-tag-green {
+    background-color: #e1f2e8 !important;
+    color: #1e653f !important;
+}
+body.night-mode .notion-tag-green,
+[data-color-theme="dark"] .notion-tag-green,
+[data-color-theme="obsidian-gold"] .notion-tag-green,
+[data-color-theme="burgundy"] .notion-tag-green,
+[data-color-theme="aurora"] .notion-tag-green,
+[data-color-theme="cyberpunk"] .notion-tag-green {
+    background-color: rgba(46, 133, 85, 0.25) !important;
+    color: #85d5a5 !important;
+}
+
+/* 超過預估時間 - Notion 大地土色 */
+.notion-tag-brown {
+    background-color: #f7ebe3 !important;
+    color: #7b431d !important;
+}
+body.night-mode .notion-tag-brown,
+[data-color-theme="dark"] .notion-tag-brown,
+[data-color-theme="obsidian-gold"] .notion-tag-brown,
+[data-color-theme="burgundy"] .notion-tag-brown,
+[data-color-theme="aurora"] .notion-tag-brown,
+[data-color-theme="cyberpunk"] .notion-tag-brown {
+    background-color: rgba(147, 114, 100, 0.25) !important;
+    color: #deb19b !important;
+}
+
+/* ==============================================================
     版面與元件樣式
     ============================================================== */
 html { font-size: 16px; overflow-x: hidden; scroll-behavior: smooth;}
@@ -172,17 +219,17 @@ body.night-mode #view-search-result, body.night-mode #view-daily-detail { backgr
 .btn-preset.ocean { background: linear-gradient(180deg, #0284c7, #082f49); color: #38bdf8; border-color: #0284c7; box-shadow: 0 6px 12px rgba(0,0,0,0.2), inset 0 1px 1px rgba(255,255,255,0.1);}
 
 /* --- 滑動刪除與列表拖拉排序 --- */
-.timer-list { position: relative; } /* 讓拖曳物件有穩定的定位基準 */
+.timer-list { position: relative; }
 .swipe-container { position: relative; overflow: hidden; border-radius: 12px; margin-bottom: 12px; background: transparent; box-shadow: var(--item-shadow); transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease; }
 .swipe-container:hover { transform: translateY(-1px); box-shadow: var(--card-shadow); }
 .swipe-delete { position: absolute; top: 0; right: -80px; bottom: 0; width: 80px; background: var(--danger); color: var(--danger-text); display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 1rem; cursor: pointer; z-index: 10; box-shadow: inset 2px 0 5px rgba(0,0,0,0.1); }
 .active-timer-container { border: 1px solid var(--border); }
 
-/* 拖拉中的卡片樣式：強制關閉過渡動畫，實現零延遲跟隨 */
+/* 拖拉中的卡片樣式 */
 .active-timer-container.dragging {
     opacity: 0.95 !important;
     box-shadow: 0 4px 15px rgba(0,0,0,0.1), 0 0 0 1.5px var(--primary) !important;
-    pointer-events: none; /* 讓底下元素能感應滑鼠位置 */
+    pointer-events: none;
     transition: none !important; 
 }
 
@@ -190,7 +237,7 @@ body.night-mode .active-timer-container.dragging {
     box-shadow: 0 4px 15px rgba(0,0,0,0.5), 0 0 0 1.5px var(--primary) !important;
 }
 
-/* 拖拉佔位符：虛線框提示 */
+/* 拖拉佔位符 */
 .drag-placeholder {
     border: 2px dashed var(--primary);
     border-radius: 12px;
@@ -232,10 +279,12 @@ body.night-mode .active-timer-container.dragging {
 .btn-edit { background: none; border: none; color: var(--primary); font-size: 0.95rem; cursor: pointer; padding: 4px; font-weight: bold; text-shadow: 0 1px 1px rgba(0,0,0,0.05); transition: 0.2s; }
 .btn-edit:hover { transform: scale(1.1); }
 
+/* --- 底部導航與 SVG 向量圖示支援 --- */
 .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--nav-bg); border-top: 1px solid var(--border); display: flex; justify-content: space-around; padding: 10px 0; padding-bottom: calc(10px + env(safe-area-inset-bottom)); box-shadow: 0 -5px 25px rgba(0,0,0,0.08); z-index: 1000; max-width: 600px; margin: 0 auto; backdrop-filter: var(--card-backdrop); -webkit-backdrop-filter: var(--card-backdrop); transition: background 0.4s; }
 .nav-item { display: flex; flex-direction: column; align-items: center; color: var(--text-muted); font-size: 0.75rem; text-decoration: none; cursor: pointer; flex: 1; transition: 0.2s;}
 .nav-item.active { color: var(--primary); font-weight: bold; transform: translateY(-2px); text-shadow: 0 2px 4px rgba(255, 117, 151, 0.2); }
-.nav-icon { display: inline-block; font-size: 1.4rem; margin-bottom: 4px; transition: transform 0.2s; font-family: "Segoe UI Symbol", "Apple Symbols", "Arial Unicode MS", sans-serif; font-weight: normal; }
+.nav-icon { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; margin-bottom: 4px; transition: transform 0.2s, color 0.2s; }
+.nav-icon svg { width: 100%; height: 100%; stroke: currentColor; stroke-width: 2; fill: none; display: block; }
 
 /* --- 📊 一週統計長條圖樣式 --- */
 .chart-container { display: flex; align-items: flex-end; justify-content: space-between; height: 100px; padding: 10px 5px 0 5px; margin-top: 15px; border-top: 1px dashed var(--border); }
@@ -308,7 +357,6 @@ body.map-enabled #map {
     left: 0;
     right: 0;
     height: calc(100% - 70px);
-    /* 絕對不透明背景 */
     background: var(--card-bg) !important;
     z-index: 10;
     border-radius: 24px 24px 0 0;
@@ -322,7 +370,7 @@ body.map-enabled #map {
     -webkit-backdrop-filter: none !important;
 }
 
-/* 確保客製化主題的不透明背景支援 */
+/* 主題不透明背景支援 */
 body[data-color-theme="obsidian-gold"] .bottom-panel { background: #1a1a1a !important; }
 body[data-color-theme="burgundy"] .bottom-panel { background: #2a0a0a !important; }
 body[data-color-theme="aurora"] .bottom-panel { background: #120b2e !important; }
@@ -379,7 +427,7 @@ body:not(.map-enabled) .panel-content {
     overflow: visible;
 }
 
-/* 🎯 定位按鈕 (依附在面板上緣，隨面板移動) */
+/* 🎯 定位按鈕 */
 .map-btn-recenter {
     position: absolute;
     top: -60px;
@@ -417,69 +465,3 @@ body:not(.map-enabled) .map-btn-recenter {
 .detail-tab { font-size: 1.05rem; cursor: pointer; color: var(--text-muted); transition: 0.2s; position: relative; padding: 0 4px 4px 4px; }
 .detail-tab.active { color: var(--primary); font-weight: bold; }
 .detail-tab.active::after { content: ''; position: absolute; bottom: -6px; left: 0; width: 100%; height: 3px; background: var(--primary); border-radius: 3px; }
-
-/* ==============================================================
-   Notion 風格狀態標籤 (預估時間)
-   ============================================================== */
-.notion-tag {
-    display: inline-block;
-    white-space: nowrap;
-    font-size: 0.8rem;
-    font-weight: 500;
-    line-height: 1.35;
-    padding: 2px 7px;
-    border-radius: 4px;
-    margin-left: 8px;
-    vertical-align: middle;
-    transition: background-color 0.3s ease, color 0.3s ease;
-    border: none !important;
-}
-
-/* 預估時間內 - Notion 綠色 */
-.notion-tag-green {
-    background-color: #e1f2e8 !important;
-    color: #1e653f !important;
-}
-body.night-mode .notion-tag-green,
-[data-color-theme="dark"] .notion-tag-green,
-[data-color-theme="obsidian-gold"] .notion-tag-green,
-[data-color-theme="burgundy"] .notion-tag-green,
-[data-color-theme="aurora"] .notion-tag-green,
-[data-color-theme="cyberpunk"] .notion-tag-green {
-    background-color: rgba(46, 133, 85, 0.25) !important;
-    color: #85d5a5 !important;
-}
-
-/* 超過預估時間 - Notion 土色 */
-.notion-tag-brown {
-    background-color: #f7ebe3 !important;
-    color: #7b431d !important;
-}
-body.night-mode .notion-tag-brown,
-[data-color-theme="dark"] .notion-tag-brown,
-[data-color-theme="obsidian-gold"] .notion-tag-brown,
-[data-color-theme="burgundy"] .notion-tag-brown,
-[data-color-theme="aurora"] .notion-tag-brown,
-[data-color-theme="cyberpunk"] .notion-tag-brown {
-    background-color: rgba(147, 114, 100, 0.25) !important;
-    color: #deb19b !important;
-}
-
-/* 導航圖示優化 (支援向量 SVG) */
-.nav-icon { 
-    display: inline-flex; 
-    align-items: center; 
-    justify-content: center; 
-    width: 22px; 
-    height: 22px; 
-    margin-bottom: 4px; 
-    transition: transform 0.2s, color 0.2s; 
-}
-.nav-icon svg { 
-    width: 100%; 
-    height: 100%; 
-    stroke: currentColor; 
-    stroke-width: 2; 
-    fill: none; 
-    display: block; 
-}

@@ -24,7 +24,7 @@ function switchDailyTab(tab) {
 let mapInstance = null;
 let currentTileLayer = null;
 let userMarker = null;
-let currentLoc = [25.0478, 121.5170]; // 預設改為台北車站
+let currentLoc = [25.0478, 121.5170]; // 預設為台北車站
 let geoWatchId = null;
 let hasCenteredMapInit = false; 
 
@@ -39,6 +39,22 @@ function formatMins(mins) { const h = Math.floor(mins / 60), m = Math.floor(mins
 function fmtMoney(num) { return '$' + Number(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); } 
 function fmtNum(num) { return Number(num).toLocaleString('en-US'); }
 
+/* ================== 導航向量圖示庫 (SVG) ================== */
+const NAV_SVGS = [
+    // 0: 首頁 (Home)
+    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5L12 3l9 7.5v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-10z"/><path d="M9 21.5V12h6v9.5"/></svg>`,
+    // 1: 收入 (Income / Wallet)
+    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="15" rx="3"/><path d="M2 10h20"/><rect x="15" y="13.5" width="4" height="3" rx="1"/></svg>`,
+    // 2: 小費 (Tips / Hand & Coin)
+    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="16" cy="5.5" r="2.5"/><path d="M2 15l4.5-2.5 3.5 1.5a3 3 0 0 0 2.8 0L17 12"/><path d="M6 18.5l3.5-1.5 3 1.5a3 3 0 0 0 2.8 0L21 16"/><path d="M2 19h18a2 2 0 0 0 2-2v-2"/></svg>`,
+    // 3: 成本 (Cost / Receipt)
+    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v20l3-2 3 2 3-2 3 2 3-2 1 2V2l-1 2-3-2-3 2-3-2-3 2-3-2z"/><path d="M8 8h8"/><path d="M8 12h8"/><path d="M8 16h5"/></svg>`,
+    // 4: 準時率 (Punctuality / Clock Check)
+    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21a9 9 0 1 1 9-9"/><polyline points="12 7 12 12 15 14"/><polyline points="16 19 18.5 21.5 23 16.5"/></svg>`,
+    // 5: 設定 (Settings / Gear)
+    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`
+];
+
 /* ================== 動態注入新功能 CSS ================== */
 function injectNewStyles() {
     if (document.getElementById('injected-new-styles')) return;
@@ -46,28 +62,22 @@ function injectNewStyles() {
     style.id = 'injected-new-styles';
     style.innerHTML = `
         .swipe-edit { position: absolute; top: 0; left: -80px; bottom: 0; width: 80px; background: var(--primary); color: var(--btn-text); display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 1rem; cursor: pointer; z-index: 10; box-shadow: inset -2px 0 5px rgba(0,0,0,0.1); }
-        /* 解決非滿版地圖時，各明細最底端被導航列擋住的問題 */
         body:not(.map-enabled) #stats-list, 
         body:not(.map-enabled) #tips-list, 
         body:not(.map-enabled) #costs-list { padding-bottom: 80px; }
-        /* 未啟用滿版地圖時，隱藏把手但保留文字區塊 */
         body:not(.map-enabled) .handle-bar-wrapper { display: none !important; }
         body:not(.map-enabled) .panel-header { cursor: default !important; }
         
-        /* ===== 未啟用滿版地圖時，隱藏左上角狀態列(漢堡)按鈕 ===== */
         body:not(.map-enabled) #btn-menu { display: none !important; }
         
-        /* ===== 保證 Leaflet 地圖在各裝置上絕對能顯示尺寸 ===== */
         body.map-enabled #map {
             display: block !important;
             width: 100vw !important;
             height: 100vh !important;
         }
 
-        /* ===== 啟用滿版地圖時，隱藏底部導航列 ===== */
         body.map-enabled .bottom-nav { display: none !important; }
 
-        /* ===== 左側選單 (狀態列) 樣式 ===== */
         .side-menu-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); z-index: 2999; opacity: 0; visibility: hidden; transition: opacity 0.3s, visibility 0.3s; backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); }
         .side-menu-overlay.active { opacity: 1; visibility: visible; }
         
@@ -80,10 +90,10 @@ function injectNewStyles() {
         .side-menu-content { flex: 1; overflow-y: auto; padding: 10px 0; -webkit-overflow-scrolling: touch; }
         .side-nav-item { display: flex; align-items: center; padding: 15px 20px; color: var(--text-main); text-decoration: none; font-size: 1.05rem; cursor: pointer; transition: background 0.2s, color 0.2s; }
         .side-nav-item:active { background: var(--timer-bg); }
-        .side-nav-item .nav-icon { margin-right: 15px; width: 24px; text-align: center; font-size: 1.2rem; }
+        .side-nav-item .nav-icon { margin-right: 15px; width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; }
+        .side-nav-item .nav-icon svg { width: 100%; height: 100%; stroke: currentColor; stroke-width: 2; fill: none; display: block; }
         .side-nav-item.active { background: var(--timer-bg); color: var(--primary); font-weight: bold; border-left: 4px solid var(--primary); }
 
-        /* ===== 滿版地圖模式下的頂部 Header 透明化 (僅限於首頁) ===== */
         body.map-enabled.on-home-view .header {
             background: transparent !important;
             box-shadow: none !important;
@@ -104,7 +114,7 @@ function injectNewStyles() {
             pointer-events: auto !important;
         }
         body.map-enabled.on-home-view #btn-back {
-            display: none !important; /* 強制隱藏不需要的箭頭 */
+            display: none !important;
         }
         body.map-enabled.on-home-view #header-title-wrapper {
             background: var(--card-bg) !important;
@@ -118,7 +128,7 @@ function injectNewStyles() {
         }
         body.map-enabled.on-home-view #shift-status-badge,
         body.map-enabled.on-home-view #shift-status-badge-right {
-            display: none !important; /* 強制隱藏上線色塊 */
+            display: none !important;
         }
     `;
     document.head.appendChild(style);
@@ -665,7 +675,7 @@ function stopCanvasEngine() { if(canvasAnimationId) cancelAnimationFrame(canvasA
 function startCanvasEngine(themeType) {
     stopCanvasEngine(); const canvas = document.getElementById('dynamic-canvas'), ctx = canvas.getContext('2d'); canvas.style.display = 'block';
     let w = canvas.width = window.innerWidth, h = canvas.height = window.innerHeight; window.onresize = () => { w = canvas.width = window.innerWidth; h = canvas.height = window.innerHeight; };
-    const rgb = hexToRgb(getComputedStyle(document.body).getPropertyValue('--primary').trim() || '#38bdf8'), primaryRgbStr = `${rgb.r}, ${rgb.g}, ${rgb.b}`;
+    const rgb = hexToRgb(getComputedStyle(document.body).getPropertyValue('--primary').trim() || '#38bdf8'), primaryRgbStr = `${rgb.r}, ${rgb.b}, ${rgb.b}`;
 
     if (themeType === 'canvas-ocean') {
         let bubbles = Array.from({length: 40}, () => ({ x: Math.random() * w, y: Math.random() * h, r: Math.random() * 4 + 1, speedY: Math.random() * 1.5 + 0.5, wobble: Math.random() * Math.PI * 2, wobbleSpeed: Math.random() * 0.05 }));
@@ -781,32 +791,25 @@ function toggleSideMenu() {
     else { menu.classList.remove('active'); overlay.classList.remove('active'); }
 }
 
+/* ================== 更新 UI 狀態 (保持向量 SVG) ================== */
 function updateUIState() { 
-    const unselectedIcons = ['☖', '＄', '♡', '☇', '◑', '⛭'], selectedIcons = ['☗', '＄', '♥\uFE0E', '☈', '◕', '⛯'];
-    
+    // 底部導航狀態更新 (保留 SVG 圖示，避免文字覆蓋)
     document.querySelectorAll('.bottom-nav .nav-item').forEach((el, index) => { 
-        el.classList.remove('active'); 
+        el.classList.toggle('active', index === currentViewIndex);
         const iconSpan = el.querySelector('.nav-icon'); 
-        if (iconSpan) { iconSpan.innerText = unselectedIcons[index]; iconSpan.style.transform = 'scale(1)'; } 
+        if (iconSpan && NAV_SVGS[index] && !iconSpan.querySelector('svg')) {
+            iconSpan.innerHTML = NAV_SVGS[index];
+        }
     }); 
-    const activeNavBottom = document.getElementById(`nav-${currentViewIndex}`); 
-    if(activeNavBottom) {
-        activeNavBottom.classList.add('active'); 
-        const activeIconSpan = activeNavBottom.querySelector('.nav-icon');
-        if (activeIconSpan) { activeIconSpan.innerText = selectedIcons[currentViewIndex]; if ([2, 4].includes(currentViewIndex)) activeIconSpan.style.transform = 'scale(1.25)'; }
-    }
 
+    // 側邊欄狀態更新 (保留 SVG 圖示)
     document.querySelectorAll('.side-nav-item').forEach((el, index) => { 
-        el.classList.remove('active'); 
+        el.classList.toggle('active', index === currentViewIndex);
         const iconSpan = el.querySelector('.nav-icon'); 
-        if (iconSpan) { iconSpan.innerText = unselectedIcons[index]; iconSpan.style.transform = 'scale(1)'; } 
+        if (iconSpan && NAV_SVGS[index] && !iconSpan.querySelector('svg')) {
+            iconSpan.innerHTML = NAV_SVGS[index];
+        }
     }); 
-    const activeNavSide = document.getElementById(`side-nav-${currentViewIndex}`); 
-    if(activeNavSide) {
-        activeNavSide.classList.add('active'); 
-        const activeIconSpan = activeNavSide.querySelector('.nav-icon');
-        if (activeIconSpan) { activeIconSpan.innerText = selectedIcons[currentViewIndex]; if ([2, 4].includes(currentViewIndex)) activeIconSpan.style.transform = 'scale(1.25)'; }
-    }
 
     const title = document.getElementById('header-title');
     const titleWrapper = document.getElementById('header-title-wrapper');
@@ -1221,6 +1224,7 @@ function updateActiveOrdersTitle() {
     }
 }
 
+/* ================== 渲染進行中計時器 (Notion 風格標籤) ================== */
 function renderActiveTimers() {
     forceCleanupDrag();
     const listEl = document.getElementById('active-timers-list'); 
@@ -1230,6 +1234,7 @@ function renderActiveTimers() {
         updateActiveOrdersTitle();
         return;
     }
+    const now = Date.now();
     let html = '';
     activeTimers.forEach((timer, idx) => {
         const titleStr = timer.storeName ? `${timer.storeName} #${timer.orderNumber}` : `訂單計時 #${idx + 1}`;
@@ -1239,9 +1244,12 @@ function renderActiveTimers() {
         const estLabel = isUber ? '預估金額' : '預估';
         let estStr = '';
         if (isUber) {
-            estStr = timer.estimatedAmount ? `<span style="white-space:nowrap; color:var(--success); font-size:0.85rem; margin-left:8px; border:1px solid var(--success); padding:1px 4px; border-radius:4px;">預估 $${timer.estimatedAmount}</span>` : '';
-        } else {
-            estStr = timer.estimatedTime ? `<span style="white-space:nowrap; color:var(--primary); font-size:0.85rem; margin-left:8px; border:1px solid var(--primary); padding:1px 4px; border-radius:4px;">預估 ${timer.estimatedTime}m</span>` : '';
+            estStr = timer.estimatedAmount ? `<span class="notion-tag notion-tag-green">預估 $${timer.estimatedAmount}</span>` : '';
+        } else if (timer.estimatedTime) {
+            // 判斷是否超時：經過分鐘數是否大於預估時間
+            const elapsedMins = (now - timer.startTime) / 60000;
+            const tagClass = elapsedMins > timer.estimatedTime ? 'notion-tag notion-tag-brown' : 'notion-tag notion-tag-green';
+            estStr = `<span id="est_tag_${timer.id}" class="${tagClass}">預估 ${timer.estimatedTime}m</span>`;
         }
         
         html += `<div class="swipe-container active-timer-container" data-id="${timer.id}"><div class="swipe-content active-timer-content" onmousedown="handleItemTouchStart(event)" ontouchstart="handleItemTouchStart(event)" onmousemove="handleItemTouchMove(event)" ontouchmove="handleItemTouchMove(event)" onmouseup="handleItemTouchEnd(event)" ontouchend="handleItemTouchEnd(event)" ontouchcancel="handleItemTouchEnd(event)" onmouseleave="handleItemTouchEnd(event)"><div class="swipe-edit" style="background:var(--success);" onclick="${estAction}">${estLabel}</div><div class="timer-info"><h3 onclick="handleTimerTitleClick('${timer.id}')">${titleStr} ${estStr}</h3><p>開始時間：${formatTime(new Date(timer.startTime))}</p><div class="timer-duration" id="duration_${timer.id}">00:00:00</div></div><button class="btn-stop" onclick="stopTimer('${timer.id}')">配送</button><div class="swipe-delete" onclick="promptCancelTimer('${timer.id}')">刪除</div></div></div>`;
@@ -1250,11 +1258,28 @@ function renderActiveTimers() {
     updateTimersDisplay(); updateActiveOrdersTitle();
 }
 
-
+/* ================== 每秒更新計時器與動態標籤顏色 (綠/土即時切換) ================== */
 function updateTimersDisplay() {
     const now = Date.now();
-    activeTimers.forEach(timer => { const el = document.getElementById(`duration_${timer.id}`); if (el) el.innerText = formatDuration(now - timer.startTime); });
-    if (activeShift) { const shiftEls = document.querySelectorAll('.shift-current-duration-class'); shiftEls.forEach(el => el.innerText = formatDuration(now - activeShift.startTime)); } checkWaitState();
+    activeTimers.forEach(timer => { 
+        const el = document.getElementById(`duration_${timer.id}`); 
+        if (el) el.innerText = formatDuration(now - timer.startTime); 
+
+        // 動態檢查預估時間標籤顏色：未超時為竹綠色，超時自動轉為大地土色
+        if (timer.estimatedTime) {
+            const tagEl = document.getElementById(`est_tag_${timer.id}`);
+            if (tagEl) {
+                const elapsedMins = (now - timer.startTime) / 60000;
+                if (elapsedMins > timer.estimatedTime) {
+                    tagEl.className = 'notion-tag notion-tag-brown';
+                } else {
+                    tagEl.className = 'notion-tag notion-tag-green';
+                }
+            }
+        }
+    });
+    if (activeShift) { const shiftEls = document.querySelectorAll('.shift-current-duration-class'); shiftEls.forEach(el => el.innerText = formatDuration(now - activeShift.startTime)); } 
+    checkWaitState();
 }
 
 /* ================== 修改訂單(收入)金額邏輯 ================== */

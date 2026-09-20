@@ -234,7 +234,7 @@ window.onload = function() {
     initBottomPanel();
 
     applySettings(); 
-    updateUIState();
+    updateUIState(); 
     
     setInterval(updateTimersDisplay, 1000); 
     setInterval(applyNightMode, 60000);
@@ -1224,7 +1224,7 @@ function updateActiveOrdersTitle() {
     }
 }
 
-/* ================== 渲染進行中計時器 (Notion 風格標籤) ================== */
+/* ================== 渲染進行中計時器 (預估時間單位改為「分鐘」) ================== */
 function renderActiveTimers() {
     forceCleanupDrag();
     const listEl = document.getElementById('active-timers-list'); 
@@ -1249,7 +1249,7 @@ function renderActiveTimers() {
             // 判斷是否超時：經過分鐘數是否大於預估時間
             const elapsedMins = (now - timer.startTime) / 60000;
             const tagClass = elapsedMins > timer.estimatedTime ? 'notion-tag notion-tag-brown' : 'notion-tag notion-tag-green';
-            estStr = `<span id="est_tag_${timer.id}" class="${tagClass}">預估 ${timer.estimatedTime}m</span>`;
+            estStr = `<span id="est_tag_${timer.id}" class="${tagClass}">預估 ${timer.estimatedTime}分鐘</span>`;
         }
         
         html += `<div class="swipe-container active-timer-container" data-id="${timer.id}"><div class="swipe-content active-timer-content" onmousedown="handleItemTouchStart(event)" ontouchstart="handleItemTouchStart(event)" onmousemove="handleItemTouchMove(event)" ontouchmove="handleItemTouchMove(event)" onmouseup="handleItemTouchEnd(event)" ontouchend="handleItemTouchEnd(event)" ontouchcancel="handleItemTouchEnd(event)" onmouseleave="handleItemTouchEnd(event)"><div class="swipe-edit" style="background:var(--success);" onclick="${estAction}">${estLabel}</div><div class="timer-info"><h3 onclick="handleTimerTitleClick('${timer.id}')">${titleStr} ${estStr}</h3><p>開始時間：${formatTime(new Date(timer.startTime))}</p><div class="timer-duration" id="duration_${timer.id}">00:00:00</div></div><button class="btn-stop" onclick="stopTimer('${timer.id}')">配送</button><div class="swipe-delete" onclick="promptCancelTimer('${timer.id}')">刪除</div></div></div>`;

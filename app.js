@@ -28,31 +28,42 @@ let currentLoc = [25.0478, 121.5170]; // 預設台北車站
 let geoWatchId = null;
 let hasCenteredMapInit = false; 
 
-// 更新為無浮水印的開放標準圖資 (移除 Carto API KEY REQUIRED 浮水印)
-const MAP_TILE = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+// ★ 需求 4：無浮水印、極簡白淨的高畫質地圖圖資 (Esri Light Gray Canvas)
+const MAP_TILE = 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}';
+
+/* ================== SVG 向量圖標庫 ================== */
+// ★ 需求 2：側邊功能選單專用精準向量圖式
+const SVG_ICONS = {
+    home: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nav-svg"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>`,
+    income: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nav-svg"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>`,
+    tips: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nav-svg"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>`,
+    costs: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nav-svg"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>`,
+    rate: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nav-svg"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>`,
+    settings: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nav-svg"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`
+};
 
 /* ================== 更新日誌邏輯 ================== */
-const CURRENT_APP_VERSION = 'v1.2.0';
+const CURRENT_APP_VERSION = 'v1.3.0';
 
 const CHANGELOG_HISTORY = [
     {
-        version: 'v1.2.0',
+        version: 'v1.3.0',
         date: '2026-10-09',
-        tag: '最新修復',
+        tag: '視覺升級',
         items: [
-            '【修復】修正 iPhone 顛簸時跳出系統「還原輸入」的問題（輸入完成後自動釋放焦點）。',
-            '【修復】移除地圖上的「API KEY REQUIRED」浮水印，換用純淨圖資。',
-            '【新增】系統更新日誌提示功能，有重大更新時開啟網頁主動提醒。',
-            '【優化】自訂輸入彈窗與單號輸入關閉流暢度。'
+            '【介面】預估時間標籤改為清爽綠底色，超過預估時間自動轉為柔和咖啡底色。',
+            '【選單】側邊功能欄位全面升級高解析度向量圖式（SVG）。',
+            '【佈局】側邊欄「上線時段」區域向上移，排版更加協調好點擊。',
+            '【地圖】全面升級極簡白淨風格地圖，徹底消除水印，視野更純淨。'
         ]
     },
     {
-        version: 'v1.1.0',
-        date: '2026-09-30',
-        tag: '功能優化',
+        version: 'v1.2.0',
+        date: '2026-10-09',
+        tag: '問題修復',
         items: [
-            '【新增】滿版互動地圖與回定位快捷按鈕。',
-            '【新增】Uber Eats 趟次同行程合併總計計算。'
+            '【修復】修正 iPhone 震動時誤觸發「還原輸入」彈窗的問題。',
+            '【新增】系統版本更新日誌機制。'
         ]
     }
 ];
@@ -117,25 +128,19 @@ function injectNewStyles() {
     style.id = 'injected-new-styles';
     style.innerHTML = `
         .swipe-edit { position: absolute; top: 0; left: -80px; bottom: 0; width: 80px; background: var(--primary); color: var(--btn-text); display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 1rem; cursor: pointer; z-index: 10; box-shadow: inset -2px 0 5px rgba(0,0,0,0.1); }
-        /* 解決非滿版地圖時，各明細最底端被導航列擋住的問題 */
         body:not(.map-enabled) #stats-list, 
         body:not(.map-enabled) #tips-list, 
         body:not(.map-enabled) #costs-list { padding-bottom: 80px; }
-        /* 未啟用滿版地圖時，隱藏把手但保留文字區塊 */
         body:not(.map-enabled) .handle-bar-wrapper { display: none !important; }
         body:not(.map-enabled) .panel-header { cursor: default !important; }
-        
-        /* ===== 未啟用滿版地圖時，隱藏左上角狀態列(漢堡)按鈕 ===== */
         body:not(.map-enabled) #btn-menu { display: none !important; }
         
-        /* ===== 保證 Leaflet 地圖在各裝置上絕對能顯示尺寸 ===== */
         body.map-enabled #map {
             display: block !important;
             width: 100vw !important;
             height: 100vh !important;
         }
 
-        /* ===== 啟用滿版地圖時，隱藏底部導航列 ===== */
         body.map-enabled .bottom-nav { display: none !important; }
 
         /* ===== 左側選單 (狀態列) 樣式 ===== */
@@ -148,13 +153,25 @@ function injectNewStyles() {
         .side-menu-header { padding: 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
         .side-menu-header h2 { font-size: 1.2rem; color: var(--primary); margin: 0; font-weight: bold; }
         
-        .side-menu-content { flex: 1; overflow-y: auto; padding: 10px 0; -webkit-overflow-scrolling: touch; }
-        .side-nav-item { display: flex; align-items: center; padding: 15px 20px; color: var(--text-main); text-decoration: none; font-size: 1.05rem; cursor: pointer; transition: background 0.2s, color 0.2s; }
+        /* ★ 需求 3：調整側選單內容高度，使上線時段區域能向上靠攏 */
+        .side-menu-content { flex: 0 1 auto; overflow-y: auto; padding: 10px 0; -webkit-overflow-scrolling: touch; }
+        .side-nav-item { display: flex; align-items: center; padding: 14px 20px; color: var(--text-main); text-decoration: none; font-size: 1.05rem; cursor: pointer; transition: background 0.2s, color 0.2s; }
         .side-nav-item:active { background: var(--timer-bg); }
-        .side-nav-item .nav-icon { margin-right: 15px; width: 24px; text-align: center; font-size: 1.2rem; }
+        .side-nav-item .nav-icon { margin-right: 16px; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; }
         .side-nav-item.active { background: var(--timer-bg); color: var(--primary); font-weight: bold; border-left: 4px solid var(--primary); }
+        
+        /* 向量圖標微調 */
+        .nav-svg { width: 20px; height: 20px; stroke: currentColor; transition: stroke 0.2s; }
+        .side-nav-item.active .nav-svg { stroke: var(--primary); }
 
-        /* ===== 滿版地圖模式下的頂部 Header 透明化 (僅限於首頁) ===== */
+        /* ★ 需求 3：上線時段區域上移設計 */
+        #side-menu-shift-section {
+            padding: 16px 20px;
+            margin-top: 5px;
+            border-top: 1px solid var(--border);
+            background: transparent;
+        }
+
         body.map-enabled.on-home-view .header {
             background: transparent !important;
             box-shadow: none !important;
@@ -174,9 +191,7 @@ function injectNewStyles() {
             box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
             pointer-events: auto !important;
         }
-        body.map-enabled.on-home-view #btn-back {
-            display: none !important; 
-        }
+        body.map-enabled.on-home-view #btn-back { display: none !important; }
         body.map-enabled.on-home-view #header-title-wrapper {
             background: var(--card-bg) !important;
             padding: 8px 20px !important;
@@ -184,12 +199,28 @@ function injectNewStyles() {
             box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
             pointer-events: auto !important;
         }
-        body.map-enabled.on-home-view #btn-search {
-            pointer-events: auto !important;
-        }
+        body.map-enabled.on-home-view #btn-search { pointer-events: auto !important; }
         body.map-enabled.on-home-view #shift-status-badge,
-        body.map-enabled.on-home-view #shift-status-badge-right {
-            display: none !important; 
+        body.map-enabled.on-home-view #shift-status-badge-right { display: none !important; }
+
+        /* ★ 需求 1：預估時間標籤 (正常綠底 vs 超時咖啡底) */
+        .est-pill {
+            display: inline-block;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-left: 8px;
+            padding: 2px 8px;
+            border-radius: 6px;
+            letter-spacing: 0.3px;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        .est-pill.normal {
+            background-color: #eafaf1 !important;
+            color: #1e7e48 !important;
+        }
+        .est-pill.overtime {
+            background-color: #fbf0ea !important;
+            color: #8c4a27 !important;
         }
     `;
     document.head.appendChild(style);
@@ -219,7 +250,6 @@ function showCustomDialog({ type, title, message, defaultValue = '', confirmText
         }
 
         const handleClose = (value) => {
-            // ★ 修復：關閉時強制釋放焦點與收起 iOS 鍵盤，杜絕「晃動以還原」
             if (inputEl) {
                 inputEl.blur();
                 inputEl.value = '';
@@ -311,7 +341,6 @@ window.onload = function() {
     initSwipeNavigation(); 
     switchView(0, true);
 
-    // 檢查並提示版本更新日誌
     checkChangelogNotice();
 };
 
@@ -323,9 +352,9 @@ function initMap() {
     if (typeof L === 'undefined') { console.warn('無法載入地圖資源'); return; }
     if (mapInstance) return;
     
-    // 關閉 Leaflet 右下角內建版權字樣與縮放按鈕
+    // 建立白淨純粹的地圖實例，關閉多餘控制項
     mapInstance = L.map('map', {zoomControl: false, attributionControl: false}).setView(currentLoc, 15);
-    currentTileLayer = L.tileLayer(MAP_TILE, { maxZoom: 19, subdomains: ['a', 'b', 'c'] }).addTo(mapInstance);
+    currentTileLayer = L.tileLayer(MAP_TILE, { maxZoom: 19 }).addTo(mapInstance);
     
     trafficLayer = L.layerGroup().addTo(mapInstance);
     
@@ -525,7 +554,7 @@ function initBottomPanel() {
                 if (newY > snapPoints[2]) newY = snapPoints[2] + (newY - snapPoints[2]) * 0.2;
                 panel.style.transform = `translateY(${newY}px)`;
             } else if (isContentDragging) {
-                if (e.cancelable) e.preventDefault();
+                if (e.cancelable) e.preventDefault(); 
             }
         }
     }, {passive: false});
@@ -679,7 +708,7 @@ function openOrderNumberModal(title, defaultValue, callback) {
 }
 function confirmOrderNumber() {
     const input = document.getElementById('order-number-input');
-    if (input) input.blur(); // 強制取消焦點
+    if (input) input.blur();
     const val = input ? input.value.trim() : '';
     if (val !== '') { 
         closeModal('order-number-modal'); 
@@ -874,7 +903,9 @@ function toggleSideMenu() {
 
 function updateUIState() { 
     const unselectedIcons = ['☖', '＄', '♡', '☇', '◑', '⛭'], selectedIcons = ['☗', '＄', '♥\uFE0E', '☈', '◕', '⛯'];
-    
+    const navKeys = ['home', 'income', 'tips', 'costs', 'rate', 'settings'];
+
+    // 底部導航欄
     document.querySelectorAll('.bottom-nav .nav-item').forEach((el, index) => { 
         el.classList.remove('active'); 
         const iconSpan = el.querySelector('.nav-icon'); 
@@ -887,16 +918,17 @@ function updateUIState() {
         if (activeIconSpan) { activeIconSpan.innerText = selectedIcons[currentViewIndex]; if ([2, 4].includes(currentViewIndex)) activeIconSpan.style.transform = 'scale(1.25)'; }
     }
 
+    // ★ 需求 2：側邊欄更新為高解析向量圖式
     document.querySelectorAll('.side-nav-item').forEach((el, index) => { 
         el.classList.remove('active'); 
         const iconSpan = el.querySelector('.nav-icon'); 
-        if (iconSpan) { iconSpan.innerText = unselectedIcons[index]; iconSpan.style.transform = 'scale(1)'; } 
+        if (iconSpan && SVG_ICONS[navKeys[index]]) { 
+            iconSpan.innerHTML = SVG_ICONS[navKeys[index]]; 
+        } 
     }); 
     const activeNavSide = document.getElementById(`side-nav-${currentViewIndex}`); 
     if(activeNavSide) {
         activeNavSide.classList.add('active'); 
-        const activeIconSpan = activeNavSide.querySelector('.nav-icon');
-        if (activeIconSpan) { activeIconSpan.innerText = selectedIcons[currentViewIndex]; if ([2, 4].includes(currentViewIndex)) activeIconSpan.style.transform = 'scale(1.25)'; }
     }
 
     const title = document.getElementById('header-title');
@@ -1055,7 +1087,7 @@ function submitStartTimers(count) {
 async function startTimers(count, platform = 'foodpanda') { 
     if (!activeShift) return await appAlert('請先點擊「時段開始」進入上線狀態，才能開始接單！'); 
     const now = Date.now(); 
-    const tripId = 'trip_' + now; // 相同趟數綁定同一個 tripId
+    const tripId = 'trip_' + now;
     for (let i = 0; i < count; i++) {
         activeTimers.push({ 
             id: 'timer_' + now + '_' + Math.random().toString(36).substr(2, 5), 
@@ -1321,6 +1353,7 @@ function renderActiveTimers() {
         updateActiveOrdersTitle();
         return;
     }
+    const now = Date.now();
     let html = '';
     activeTimers.forEach((timer, idx) => {
         const titleStr = timer.storeName ? `${timer.storeName} #${timer.orderNumber}` : `訂單計時 #${idx + 1}`;
@@ -1329,10 +1362,15 @@ function renderActiveTimers() {
         const estAction = isUber ? `setEstimatedAmount('${timer.id}')` : `setEstimatedTime('${timer.id}')`;
         const estLabel = isUber ? '預估金額' : '預估';
         let estStr = '';
+
+        // ★ 需求 1：計算預估時間與超時狀態 (綠底 vs 咖啡底)
         if (isUber) {
-            estStr = timer.estimatedAmount ? `<span style="white-space:nowrap; color:var(--success); font-size:0.85rem; margin-left:8px; border:1px solid var(--success); padding:1px 4px; border-radius:4px;">預估 $${timer.estimatedAmount}</span>` : '';
-        } else {
-            estStr = timer.estimatedTime ? `<span style="white-space:nowrap; color:var(--primary); font-size:0.85rem; margin-left:8px; border:1px solid var(--primary); padding:1px 4px; border-radius:4px;">預估 ${timer.estimatedTime}m</span>` : '';
+            estStr = timer.estimatedAmount ? `<span class="est-pill normal">預估 $${timer.estimatedAmount}</span>` : '';
+        } else if (timer.estimatedTime) {
+            const elapsedMins = (now - timer.startTime) / 60000;
+            const isOvertime = elapsedMins > timer.estimatedTime;
+            const statusClass = isOvertime ? 'overtime' : 'normal';
+            estStr = `<span class="est-pill ${statusClass}" id="est_pill_${timer.id}">預估 ${timer.estimatedTime}分鐘</span>`;
         }
         
         html += `<div class="swipe-container active-timer-container" data-id="${timer.id}"><div class="swipe-content active-timer-content" onmousedown="handleItemTouchStart(event)" ontouchstart="handleItemTouchStart(event)" onmousemove="handleItemTouchMove(event)" ontouchmove="handleItemTouchMove(event)" onmouseup="handleItemTouchEnd(event)" ontouchend="handleItemTouchEnd(event)" ontouchcancel="handleItemTouchEnd(event)" onmouseleave="handleItemTouchEnd(event)"><div class="swipe-edit" style="background:var(--success);" onclick="${estAction}">${estLabel}</div><div class="timer-info"><h3 onclick="handleTimerTitleClick('${timer.id}')">${titleStr} ${estStr}</h3><p>開始時間：${formatTime(new Date(timer.startTime))}</p><div class="timer-duration" id="duration_${timer.id}">00:00:00</div></div><button class="btn-stop" onclick="stopTimer('${timer.id}')">配送</button><div class="swipe-delete" onclick="promptCancelTimer('${timer.id}')">刪除</div></div></div>`;
@@ -1343,7 +1381,25 @@ function renderActiveTimers() {
 
 function updateTimersDisplay() {
     const now = Date.now();
-    activeTimers.forEach(timer => { const el = document.getElementById(`duration_${timer.id}`); if (el) el.innerText = formatDuration(now - timer.startTime); });
+    activeTimers.forEach(timer => { 
+        const el = document.getElementById(`duration_${timer.id}`); 
+        if (el) el.innerText = formatDuration(now - timer.startTime); 
+
+        // ★ 需求 1：每秒更新時動態比對超時，無須重新載入畫面即時切換綠底與咖啡底
+        if (timer.platform !== 'ubereats' && timer.estimatedTime) {
+            const pillEl = document.getElementById(`est_pill_${timer.id}`);
+            if (pillEl) {
+                const elapsedMins = (now - timer.startTime) / 60000;
+                if (elapsedMins > timer.estimatedTime) {
+                    pillEl.classList.remove('normal');
+                    pillEl.classList.add('overtime');
+                } else {
+                    pillEl.classList.remove('overtime');
+                    pillEl.classList.add('normal');
+                }
+            }
+        }
+    });
     if (activeShift) { const shiftEls = document.querySelectorAll('.shift-current-duration-class'); shiftEls.forEach(el => el.innerText = formatDuration(now - activeShift.startTime)); } checkWaitState();
 }
 
@@ -1511,7 +1567,6 @@ function openFilterModal() { calSelStart = null; calSelEnd = null; renderCalenda
 function closeModal(id) { 
     const modal = document.getElementById(id);
     if (modal) {
-        // 取消該 Modal 內部所有輸入框的鍵盤焦點
         const inputs = modal.querySelectorAll('input, select, textarea');
         inputs.forEach(inp => inp.blur());
         modal.classList.remove('active'); 

@@ -24,12 +24,83 @@ function switchDailyTab(tab) {
 let mapInstance = null;
 let currentTileLayer = null;
 let userMarker = null;
-let currentLoc = [25.0478, 121.5170]; // 預設為台北車站
+let currentLoc = [25.0478, 121.5170]; // 預設台北車站
 let geoWatchId = null;
 let hasCenteredMapInit = false; 
 
-// 極簡明亮地圖 (淺灰陸地、淺藍水域、少量 POI)
-const MAP_TILE = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+// 更新為無浮水印的開放標準圖資 (移除 Carto API KEY REQUIRED 浮水印)
+const MAP_TILE = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+
+/* ================== 更新日誌邏輯 ================== */
+const CURRENT_APP_VERSION = 'v1.2.0';
+
+const CHANGELOG_HISTORY = [
+    {
+        version: 'v1.2.0',
+        date: '2026-10-09',
+        tag: '最新修復',
+        items: [
+            '【修復】修正 iPhone 顛簸時跳出系統「還原輸入」的問題（輸入完成後自動釋放焦點）。',
+            '【修復】移除地圖上的「API KEY REQUIRED」浮水印，換用純淨圖資。',
+            '【新增】系統更新日誌提示功能，有重大更新時開啟網頁主動提醒。',
+            '【優化】自訂輸入彈窗與單號輸入關閉流暢度。'
+        ]
+    },
+    {
+        version: 'v1.1.0',
+        date: '2026-09-30',
+        tag: '功能優化',
+        items: [
+            '【新增】滿版互動地圖與回定位快捷按鈕。',
+            '【新增】Uber Eats 趟次同行程合併總計計算。'
+        ]
+    }
+];
+
+function checkChangelogNotice() {
+    const lastSeenVersion = localStorage.getItem('app_last_seen_changelog');
+    if (lastSeenVersion !== CURRENT_APP_VERSION) {
+        setTimeout(() => {
+            openChangelogModal();
+        }, 600);
+    }
+}
+
+function openChangelogModal() {
+    renderChangelogContent();
+    const modal = document.getElementById('changelog-modal');
+    if (modal) modal.classList.add('active');
+}
+
+function closeChangelogModal(markAsRead = true) {
+    if (markAsRead) {
+        localStorage.setItem('app_last_seen_changelog', CURRENT_APP_VERSION);
+    }
+    closeModal('changelog-modal');
+}
+
+function renderChangelogContent() {
+    const container = document.getElementById('changelog-list-container');
+    if (!container) return;
+    
+    let html = '';
+    CHANGELOG_HISTORY.forEach((log, index) => {
+        const isLatest = index === 0;
+        html += `
+            <div class="changelog-card ${isLatest ? 'latest' : ''}">
+                <div class="changelog-badge-row">
+                    <span class="changelog-ver">${log.version}</span>
+                    <span class="changelog-tag">${log.tag}</span>
+                    <span class="changelog-date">${log.date}</span>
+                </div>
+                <ul class="changelog-items">
+                    ${log.items.map(item => `<li>${item}</li>`).join('')}
+                </ul>
+            </div>
+        `;
+    });
+    container.innerHTML = html;
+}
 
 /* ================== 日期與時間工具 ================== */
 function getDateKey(ts) { const d = new Date(ts); return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`; }
@@ -39,22 +110,6 @@ function formatMins(mins) { const h = Math.floor(mins / 60), m = Math.floor(mins
 function fmtMoney(num) { return '$' + Number(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); } 
 function fmtNum(num) { return Number(num).toLocaleString('en-US'); }
 
-/* ================== 導航向量圖示庫 (SVG) ================== */
-const NAV_SVGS = [
-    // 0: 首頁 (Home)
-    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5L12 3l9 7.5v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-10z"/><path d="M9 21.5V12h6v9.5"/></svg>`,
-    // 1: 收入 (Income / Wallet)
-    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="15" rx="3"/><path d="M2 10h20"/><rect x="15" y="13.5" width="4" height="3" rx="1"/></svg>`,
-    // 2: 小費 (Tips / Hand & Coin)
-    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="16" cy="5.5" r="2.5"/><path d="M2 15l4.5-2.5 3.5 1.5a3 3 0 0 0 2.8 0L17 12"/><path d="M6 18.5l3.5-1.5 3 1.5a3 3 0 0 0 2.8 0L21 16"/><path d="M2 19h18a2 2 0 0 0 2-2v-2"/></svg>`,
-    // 3: 成本 (Cost / Receipt)
-    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v20l3-2 3 2 3-2 3 2 3-2 1 2V2l-1 2-3-2-3 2-3-2-3 2-3-2z"/><path d="M8 8h8"/><path d="M8 12h8"/><path d="M8 16h5"/></svg>`,
-    // 4: 準時率 (Punctuality / Clock Check)
-    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21a9 9 0 1 1 9-9"/><polyline points="12 7 12 12 15 14"/><polyline points="16 19 18.5 21.5 23 16.5"/></svg>`,
-    // 5: 設定 (Settings / 修正後的標準對稱圓角齒輪)
-    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`
-];
-
 /* ================== 動態注入新功能 CSS ================== */
 function injectNewStyles() {
     if (document.getElementById('injected-new-styles')) return;
@@ -62,22 +117,28 @@ function injectNewStyles() {
     style.id = 'injected-new-styles';
     style.innerHTML = `
         .swipe-edit { position: absolute; top: 0; left: -80px; bottom: 0; width: 80px; background: var(--primary); color: var(--btn-text); display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 1rem; cursor: pointer; z-index: 10; box-shadow: inset -2px 0 5px rgba(0,0,0,0.1); }
+        /* 解決非滿版地圖時，各明細最底端被導航列擋住的問題 */
         body:not(.map-enabled) #stats-list, 
         body:not(.map-enabled) #tips-list, 
         body:not(.map-enabled) #costs-list { padding-bottom: 80px; }
+        /* 未啟用滿版地圖時，隱藏把手但保留文字區塊 */
         body:not(.map-enabled) .handle-bar-wrapper { display: none !important; }
         body:not(.map-enabled) .panel-header { cursor: default !important; }
         
+        /* ===== 未啟用滿版地圖時，隱藏左上角狀態列(漢堡)按鈕 ===== */
         body:not(.map-enabled) #btn-menu { display: none !important; }
         
+        /* ===== 保證 Leaflet 地圖在各裝置上絕對能顯示尺寸 ===== */
         body.map-enabled #map {
             display: block !important;
             width: 100vw !important;
             height: 100vh !important;
         }
 
+        /* ===== 啟用滿版地圖時，隱藏底部導航列 ===== */
         body.map-enabled .bottom-nav { display: none !important; }
 
+        /* ===== 左側選單 (狀態列) 樣式 ===== */
         .side-menu-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); z-index: 2999; opacity: 0; visibility: hidden; transition: opacity 0.3s, visibility 0.3s; backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); }
         .side-menu-overlay.active { opacity: 1; visibility: visible; }
         
@@ -90,10 +151,10 @@ function injectNewStyles() {
         .side-menu-content { flex: 1; overflow-y: auto; padding: 10px 0; -webkit-overflow-scrolling: touch; }
         .side-nav-item { display: flex; align-items: center; padding: 15px 20px; color: var(--text-main); text-decoration: none; font-size: 1.05rem; cursor: pointer; transition: background 0.2s, color 0.2s; }
         .side-nav-item:active { background: var(--timer-bg); }
-        .side-nav-item .nav-icon { margin-right: 15px; width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; }
-        .side-nav-item .nav-icon svg { width: 100%; height: 100%; stroke: currentColor; stroke-width: 2; fill: none; display: block; }
+        .side-nav-item .nav-icon { margin-right: 15px; width: 24px; text-align: center; font-size: 1.2rem; }
         .side-nav-item.active { background: var(--timer-bg); color: var(--primary); font-weight: bold; border-left: 4px solid var(--primary); }
 
+        /* ===== 滿版地圖模式下的頂部 Header 透明化 (僅限於首頁) ===== */
         body.map-enabled.on-home-view .header {
             background: transparent !important;
             box-shadow: none !important;
@@ -114,7 +175,7 @@ function injectNewStyles() {
             pointer-events: auto !important;
         }
         body.map-enabled.on-home-view #btn-back {
-            display: none !important;
+            display: none !important; 
         }
         body.map-enabled.on-home-view #header-title-wrapper {
             background: var(--card-bg) !important;
@@ -128,7 +189,7 @@ function injectNewStyles() {
         }
         body.map-enabled.on-home-view #shift-status-badge,
         body.map-enabled.on-home-view #shift-status-badge-right {
-            display: none !important;
+            display: none !important; 
         }
     `;
     document.head.appendChild(style);
@@ -158,6 +219,14 @@ function showCustomDialog({ type, title, message, defaultValue = '', confirmText
         }
 
         const handleClose = (value) => {
+            // ★ 修復：關閉時強制釋放焦點與收起 iOS 鍵盤，杜絕「晃動以還原」
+            if (inputEl) {
+                inputEl.blur();
+                inputEl.value = '';
+            }
+            if (document.activeElement && typeof document.activeElement.blur === 'function') {
+                document.activeElement.blur();
+            }
             closeModal('custom-dialog-modal');
             currentDialogResolve = null;
             resolve(value);
@@ -234,13 +303,16 @@ window.onload = function() {
     initBottomPanel();
 
     applySettings(); 
-    updateUIState(); 
+    updateUIState();
     
     setInterval(updateTimersDisplay, 1000); 
     setInterval(applyNightMode, 60000);
     toggleMileageInput(); 
     initSwipeNavigation(); 
     switchView(0, true);
+
+    // 檢查並提示版本更新日誌
+    checkChangelogNotice();
 };
 
 /* ================== 地圖、即時路況與面板邏輯 ================== */
@@ -251,8 +323,9 @@ function initMap() {
     if (typeof L === 'undefined') { console.warn('無法載入地圖資源'); return; }
     if (mapInstance) return;
     
-    mapInstance = L.map('map', {zoomControl: false}).setView(currentLoc, 15);
-    currentTileLayer = L.tileLayer(MAP_TILE, { maxZoom: 19 }).addTo(mapInstance);
+    // 關閉 Leaflet 右下角內建版權字樣與縮放按鈕
+    mapInstance = L.map('map', {zoomControl: false, attributionControl: false}).setView(currentLoc, 15);
+    currentTileLayer = L.tileLayer(MAP_TILE, { maxZoom: 19, subdomains: ['a', 'b', 'c'] }).addTo(mapInstance);
     
     trafficLayer = L.layerGroup().addTo(mapInstance);
     
@@ -434,7 +507,7 @@ function initBottomPanel() {
             }
             
             if (shouldDrag) {
-                if (e.cancelable) e.preventDefault();
+                if (e.cancelable) e.preventDefault(); 
                 
                 if (!isContentDragging) {
                     isContentDragging = true;
@@ -605,8 +678,16 @@ function openOrderNumberModal(title, defaultValue, callback) {
     input.onkeypress = function(e) { if (e.key === 'Enter') confirmOrderNumber(); };
 }
 function confirmOrderNumber() {
-    const val = document.getElementById('order-number-input').value.trim();
-    if (val !== '') { closeModal('order-number-modal'); if (pendingOrderAction) { pendingOrderAction(val); pendingOrderAction = null; } }
+    const input = document.getElementById('order-number-input');
+    if (input) input.blur(); // 強制取消焦點
+    const val = input ? input.value.trim() : '';
+    if (val !== '') { 
+        closeModal('order-number-modal'); 
+        if (pendingOrderAction) { 
+            pendingOrderAction(val); 
+            pendingOrderAction = null; 
+        } 
+    }
 }
 
 /* ================== 每週油耗與圖表 ================== */
@@ -675,7 +756,7 @@ function stopCanvasEngine() { if(canvasAnimationId) cancelAnimationFrame(canvasA
 function startCanvasEngine(themeType) {
     stopCanvasEngine(); const canvas = document.getElementById('dynamic-canvas'), ctx = canvas.getContext('2d'); canvas.style.display = 'block';
     let w = canvas.width = window.innerWidth, h = canvas.height = window.innerHeight; window.onresize = () => { w = canvas.width = window.innerWidth; h = canvas.height = window.innerHeight; };
-    const rgb = hexToRgb(getComputedStyle(document.body).getPropertyValue('--primary').trim() || '#38bdf8'), primaryRgbStr = `${rgb.r}, ${rgb.b}, ${rgb.b}`;
+    const rgb = hexToRgb(getComputedStyle(document.body).getPropertyValue('--primary').trim() || '#38bdf8'), primaryRgbStr = `${rgb.r}, ${rgb.g}, ${rgb.b}`;
 
     if (themeType === 'canvas-ocean') {
         let bubbles = Array.from({length: 40}, () => ({ x: Math.random() * w, y: Math.random() * h, r: Math.random() * 4 + 1, speedY: Math.random() * 1.5 + 0.5, wobble: Math.random() * Math.PI * 2, wobbleSpeed: Math.random() * 0.05 }));
@@ -791,25 +872,32 @@ function toggleSideMenu() {
     else { menu.classList.remove('active'); overlay.classList.remove('active'); }
 }
 
-/* ================== 更新 UI 狀態 (保持向量 SVG) ================== */
 function updateUIState() { 
-    // 底部導航狀態更新 (保留 SVG 圖示，避免文字覆蓋)
+    const unselectedIcons = ['☖', '＄', '♡', '☇', '◑', '⛭'], selectedIcons = ['☗', '＄', '♥\uFE0E', '☈', '◕', '⛯'];
+    
     document.querySelectorAll('.bottom-nav .nav-item').forEach((el, index) => { 
-        el.classList.toggle('active', index === currentViewIndex);
+        el.classList.remove('active'); 
         const iconSpan = el.querySelector('.nav-icon'); 
-        if (iconSpan && NAV_SVGS[index] && !iconSpan.querySelector('svg')) {
-            iconSpan.innerHTML = NAV_SVGS[index];
-        }
+        if (iconSpan) { iconSpan.innerText = unselectedIcons[index]; iconSpan.style.transform = 'scale(1)'; } 
     }); 
+    const activeNavBottom = document.getElementById(`nav-${currentViewIndex}`); 
+    if(activeNavBottom) {
+        activeNavBottom.classList.add('active'); 
+        const activeIconSpan = activeNavBottom.querySelector('.nav-icon');
+        if (activeIconSpan) { activeIconSpan.innerText = selectedIcons[currentViewIndex]; if ([2, 4].includes(currentViewIndex)) activeIconSpan.style.transform = 'scale(1.25)'; }
+    }
 
-    // 側邊欄狀態更新 (保留 SVG 圖示)
     document.querySelectorAll('.side-nav-item').forEach((el, index) => { 
-        el.classList.toggle('active', index === currentViewIndex);
+        el.classList.remove('active'); 
         const iconSpan = el.querySelector('.nav-icon'); 
-        if (iconSpan && NAV_SVGS[index] && !iconSpan.querySelector('svg')) {
-            iconSpan.innerHTML = NAV_SVGS[index];
-        }
+        if (iconSpan) { iconSpan.innerText = unselectedIcons[index]; iconSpan.style.transform = 'scale(1)'; } 
     }); 
+    const activeNavSide = document.getElementById(`side-nav-${currentViewIndex}`); 
+    if(activeNavSide) {
+        activeNavSide.classList.add('active'); 
+        const activeIconSpan = activeNavSide.querySelector('.nav-icon');
+        if (activeIconSpan) { activeIconSpan.innerText = selectedIcons[currentViewIndex]; if ([2, 4].includes(currentViewIndex)) activeIconSpan.style.transform = 'scale(1.25)'; }
+    }
 
     const title = document.getElementById('header-title');
     const titleWrapper = document.getElementById('header-title-wrapper');
@@ -1224,7 +1312,6 @@ function updateActiveOrdersTitle() {
     }
 }
 
-/* ================== 渲染進行中計時器 (預估時間單位改為「分鐘」) ================== */
 function renderActiveTimers() {
     forceCleanupDrag();
     const listEl = document.getElementById('active-timers-list'); 
@@ -1234,7 +1321,6 @@ function renderActiveTimers() {
         updateActiveOrdersTitle();
         return;
     }
-    const now = Date.now();
     let html = '';
     activeTimers.forEach((timer, idx) => {
         const titleStr = timer.storeName ? `${timer.storeName} #${timer.orderNumber}` : `訂單計時 #${idx + 1}`;
@@ -1244,12 +1330,9 @@ function renderActiveTimers() {
         const estLabel = isUber ? '預估金額' : '預估';
         let estStr = '';
         if (isUber) {
-            estStr = timer.estimatedAmount ? `<span class="notion-tag notion-tag-green">預估 $${timer.estimatedAmount}</span>` : '';
-        } else if (timer.estimatedTime) {
-            // 判斷是否超時：經過分鐘數是否大於預估時間
-            const elapsedMins = (now - timer.startTime) / 60000;
-            const tagClass = elapsedMins > timer.estimatedTime ? 'notion-tag notion-tag-brown' : 'notion-tag notion-tag-green';
-            estStr = `<span id="est_tag_${timer.id}" class="${tagClass}">預估 ${timer.estimatedTime}分鐘</span>`;
+            estStr = timer.estimatedAmount ? `<span style="white-space:nowrap; color:var(--success); font-size:0.85rem; margin-left:8px; border:1px solid var(--success); padding:1px 4px; border-radius:4px;">預估 $${timer.estimatedAmount}</span>` : '';
+        } else {
+            estStr = timer.estimatedTime ? `<span style="white-space:nowrap; color:var(--primary); font-size:0.85rem; margin-left:8px; border:1px solid var(--primary); padding:1px 4px; border-radius:4px;">預估 ${timer.estimatedTime}m</span>` : '';
         }
         
         html += `<div class="swipe-container active-timer-container" data-id="${timer.id}"><div class="swipe-content active-timer-content" onmousedown="handleItemTouchStart(event)" ontouchstart="handleItemTouchStart(event)" onmousemove="handleItemTouchMove(event)" ontouchmove="handleItemTouchMove(event)" onmouseup="handleItemTouchEnd(event)" ontouchend="handleItemTouchEnd(event)" ontouchcancel="handleItemTouchEnd(event)" onmouseleave="handleItemTouchEnd(event)"><div class="swipe-edit" style="background:var(--success);" onclick="${estAction}">${estLabel}</div><div class="timer-info"><h3 onclick="handleTimerTitleClick('${timer.id}')">${titleStr} ${estStr}</h3><p>開始時間：${formatTime(new Date(timer.startTime))}</p><div class="timer-duration" id="duration_${timer.id}">00:00:00</div></div><button class="btn-stop" onclick="stopTimer('${timer.id}')">配送</button><div class="swipe-delete" onclick="promptCancelTimer('${timer.id}')">刪除</div></div></div>`;
@@ -1258,28 +1341,10 @@ function renderActiveTimers() {
     updateTimersDisplay(); updateActiveOrdersTitle();
 }
 
-/* ================== 每秒更新計時器與動態標籤顏色 (綠/土即時切換) ================== */
 function updateTimersDisplay() {
     const now = Date.now();
-    activeTimers.forEach(timer => { 
-        const el = document.getElementById(`duration_${timer.id}`); 
-        if (el) el.innerText = formatDuration(now - timer.startTime); 
-
-        // 動態檢查預估時間標籤顏色：未超時為竹綠色，超時自動轉為大地土色
-        if (timer.estimatedTime) {
-            const tagEl = document.getElementById(`est_tag_${timer.id}`);
-            if (tagEl) {
-                const elapsedMins = (now - timer.startTime) / 60000;
-                if (elapsedMins > timer.estimatedTime) {
-                    tagEl.className = 'notion-tag notion-tag-brown';
-                } else {
-                    tagEl.className = 'notion-tag notion-tag-green';
-                }
-            }
-        }
-    });
-    if (activeShift) { const shiftEls = document.querySelectorAll('.shift-current-duration-class'); shiftEls.forEach(el => el.innerText = formatDuration(now - activeShift.startTime)); } 
-    checkWaitState();
+    activeTimers.forEach(timer => { const el = document.getElementById(`duration_${timer.id}`); if (el) el.innerText = formatDuration(now - timer.startTime); });
+    if (activeShift) { const shiftEls = document.querySelectorAll('.shift-current-duration-class'); shiftEls.forEach(el => el.innerText = formatDuration(now - activeShift.startTime)); } checkWaitState();
 }
 
 /* ================== 修改訂單(收入)金額邏輯 ================== */
@@ -1441,7 +1506,23 @@ function openEdit(category, id) { closeAllSwipes(); document.getElementById('edi
 async function saveEdit() { const id = document.getElementById('edit-id').value, category = document.getElementById('edit-category').value, amount = Number(document.getElementById('edit-amount').value); if (!amount || amount <= 0) return await appAlert('請輸入有效金額', '輸入錯誤'); if (category === 'tip') { const idx = tipRecords.findIndex(t => t.id === id); if(idx > -1) { tipRecords[idx].amount = amount; tipRecords[idx].method = document.getElementById('edit-tip-method').value; localStorage.setItem(getStoreKey('order_tips'), JSON.stringify(tipRecords)); renderWeeklyData(); if(document.getElementById('view-daily-detail').classList.contains('active')) renderDailyDetail(); } } else { const idx = costRecords.findIndex(t => t.id === id); if(idx > -1) { const type = document.getElementById('edit-cost-type').value; costRecords[idx].amount = amount; costRecords[idx].type = type; costRecords[idx].memo = document.getElementById('edit-cost-memo').value; costRecords[idx].mileage = (type === '保養維修' || type === '加油') ? document.getElementById('edit-cost-mileage').value : ''; localStorage.setItem(getStoreKey('order_costs'), JSON.stringify(costRecords)); renderWeeklyData(); if(document.getElementById('view-daily-detail').classList.contains('active')) renderDailyDetail(); } } closeModal('edit-modal'); }
 
 let currentCalDate = new Date(), calSelStart = null, calSelEnd = null;
-function openFilterModal() { calSelStart = null; calSelEnd = null; renderCalendar(); document.getElementById('filter-modal').classList.add('active'); } function closeModal(id) { document.getElementById(id).classList.remove('active'); } function calPrevMonth() { currentCalDate.setMonth(currentCalDate.getMonth() - 1); renderCalendar(); } function calNextMonth() { currentCalDate.setMonth(currentCalDate.getMonth() + 1); renderCalendar(); }
+function openFilterModal() { calSelStart = null; calSelEnd = null; renderCalendar(); document.getElementById('filter-modal').classList.add('active'); } 
+
+function closeModal(id) { 
+    const modal = document.getElementById(id);
+    if (modal) {
+        // 取消該 Modal 內部所有輸入框的鍵盤焦點
+        const inputs = modal.querySelectorAll('input, select, textarea');
+        inputs.forEach(inp => inp.blur());
+        modal.classList.remove('active'); 
+    }
+    if (document.activeElement && typeof document.activeElement.blur === 'function') {
+        document.activeElement.blur();
+    }
+} 
+
+function calPrevMonth() { currentCalDate.setMonth(currentCalDate.getMonth() - 1); renderCalendar(); } 
+function calNextMonth() { currentCalDate.setMonth(currentCalDate.getMonth() + 1); renderCalendar(); }
 function renderCalendar() { const y = currentCalDate.getFullYear(), m = currentCalDate.getMonth(); document.getElementById('cal-month-year').innerText = `${y}年${m + 1}月`; const firstDay = new Date(y, m, 1).getDay(), daysInMonth = new Date(y, m + 1, 0).getDate(), grid = document.getElementById('cal-days'); grid.innerHTML = ''; for (let i = 0; i < firstDay; i++) grid.innerHTML += `<div class="cal-day empty"></div>`; for (let i = 1; i <= daysInMonth; i++) { const dayTime = new Date(y, m, i, 0, 0, 0).getTime(); let classes = 'cal-day'; if (calSelStart === dayTime || calSelEnd === dayTime) classes += ' selected'; if (calSelStart && calSelEnd && dayTime > calSelStart && dayTime < calSelEnd) classes += ' in-range'; grid.innerHTML += `<div class="${classes}" onclick="selectCalDate(${y}, ${m}, ${i})">${i}</div>`; } document.getElementById('cal-selection-text').innerText = !calSelStart ? '請點選開始日期' : (!calSelEnd ? '請點選結束日期 (單日請直接按確認)' : '已選擇範圍，請點擊確認查詢'); }
 function selectCalDate(y, m, d) { const t = new Date(y, m, d, 0, 0, 0).getTime(); if (!calSelStart || (calSelStart && calSelEnd)) { calSelStart = t; calSelEnd = null; } else { if (t >= calSelStart) calSelEnd = t; else { calSelStart = t; calSelEnd = null; } } renderCalendar(); }
 async function applyFilter() { if (!calSelStart) return await appAlert('請先選擇日期', '操作錯誤'); const sTime = calSelStart, eTime = (calSelEnd || calSelStart) + 86399999; const fInc = historyRecords.filter(r => r.timestamp >= sTime && r.timestamp <= eTime && (r.status || 'completed') === 'completed'), fTip = tipRecords.filter(r => r.timestamp >= sTime && r.timestamp <= eTime), fCost = costRecords.filter(r => r.timestamp >= sTime && r.timestamp <= eTime); document.getElementById('search-total-income').innerText = fmtMoney(fInc.reduce((s, r)=>s+r.amount,0)); document.getElementById('search-total-tips').innerText = fmtMoney(fTip.reduce((s, r)=>s+r.amount,0)); document.getElementById('search-total-costs').innerText = '-' + fmtMoney(fCost.reduce((s, r)=>s+r.amount,0)); const sd = new Date(sTime), ed = new Date(eTime), sStr = `${sd.getFullYear()}/${sd.getMonth()+1}/${sd.getDate()}`, eStr = `${ed.getFullYear()}/${ed.getMonth()+1}/${ed.getDate()}`; document.getElementById('search-date-range').innerText = sStr === eStr ? sStr : `${sStr} ~ ${eStr}`; renderStats(fInc, 'search-income-list'); renderTips(fTip, 'search-tips-list'); renderCosts(fCost, 'search-costs-list'); closeModal('filter-modal'); isSearchResultOpen = true; document.getElementById('view-search-result').classList.add('active'); updateUIState(); }
@@ -1461,7 +1542,6 @@ function calculatePunctuality() {
     let endMs = startMs + cycleMs - 1;
     let isWeek2 = (now - startMs) >= weekMs;
     
-    // 只抓取有效 (status === 'completed') 的訂單做計算
     const validRecords = historyRecords.filter(r => r.estimatedTime && r.estimatedTime > 0 && r.timestamp >= startMs && r.timestamp <= endMs && (r.status || 'completed') === 'completed');
     
     const d1 = new Date(startMs), d2 = new Date(endMs);
@@ -1506,3 +1586,13 @@ function calculatePunctuality() {
 
 function exportData() { const data = {}; for(let i=0; i<localStorage.length; i++){ const key = localStorage.key(i); if(key.includes('order_') || key.includes('app_')) data[key] = localStorage.getItem(key); } const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), url = URL.createObjectURL(blob), a = document.createElement('a'), d = new Date(); a.href = url; a.download = `訂單統計備份_${d.getFullYear()}${(d.getMonth()+1).toString().padStart(2,'0')}${d.getDate().toString().padStart(2,'0')}.json`; a.click(); URL.revokeObjectURL(url); }
 function importData(event) { const file = event.target.files[0]; if(!file) return; const reader = new FileReader(); reader.onload = async function(e) { try { const data = JSON.parse(e.target.result); let valid = false; Object.keys(data).forEach(k => { if(k.includes('order_') || k.includes('app_')) { localStorage.setItem(k, data[k]); valid = true; } }); if(valid) { await appAlert('資料匯入成功！即將重新載入頁面。', '匯入成功'); location.reload(); } else await appAlert('無效的備份檔案格式。', '匯入失敗'); } catch(err) { await appAlert('匯入失敗：檔案損毀或格式錯誤。', '錯誤'); } }; reader.readAsText(file); }
+
+async function clearAllData() {
+    if (await appConfirm(`確定要清空使用者 [${currentUser}] 的所有紀錄嗎？\n此動作無法復原！`, '清空確認', true)) {
+        ['order_active_timers', 'order_history_records', 'order_tips', 'order_costs', 'order_active_shift', 'order_shifts', 'order_active_wait', 'order_waits'].forEach(k => {
+            localStorage.removeItem(getStoreKey(k));
+        });
+        loadData();
+        await appAlert('已成功清空該使用者紀錄！', '提示');
+    }
+}

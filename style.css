@@ -203,11 +203,48 @@ body.night-mode .active-timer-container.dragging {
 .active-timer-content:active { cursor: grabbing; }
 
 .timer-info { flex-grow: 1; min-width: 0; padding-right: 12px; pointer-events: auto; }
-.timer-info h3 { font-size: 1.05rem; margin-bottom: 4px; color: var(--text-main); word-break: break-word; line-height: 1.3; cursor: pointer; }
+.timer-info h3 { font-size: 1.05rem; margin-bottom: 4px; color: var(--text-main); word-break: break-word; line-height: 1.3; cursor: pointer; display: flex; align-items: center; flex-wrap: wrap; }
 .timer-info p { font-size: 0.85rem; color: var(--text-muted); }
 .timer-duration { font-family: monospace; font-size: 1.1rem; font-weight: bold; color: var(--success); margin-top: 4px; text-shadow: 0 1px 1px rgba(0,0,0,0.05); }
 .btn-stop { pointer-events: auto; width: auto; padding: 12px 16px; font-size: 0.95rem; background-color: var(--primary); color: var(--btn-text); border: 1px solid rgba(0,0,0,0.1); font-weight: bold; border-radius: 10px; cursor: pointer; box-shadow: 0 4px 8px rgba(0,0,0,0.15), inset 0 1px 1px rgba(255,255,255,0.2); transition: all 0.2s; flex-shrink: 0; }
 .btn-stop:active { transform: translateY(2px) scale(0.95); box-shadow: 0 1px 2px rgba(0,0,0,0.1), inset 0 2px 4px rgba(0,0,0,0.15); }
+
+/* ★ 需求 1：預估時間標籤（綠底 vs 超時咖啡底） */
+.est-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-left: 8px;
+    padding: 2px 8px;
+    border-radius: 6px;
+    line-height: 1.3;
+    transition: background-color 0.3s ease, color 0.3s ease;
+    white-space: nowrap;
+}
+
+/* 正常時間：淡綠底色 + 綠字 */
+.est-pill.normal {
+    background-color: #eafaf1 !important;
+    color: #1e7e48 !important;
+}
+
+/* 超時狀態：淡咖啡底色 + 咖啡字 */
+.est-pill.overtime {
+    background-color: #fbf0ea !important;
+    color: #8c4a27 !important;
+}
+
+/* 夜間模式適配 */
+body.night-mode .est-pill.normal {
+    background-color: rgba(16, 185, 129, 0.18) !important;
+    color: #6ee7b7 !important;
+}
+body.night-mode .est-pill.overtime {
+    background-color: rgba(180, 83, 9, 0.22) !important;
+    color: #fdba74 !important;
+}
 
 .section-title { font-size: 1.1rem; margin: 20px 0 10px 4px; display: flex; justify-content: space-between; align-items: center; font-weight: bold;}
 .badge { background: var(--card-bg); border: 1px solid var(--border); color: var(--text-main); padding: 2px 8px; border-radius: 12px; font-size: 0.85rem; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
@@ -296,9 +333,18 @@ body:not(.map-enabled) #view-home.map-view-override {
     bottom: 0;
     z-index: 1;
     display: none;
+    background-color: #f8fafc;
 }
 body.map-enabled #map {
     display: block;
+}
+
+/* ★ 需求 4：確保白淨地圖清晰度與無水印呈現 */
+.leaflet-tile {
+    filter: brightness(1.02) contrast(1.03);
+}
+.leaflet-control-attribution {
+    display: none !important;
 }
 
 /* 底部面板本體 */
@@ -308,7 +354,6 @@ body.map-enabled #map {
     left: 0;
     right: 0;
     height: calc(100% - 70px);
-    /* 絕對不透明背景 */
     background: var(--card-bg) !important;
     z-index: 10;
     border-radius: 24px 24px 0 0;
@@ -393,7 +438,6 @@ body:not(.map-enabled) .panel-content {
     display: flex;
     justify-content: center;
     align-items: center;
-    font-size: 1.5rem;
     color: var(--primary);
     z-index: 1000;
     cursor: pointer;
@@ -408,16 +452,80 @@ body:not(.map-enabled) .map-btn-recenter {
     display: none;
 }
 
-/* 確保 Leaflet 控制項不會蓋到 Header，且強制隱藏任何內建浮水印與版權條 */
+/* 確保 Leaflet 控制項不會蓋到 Header */
 .leaflet-top, .leaflet-bottom { z-index: 9 !important; }
 .leaflet-control-container .leaflet-top { top: 70px; }
-.leaflet-control-attribution { display: none !important; }
 
 /* --- 單日明細頁籤 --- */
 .detail-tabs-container { display: flex; gap: 15px; border-bottom: 1px solid var(--border); padding-bottom: 5px; margin-bottom: 15px; justify-content: flex-start; }
 .detail-tab { font-size: 1.05rem; cursor: pointer; color: var(--text-muted); transition: 0.2s; position: relative; padding: 0 4px 4px 4px; }
 .detail-tab.active { color: var(--primary); font-weight: bold; }
 .detail-tab.active::after { content: ''; position: absolute; bottom: -6px; left: 0; width: 100%; height: 3px; background: var(--primary); border-radius: 3px; }
+
+/* ==============================================================
+   ★ 需求 2 & 3：側邊欄選單與向量圖式、按鈕位置微調
+   ============================================================== */
+.side-menu-header {
+    padding: 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.side-nav-item {
+    display: flex;
+    align-items: center;
+    padding: 14px 20px;
+    color: var(--text-main);
+    text-decoration: none;
+    font-size: 1.05rem;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+}
+
+.side-nav-item:active {
+    background: var(--timer-bg);
+}
+
+.side-nav-item .nav-icon {
+    margin-right: 16px;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+}
+
+.side-nav-item.active {
+    background: var(--timer-bg);
+    color: var(--primary);
+    font-weight: bold;
+    border-left: 4px solid var(--primary);
+}
+
+.side-nav-item.active .nav-icon,
+.side-nav-item.active .nav-icon svg {
+    color: var(--primary);
+    stroke: var(--primary);
+}
+
+.nav-svg {
+    width: 22px;
+    height: 22px;
+    stroke: currentColor;
+    display: block;
+    transition: stroke 0.2s;
+}
+
+/* ★ 需求 3：上線時段區域上移，靠攏在選單下方 */
+#side-menu-shift-section {
+    padding: 16px 20px 20px 20px;
+    margin-top: 4px;
+    border-top: 1px solid var(--border);
+    background: transparent;
+}
 
 /* ==============================================================
    版本更新日誌 Modal 專屬樣式

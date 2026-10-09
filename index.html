@@ -34,7 +34,16 @@
             <div id="map"></div>
             
             <div id="bottom-panel" class="bottom-panel">
-                <button id="btn-recenter" class="map-btn-recenter" onclick="recenterMap()" title="回到定位">&#x2316;</button>
+                <button id="btn-recenter" class="map-btn-recenter" onclick="recenterMap()" title="回到定位">
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="7"></circle>
+                        <circle cx="12" cy="12" r="2" fill="currentColor"></circle>
+                        <line x1="12" y1="1" x2="12" y2="4"></line>
+                        <line x1="12" y1="20" x2="12" y2="23"></line>
+                        <line x1="1" y1="12" x2="4" y2="12"></line>
+                        <line x1="20" y1="12" x2="23" y2="12"></line>
+                    </svg>
+                </button>
                 
                 <div class="panel-header" id="panel-drag-handle" style="height: auto; padding: 12px 16px 4px 16px; display: flex; flex-direction: column; align-items: stretch; cursor: grab;">
                     <div style="display:flex; justify-content:center; width:100%; margin-bottom: 12px;" class="handle-bar-wrapper">
@@ -360,14 +369,40 @@
             <h2>功能選單</h2>
         </div>
         <div class="side-menu-content">
-            <a class="side-nav-item active" id="side-nav-0" onclick="switchView(0, true); toggleSideMenu()"><span class="nav-icon">☗</span>首頁</a>
-            <a class="side-nav-item" id="side-nav-1" onclick="switchView(1, true); toggleSideMenu()"><span class="nav-icon">＄</span>收入</a>
-            <a class="side-nav-item" id="side-nav-2" onclick="switchView(2, true); toggleSideMenu()"><span class="nav-icon">♥&#xFE0E;</span>小費</a>
-            <a class="side-nav-item" id="side-nav-3" onclick="switchView(3, true); toggleSideMenu()"><span class="nav-icon">☈</span>成本</a>
-            <a class="side-nav-item" id="side-nav-4" onclick="switchView(4, true); toggleSideMenu()"><span class="nav-icon">◕</span>準時率</a>
-            <a class="side-nav-item" id="side-nav-5" onclick="switchView(5, true); toggleSideMenu()"><span class="nav-icon">⛯</span>設定</a>
+            <a class="side-nav-item active" id="side-nav-0" onclick="switchView(0, true); toggleSideMenu()">
+                <span class="nav-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nav-svg"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+                </span>首頁
+            </a>
+            <a class="side-nav-item" id="side-nav-1" onclick="switchView(1, true); toggleSideMenu()">
+                <span class="nav-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nav-svg"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
+                </span>收入
+            </a>
+            <a class="side-nav-item" id="side-nav-2" onclick="switchView(2, true); toggleSideMenu()">
+                <span class="nav-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nav-svg"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+                </span>小費
+            </a>
+            <a class="side-nav-item" id="side-nav-3" onclick="switchView(3, true); toggleSideMenu()">
+                <span class="nav-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nav-svg"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                </span>成本
+            </a>
+            <a class="side-nav-item" id="side-nav-4" onclick="switchView(4, true); toggleSideMenu()">
+                <span class="nav-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nav-svg"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                </span>準時率
+            </a>
+            <a class="side-nav-item" id="side-nav-5" onclick="switchView(5, true); toggleSideMenu()">
+                <span class="nav-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nav-svg"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                </span>設定
+            </a>
         </div>
-        <div style="padding: 20px; border-top: 1px solid var(--border); background: var(--card-bg);" id="side-menu-shift-section">
+        
+        <!-- 上線時段按鈕向上排列至選單項目下方 -->
+        <div id="side-menu-shift-section">
             <h3 style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 10px; text-align: center;">上線時段</h3>
             <button class="btn btn-shift-toggle-class" onclick="toggleShift()" style="font-size: 1.1rem; padding: 14px;">時段開始</button>
             <div class="shift-current-duration-class" style="font-size: 1.5rem; font-family: monospace; font-weight: bold; color: var(--primary); margin-top: 10px; text-align: center; display: none;">00:00:00</div>
@@ -561,7 +596,7 @@
     <div class="modal-overlay" id="changelog-modal" onclick="if(event.target === this) closeChangelogModal(true)">
         <div class="modal-content changelog-modal-content">
             <div class="changelog-header">
-                <h2>版本更新日誌</h2>
+                <h2>📢 版本更新日誌</h2>
                 <span class="changelog-close-btn" onclick="closeChangelogModal(true)">✕</span>
             </div>
             <div id="changelog-list-container" class="changelog-body"></div>

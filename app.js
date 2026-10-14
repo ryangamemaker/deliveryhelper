@@ -28,11 +28,10 @@ let currentLoc = [25.0478, 121.5170]; // 預設台北車站
 let geoWatchId = null;
 let hasCenteredMapInit = false; 
 
-// ★ 需求 4：無浮水印、極簡白淨的高畫質地圖圖資 (Esri Light Gray Canvas)
+// 極簡白淨高畫質圖資 (Esri Light Gray Canvas)
 const MAP_TILE = 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}';
 
 /* ================== SVG 向量圖標庫 ================== */
-// ★ 需求 2：側邊功能選單專用精準向量圖式
 const SVG_ICONS = {
     home: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nav-svg"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>`,
     income: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nav-svg"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>`,
@@ -43,27 +42,26 @@ const SVG_ICONS = {
 };
 
 /* ================== 更新日誌邏輯 ================== */
-const CURRENT_APP_VERSION = 'v1.3.0';
+const CURRENT_APP_VERSION = 'v1.3.1';
 
 const CHANGELOG_HISTORY = [
+    {
+        version: 'v1.3.1',
+        date: '2026-10-14',
+        tag: '終極修復',
+        items: [
+            '【修復】徹底根除 iPhone 騎乘時跳出「還原輸入」問題（採用 DOM 節點物理銷毀重置技術）。',
+            '【視覺】預估時間綠底/超時咖啡底動態變色全面支援。',
+            '【地圖】極簡白淨無水印圖資載入優化。'
+        ]
+    },
     {
         version: 'v1.3.0',
         date: '2026-10-09',
         tag: '視覺升級',
         items: [
-            '【介面】預估時間標籤改為清爽綠底色，超過預估時間自動轉為柔和咖啡底色。',
-            '【選單】側邊功能欄位全面升級高解析度向量圖式（SVG）。',
-            '【佈局】側邊欄「上線時段」區域向上移，排版更加協調好點擊。',
-            '【地圖】全面升級極簡白淨風格地圖，徹底消除水印，視野更純淨。'
-        ]
-    },
-    {
-        version: 'v1.2.0',
-        date: '2026-10-09',
-        tag: '問題修復',
-        items: [
-            '【修復】修正 iPhone 震動時誤觸發「還原輸入」彈窗的問題。',
-            '【新增】系統版本更新日誌機制。'
+            '【選單】側邊欄升級高解析向量圖式（SVG）。',
+            '【排版】側邊欄「上線時段」區域向上移，操作更直覺。'
         ]
     }
 ];
@@ -143,7 +141,6 @@ function injectNewStyles() {
 
         body.map-enabled .bottom-nav { display: none !important; }
 
-        /* ===== 左側選單 (狀態列) 樣式 ===== */
         .side-menu-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); z-index: 2999; opacity: 0; visibility: hidden; transition: opacity 0.3s, visibility 0.3s; backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); }
         .side-menu-overlay.active { opacity: 1; visibility: visible; }
         
@@ -153,18 +150,15 @@ function injectNewStyles() {
         .side-menu-header { padding: 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
         .side-menu-header h2 { font-size: 1.2rem; color: var(--primary); margin: 0; font-weight: bold; }
         
-        /* ★ 需求 3：調整側選單內容高度，使上線時段區域能向上靠攏 */
         .side-menu-content { flex: 0 1 auto; overflow-y: auto; padding: 10px 0; -webkit-overflow-scrolling: touch; }
         .side-nav-item { display: flex; align-items: center; padding: 14px 20px; color: var(--text-main); text-decoration: none; font-size: 1.05rem; cursor: pointer; transition: background 0.2s, color 0.2s; }
         .side-nav-item:active { background: var(--timer-bg); }
         .side-nav-item .nav-icon { margin-right: 16px; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; }
         .side-nav-item.active { background: var(--timer-bg); color: var(--primary); font-weight: bold; border-left: 4px solid var(--primary); }
         
-        /* 向量圖標微調 */
         .nav-svg { width: 20px; height: 20px; stroke: currentColor; transition: stroke 0.2s; }
         .side-nav-item.active .nav-svg { stroke: var(--primary); }
 
-        /* ★ 需求 3：上線時段區域上移設計 */
         #side-menu-shift-section {
             padding: 16px 20px;
             margin-top: 5px;
@@ -203,7 +197,6 @@ function injectNewStyles() {
         body.map-enabled.on-home-view #shift-status-badge,
         body.map-enabled.on-home-view #shift-status-badge-right { display: none !important; }
 
-        /* ★ 需求 1：預估時間標籤 (正常綠底 vs 超時咖啡底) */
         .est-pill {
             display: inline-block;
             font-size: 0.85rem;
@@ -226,7 +219,7 @@ function injectNewStyles() {
     document.head.appendChild(style);
 }
 
-/* ================== 自訂對話框引擎 ================== */
+/* ================== 自訂對話框引擎 (含節點物理銷毀技術) ================== */
 let currentDialogResolve = null;
 function showCustomDialog({ type, title, message, defaultValue = '', confirmText = '確認', cancelText = '取消', isDanger = false }) {
     return new Promise((resolve) => {
@@ -235,7 +228,7 @@ function showCustomDialog({ type, title, message, defaultValue = '', confirmText
         const titleEl = document.getElementById('custom-dialog-title');
         const msgEl = document.getElementById('custom-dialog-msg');
         const inputGroup = document.getElementById('custom-dialog-input-group');
-        const inputEl = document.getElementById('custom-dialog-input');
+        let inputEl = document.getElementById('custom-dialog-input');
         const btnsEl = document.getElementById('custom-dialog-btns');
 
         titleEl.innerText = title;
@@ -244,19 +237,41 @@ function showCustomDialog({ type, title, message, defaultValue = '', confirmText
 
         if (type === 'prompt') {
             inputGroup.style.display = 'block';
+            inputEl.disabled = false;
+            inputEl.readOnly = false;
             inputEl.value = defaultValue;
         } else {
             inputGroup.style.display = 'none';
         }
 
         const handleClose = (value) => {
+            // ★ 終極修復核心：以全新元素物理替換，強制銷毀 iOS WebKit Undo Stack
             if (inputEl) {
                 inputEl.blur();
-                inputEl.value = '';
+                inputEl.disabled = true;
+                inputEl.readOnly = true;
+
+                const freshInput = document.createElement('input');
+                freshInput.type = 'text';
+                freshInput.id = 'custom-dialog-input';
+                freshInput.className = 'form-control';
+                freshInput.style.textAlign = 'center';
+                freshInput.autocomplete = 'off';
+                freshInput.autocorrect = 'off';
+                freshInput.autocapitalize = 'off';
+                freshInput.spellcheck = false;
+                freshInput.disabled = true;
+                freshInput.readOnly = true;
+
+                if (inputEl.parentNode) {
+                    inputEl.parentNode.replaceChild(freshInput, inputEl);
+                }
             }
+
             if (document.activeElement && typeof document.activeElement.blur === 'function') {
                 document.activeElement.blur();
             }
+
             closeModal('custom-dialog-modal');
             currentDialogResolve = null;
             resolve(value);
@@ -281,7 +296,8 @@ function showCustomDialog({ type, title, message, defaultValue = '', confirmText
         }
         confirmBtn.onclick = () => {
             if (type === 'prompt') {
-                handleClose(inputEl.value);
+                const currentVal = document.getElementById('custom-dialog-input') ? document.getElementById('custom-dialog-input').value : '';
+                handleClose(currentVal);
             } else {
                 handleClose(true);
             }
@@ -292,10 +308,11 @@ function showCustomDialog({ type, title, message, defaultValue = '', confirmText
         modal.classList.add('active');
 
         if (type === 'prompt') {
-            inputEl.focus();
+            const activeInput = document.getElementById('custom-dialog-input');
+            activeInput.focus();
             setTimeout(() => {
-                inputEl.focus();
-                inputEl.setSelectionRange(inputEl.value.length, inputEl.value.length);
+                activeInput.focus();
+                activeInput.setSelectionRange(activeInput.value.length, activeInput.value.length);
             }, 50);
         }
     });
@@ -352,7 +369,6 @@ function initMap() {
     if (typeof L === 'undefined') { console.warn('無法載入地圖資源'); return; }
     if (mapInstance) return;
     
-    // 建立白淨純粹的地圖實例，關閉多餘控制項
     mapInstance = L.map('map', {zoomControl: false, attributionControl: false}).setView(currentLoc, 15);
     currentTileLayer = L.tileLayer(MAP_TILE, { maxZoom: 19 }).addTo(mapInstance);
     
@@ -694,11 +710,13 @@ function toggleCollapse(header) {
     if(wrap && wrap.classList.contains('collapsible-wrap')) wrap.classList.toggle('collapsed');
 }
 
-/* ================== 單號專用 Modal ================== */
+/* ================== 單號專用 Modal (含節點物理銷毀技術) ================== */
 let pendingOrderAction = null;
 function openOrderNumberModal(title, defaultValue, callback) {
     document.getElementById('order-modal-title').innerText = title;
-    const input = document.getElementById('order-number-input');
+    let input = document.getElementById('order-number-input');
+    input.disabled = false;
+    input.readOnly = false;
     input.value = defaultValue;
     pendingOrderAction = callback;
     document.getElementById('order-number-modal').classList.add('active');
@@ -706,10 +724,40 @@ function openOrderNumberModal(title, defaultValue, callback) {
     setTimeout(() => { input.focus(); input.setSelectionRange(input.value.length, input.value.length); }, 50);
     input.onkeypress = function(e) { if (e.key === 'Enter') confirmOrderNumber(); };
 }
+
 function confirmOrderNumber() {
-    const input = document.getElementById('order-number-input');
-    if (input) input.blur();
+    let input = document.getElementById('order-number-input');
     const val = input ? input.value.trim() : '';
+
+    if (input) {
+        input.blur();
+        input.disabled = true;
+        input.readOnly = true;
+
+        const freshInput = document.createElement('input');
+        freshInput.type = 'text';
+        freshInput.id = 'order-number-input';
+        freshInput.className = 'form-control';
+        freshInput.placeholder = '輸入單號 (例: 01, A3)';
+        freshInput.style.fontSize = '1.2rem';
+        freshInput.style.textAlign = 'center';
+        freshInput.autocomplete = 'off';
+        freshInput.autocorrect = 'off';
+        freshInput.autocapitalize = 'off';
+        freshInput.spellcheck = false;
+        freshInput.disabled = true;
+        freshInput.readOnly = true;
+        freshInput.oninput = function() { this.value = this.value.replace(/[^a-zA-Z0-9]/g, ''); };
+
+        if (input.parentNode) {
+            input.parentNode.replaceChild(freshInput, input);
+        }
+    }
+
+    if (document.activeElement && typeof document.activeElement.blur === 'function') {
+        document.activeElement.blur();
+    }
+
     if (val !== '') { 
         closeModal('order-number-modal'); 
         if (pendingOrderAction) { 
@@ -905,7 +953,6 @@ function updateUIState() {
     const unselectedIcons = ['☖', '＄', '♡', '☇', '◑', '⛭'], selectedIcons = ['☗', '＄', '♥\uFE0E', '☈', '◕', '⛯'];
     const navKeys = ['home', 'income', 'tips', 'costs', 'rate', 'settings'];
 
-    // 底部導航欄
     document.querySelectorAll('.bottom-nav .nav-item').forEach((el, index) => { 
         el.classList.remove('active'); 
         const iconSpan = el.querySelector('.nav-icon'); 
@@ -918,7 +965,6 @@ function updateUIState() {
         if (activeIconSpan) { activeIconSpan.innerText = selectedIcons[currentViewIndex]; if ([2, 4].includes(currentViewIndex)) activeIconSpan.style.transform = 'scale(1.25)'; }
     }
 
-    // ★ 需求 2：側邊欄更新為高解析向量圖式
     document.querySelectorAll('.side-nav-item').forEach((el, index) => { 
         el.classList.remove('active'); 
         const iconSpan = el.querySelector('.nav-icon'); 
@@ -1363,7 +1409,6 @@ function renderActiveTimers() {
         const estLabel = isUber ? '預估金額' : '預估';
         let estStr = '';
 
-        // ★ 需求 1：計算預估時間與超時狀態 (綠底 vs 咖啡底)
         if (isUber) {
             estStr = timer.estimatedAmount ? `<span class="est-pill normal">預估 $${timer.estimatedAmount}</span>` : '';
         } else if (timer.estimatedTime) {
@@ -1385,7 +1430,6 @@ function updateTimersDisplay() {
         const el = document.getElementById(`duration_${timer.id}`); 
         if (el) el.innerText = formatDuration(now - timer.startTime); 
 
-        // ★ 需求 1：每秒更新時動態比對超時，無須重新載入畫面即時切換綠底與咖啡底
         if (timer.platform !== 'ubereats' && timer.estimatedTime) {
             const pillEl = document.getElementById(`est_pill_${timer.id}`);
             if (pillEl) {
@@ -1558,7 +1602,35 @@ function renderDailyDetail() {
 }
 
 /* ================== 編輯與查詢邏輯 ================== */
-function openEdit(category, id) { closeAllSwipes(); document.getElementById('edit-modal').classList.add('active'); document.getElementById('edit-id').value = id; document.getElementById('edit-category').value = category; if (category === 'tip') { document.getElementById('edit-modal-title').innerText = '編輯小費'; document.getElementById('edit-tip-fields').style.display = 'block'; document.getElementById('edit-cost-fields').style.display = 'none'; const record = tipRecords.find(t => t.id === id); document.getElementById('edit-amount').value = record.amount; document.getElementById('edit-tip-method').value = record.method; } else { document.getElementById('edit-modal-title').innerText = '編輯成本'; document.getElementById('edit-tip-fields').style.display = 'none'; document.getElementById('edit-cost-fields').style.display = 'block'; const record = costRecords.find(t => t.id === id); document.getElementById('edit-amount').value = record.amount; document.getElementById('edit-cost-type').value = record.type; document.getElementById('edit-cost-memo').value = record.memo || ''; toggleEditMileage(); if(record.type === '保養維修' || record.type === '加油') document.getElementById('edit-cost-mileage').value = record.mileage || ''; } }
+function openEdit(category, id) { 
+    closeAllSwipes(); 
+    document.querySelectorAll('#edit-modal input, #edit-modal select').forEach(inp => {
+        inp.disabled = false;
+        inp.readOnly = false;
+    });
+    document.getElementById('edit-modal').classList.add('active'); 
+    document.getElementById('edit-id').value = id; 
+    document.getElementById('edit-category').value = category; 
+    if (category === 'tip') { 
+        document.getElementById('edit-modal-title').innerText = '編輯小費'; 
+        document.getElementById('edit-tip-fields').style.display = 'block'; 
+        document.getElementById('edit-cost-fields').style.display = 'none'; 
+        const record = tipRecords.find(t => t.id === id); 
+        document.getElementById('edit-amount').value = record.amount; 
+        document.getElementById('edit-tip-method').value = record.method; 
+    } else { 
+        document.getElementById('edit-modal-title').innerText = '編輯成本'; 
+        document.getElementById('edit-tip-fields').style.display = 'none'; 
+        document.getElementById('edit-cost-fields').style.display = 'block'; 
+        const record = costRecords.find(t => t.id === id); 
+        document.getElementById('edit-amount').value = record.amount; 
+        document.getElementById('edit-cost-type').value = record.type; 
+        document.getElementById('edit-cost-memo').value = record.memo || ''; 
+        toggleEditMileage(); 
+        if(record.type === '保養維修' || record.type === '加油') document.getElementById('edit-cost-mileage').value = record.mileage || ''; 
+    } 
+}
+
 async function saveEdit() { const id = document.getElementById('edit-id').value, category = document.getElementById('edit-category').value, amount = Number(document.getElementById('edit-amount').value); if (!amount || amount <= 0) return await appAlert('請輸入有效金額', '輸入錯誤'); if (category === 'tip') { const idx = tipRecords.findIndex(t => t.id === id); if(idx > -1) { tipRecords[idx].amount = amount; tipRecords[idx].method = document.getElementById('edit-tip-method').value; localStorage.setItem(getStoreKey('order_tips'), JSON.stringify(tipRecords)); renderWeeklyData(); if(document.getElementById('view-daily-detail').classList.contains('active')) renderDailyDetail(); } } else { const idx = costRecords.findIndex(t => t.id === id); if(idx > -1) { const type = document.getElementById('edit-cost-type').value; costRecords[idx].amount = amount; costRecords[idx].type = type; costRecords[idx].memo = document.getElementById('edit-cost-memo').value; costRecords[idx].mileage = (type === '保養維修' || type === '加油') ? document.getElementById('edit-cost-mileage').value : ''; localStorage.setItem(getStoreKey('order_costs'), JSON.stringify(costRecords)); renderWeeklyData(); if(document.getElementById('view-daily-detail').classList.contains('active')) renderDailyDetail(); } } closeModal('edit-modal'); }
 
 let currentCalDate = new Date(), calSelStart = null, calSelEnd = null;
@@ -1568,7 +1640,11 @@ function closeModal(id) {
     const modal = document.getElementById(id);
     if (modal) {
         const inputs = modal.querySelectorAll('input, select, textarea');
-        inputs.forEach(inp => inp.blur());
+        inputs.forEach(inp => {
+            inp.blur();
+            inp.disabled = true;
+            inp.readOnly = true;
+        });
         modal.classList.remove('active'); 
     }
     if (document.activeElement && typeof document.activeElement.blur === 'function') {

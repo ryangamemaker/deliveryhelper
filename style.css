@@ -634,3 +634,75 @@ body.night-mode .changelog-card.latest {
 .changelog-items li:last-child {
     margin-bottom: 0;
 }
+/* ==============================================================
+   耳機按鈕與倍率調整 (v1.4.0)
+   ============================================================== */
+.header-side { width: 90px; flex-shrink: 0; }
+
+.btn-headset {
+    position: relative;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: none;
+    border: none;
+    color: var(--primary);
+    cursor: pointer;
+    padding: 0;
+    flex-shrink: 0;
+    pointer-events: auto;
+    transition: transform 0.2s;
+}
+.btn-headset:active { transform: scale(0.9); }
+.headset-svg { width: 24px; height: 24px; display: block; }
+
+/* 啟用滿版地圖 → 右上角；未啟用 → 左上角 */
+body.map-enabled .btn-headset-left { display: none !important; }
+body:not(.map-enabled) .btn-headset-right { display: none !important; }
+/* 單日明細 / 查詢結果時，左側讓給返回鍵 */
+body.sub-view-open .btn-headset { display: none !important; }
+
+/* 地圖首頁：與左上選單鍵同款的浮動圓形按鈕 */
+body.map-enabled.on-home-view .btn-headset-right {
+    width: 44px;
+    height: 44px;
+    background: var(--card-bg);
+    border-radius: 50%;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.headset-badge {
+    position: absolute;
+    bottom: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--primary);
+    color: var(--btn-text);
+    font-size: 0.62rem;
+    font-weight: bold;
+    line-height: 1;
+    padding: 2px 4px;
+    border-radius: 6px;
+    white-space: nowrap;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    pointer-events: none;
+}
+
+.multiplier-section { padding-top: 4px; }
+.multiplier-title { font-weight: bold; font-size: 1rem; color: var(--text-main); margin-bottom: 12px; }
+.multiplier-row { display: flex; align-items: center; gap: 12px; }
+.multiplier-range { flex: 1; min-width: 0; accent-color: var(--primary); height: 28px; cursor: pointer; }
+.multiplier-input { width: 84px !important; flex-shrink: 0; text-align: center; font-weight: bold; font-size: 1.1rem; padding: 10px 6px; }
+.multiplier-scale { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted); margin: 2px 96px 0 2px; }
+.multiplier-preview {
+    margin-top: 12px;
+    padding: 10px 12px;
+    background: var(--timer-bg);
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    font-size: 0.88rem;
+    color: var(--text-main);
+    text-align: center;
+}

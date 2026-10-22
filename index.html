@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Divery Master</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=1.4.1">
 </head>
 <body class="map-enabled">
     <canvas id="dynamic-canvas"></canvas>
@@ -17,8 +17,7 @@
             <button class="btn-icon" id="btn-back" onclick="handleBack()" style="display: none;">⇠</button>
             <!-- 耳機按鈕（未啟用滿版地圖時顯示於左上角） -->
             <button class="btn-headset btn-headset-left" onclick="openHeadsetModal()" title="耳機選單" aria-label="耳機選單">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="headset-svg"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"></path><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg>
-                <span class="headset-badge" style="display:none;">x1.00</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="24" height="24" class="headset-svg"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"></path><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg>
             </button>
         </div>
         <div class="header-center" id="header-center-area">
@@ -32,8 +31,7 @@
             <button class="btn-icon" id="btn-search" onclick="openFilterModal()" style="display:none; margin: 0; padding: 4px; font-size: 1.2rem;">📅</button>
             <!-- 耳機按鈕（啟用滿版地圖時顯示於右上角） -->
             <button class="btn-headset btn-headset-right" onclick="openHeadsetModal()" title="耳機選單" aria-label="耳機選單">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="headset-svg"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"></path><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg>
-                <span class="headset-badge" style="display:none;">x1.00</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="24" height="24" class="headset-svg"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"></path><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg>
             </button>
         </div>
     </div>
@@ -646,7 +644,7 @@
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-    <script src="data.js"></script>
-    <script src="app.js"></script>
+    <script src="data.js?v=1.4.1"></script>
+    <script src="app.js?v=1.4.1"></script>
 </body>
 </html>

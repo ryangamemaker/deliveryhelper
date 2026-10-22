@@ -673,22 +673,6 @@ body.map-enabled.on-home-view .btn-headset-right {
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
 }
 
-.headset-badge {
-    position: absolute;
-    bottom: -6px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: var(--primary);
-    color: var(--btn-text);
-    font-size: 0.62rem;
-    font-weight: bold;
-    line-height: 1;
-    padding: 2px 4px;
-    border-radius: 6px;
-    white-space: nowrap;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-    pointer-events: none;
-}
 
 .multiplier-section { padding-top: 4px; }
 .multiplier-title { font-weight: bold; font-size: 1rem; color: var(--text-main); margin-bottom: 12px; }

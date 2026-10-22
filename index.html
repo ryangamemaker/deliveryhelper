@@ -12,9 +12,14 @@
     <div class="advanced-bg"></div>
 
     <div class="header" id="main-header">
-        <div style="width: 70px; display:flex; align-items:center;">
+        <div class="header-side" style="display:flex; align-items:center;">
             <button class="btn-icon" id="btn-menu" onclick="toggleSideMenu()">☰</button>
             <button class="btn-icon" id="btn-back" onclick="handleBack()" style="display: none;">⇠</button>
+            <!-- 耳機按鈕（未啟用滿版地圖時顯示於左上角） -->
+            <button class="btn-headset btn-headset-left" onclick="openHeadsetModal()" title="耳機選單" aria-label="耳機選單">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="headset-svg"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"></path><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg>
+                <span class="headset-badge" style="display:none;">x1.00</span>
+            </button>
         </div>
         <div class="header-center" id="header-center-area">
             <div id="header-title-wrapper">
@@ -22,9 +27,14 @@
                 <span id="shift-status-badge" class="badge" style="background:var(--timer-bg); font-size:0.75rem; padding:2px 6px; margin-top:2px; font-weight:normal; border:1px solid var(--border); display: none; white-space: nowrap;">未上線</span>
             </div>
         </div>
-        <div style="width: 70px; text-align: right; display: flex; justify-content: flex-end; align-items: center; gap: 8px;">
+        <div class="header-side" style="text-align: right; display: flex; justify-content: flex-end; align-items: center; gap: 8px;">
             <span id="shift-status-badge-right" class="badge" style="display: none; background:var(--success); color:var(--btn-text); font-size:0.75rem; padding:2px 6px; font-weight:normal; border:1px solid var(--success); white-space: nowrap;">上線中</span>
             <button class="btn-icon" id="btn-search" onclick="openFilterModal()" style="display:none; margin: 0; padding: 4px; font-size: 1.2rem;">📅</button>
+            <!-- 耳機按鈕（啟用滿版地圖時顯示於右上角） -->
+            <button class="btn-headset btn-headset-right" onclick="openHeadsetModal()" title="耳機選單" aria-label="耳機選單">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="headset-svg"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"></path><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg>
+                <span class="headset-badge" style="display:none;">x1.00</span>
+            </button>
         </div>
     </div>
 
@@ -589,6 +599,35 @@
                 <input type="text" id="custom-dialog-input" class="form-control" style="text-align: center;" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
             </div>
             <div style="display: flex; gap: 10px; justify-content: center;" id="custom-dialog-btns"></div>
+        </div>
+    </div>
+
+    <!-- 耳機選單 Modal -->
+    <div class="modal-overlay" id="headset-modal" onclick="if(event.target === this) closeModal('headset-modal')">
+        <div class="modal-content" style="max-width: 340px; padding: 22px 20px;">
+            <div class="changelog-header">
+                <h2 style="display:flex; align-items:center; gap:8px;">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3z"></path><path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg>
+                    耳機選單
+                </h2>
+                <span class="changelog-close-btn" onclick="closeModal('headset-modal')">✕</span>
+            </div>
+
+            <div class="multiplier-section">
+                <div class="multiplier-title">倍率調整</div>
+                <div class="multiplier-row">
+                    <input type="range" id="multiplier-range" class="multiplier-range" min="1" max="5" step="0.01" value="1" oninput="onMultiplierRange(this)">
+                    <input type="number" id="multiplier-input" class="form-control multiplier-input" min="1" max="5" step="0.01" value="1.00" inputmode="decimal"
+                        oninput="onMultiplierInput(this)" onchange="onMultiplierCommit(this)" onblur="onMultiplierCommit(this)"
+                        onkeydown="if(event.key === 'Enter') this.blur();" autocomplete="off" autocorrect="off" spellcheck="false">
+                </div>
+                <div class="multiplier-scale"><span>1.00</span><span>5.00</span></div>
+                <div id="multiplier-preview" class="multiplier-preview">最低金額試算：$45 × 1.00 = $45.00</div>
+                <button class="btn btn-outline" style="padding: 10px; margin-top: 12px;" onclick="resetMultiplier()">重設為 1.00</button>
+                <p style="font-size:0.78rem; color:var(--text-muted); margin-top:10px; line-height:1.5;">
+                    * 設定後，之後結算的 foodpanda 訂單金額皆乘上此倍率；已結算的紀錄不受影響。Uber Eats 依你輸入的預估金額計算，不套用倍率。
+                </p>
+            </div>
         </div>
     </div>
 

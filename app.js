@@ -42,9 +42,18 @@ const SVG_ICONS = {
 };
 
 /* ================== 更新日誌邏輯 ================== */
-const CURRENT_APP_VERSION = 'v1.4.1';
+const CURRENT_APP_VERSION = 'v1.4.2';
 
 const CHANGELOG_HISTORY = [
+    {
+        version: 'v1.4.2',
+        date: '2026-10-23',
+        tag: '修正',
+        items: [
+            '【修復】徹底移除耳機圖示下方的倍率數字（含舊版快取殘留）。',
+            '【收入】收入頁每日卡片與單日明細中，有倍率加成的金額下方置中顯示火焰圖示（線條風格、加大尺寸）。'
+        ]
+    },
     {
         version: 'v1.4.1',
         date: '2026-10-23',
@@ -257,12 +266,14 @@ function injectNewStyles() {
             box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
         }
 
-        /* 倍率訂單：金額下方火焰圖示 */
-        .record-amount .amount-flame {
-            display: flex; justify-content: flex-end; margin-top: 2px;
-            color: #f97316;
+        /* 倍率訂單：金額下方火焰圖示（置中於金額下方） */
+        .record-amount, .date-amount { display: inline-flex; flex-direction: column; align-items: center; }
+        .record-amount .amount-flame, .date-amount .amount-flame {
+            display: flex; justify-content: center; margin-top: 4px;
+            color: #e0612b;
         }
-        .record-amount .amount-flame svg { display: block; }
+        .record-amount .amount-flame svg, .date-amount .amount-flame svg { display: block; width: 26px; height: 26px; }
+        body.night-mode .amount-flame { color: #fb923c !important; }
     `;
     document.head.appendChild(style);
 }
@@ -388,6 +399,7 @@ function loadSettingsForCurrentUser() {
 
 window.onload = function() {
     injectNewStyles();
+    document.querySelectorAll('.headset-badge').forEach(el => el.remove()); // 移除舊版殘留的倍率標籤
     if (currentUser === '新使用者' && !localStorage.getItem(getStoreKey('order_history_records')) && localStorage.getItem('order_history_records')) {
         ['order_active_timers', 'order_history_records', 'order_tips', 'order_costs'].forEach(k => { localStorage.setItem(getStoreKey(k), localStorage.getItem(k) || '[]'); });
     }
@@ -1140,7 +1152,7 @@ function calcTimedAmount(billableMins, multiplier = 1) {
 // 有套用倍率（≠1.00）的訂單，在金額下方顯示火焰圖示
 function flameIconHtml(r) {
     if (!r.multiplier || Number(r.multiplier) === 1) return '';
-    return `<span class="amount-flame" title="倍率加成"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" stroke="none"><path d="M12 2c.5 3.2-1.2 5.1-2.8 6.9C7.6 10.7 6 12.5 6 15.2 6 18.9 8.7 22 12 22s6-3.1 6-6.8c0-2.4-1.1-4.2-2.3-5.6-.3 1.6-1.1 2.8-2.3 3.4.4-3.5-.4-7.6-1.4-11zM12 20c-1.7 0-3-1.4-3-3.1 0-1.5.9-2.4 1.8-3.3.5 1 1.3 1.6 2.2 1.8-.1-1 .1-2 .6-2.8.9 1 1.4 2.2 1.4 3.4C15 18.6 13.7 20 12 20z"/></svg></span>`;
+    return `<span class="amount-flame" title="倍率加成"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5c.6 3.2-1 5.2-2.7 7C7.7 11.2 6 13.1 6 15.8 6 19.3 8.7 22 12 22s6-2.7 6-6.2c0-2.6-1.3-4.6-2.7-6.1-.3 1.7-1.2 2.8-2.3 3.3.4-3.4-.2-7.4-1-10.5z"/><path d="M12 20c-1.5 0-2.6-1.1-2.6-2.6 0-1.3.8-2.2 1.6-3 .3.9 1 1.5 1.8 1.7 0-.8.3-1.5.7-2.1.7.8 1.1 1.8 1.1 2.9 0 1.6-1.1 3.1-2.6 3.1z"/></svg></span>`;
 }
 
 function openHeadsetModal() {
@@ -1597,7 +1609,7 @@ function renderRecordGroup(data, containerId, emptyMsg, context, itemLabel, amou
     if (data.length === 0) return container.innerHTML = `<div class="empty-state">${emptyMsg}</div>`;
     let html = '';
     Object.values(groupDataByDate(data)).sort((a,b)=>new Date(b.dateKey)-new Date(a.dateKey)).forEach(group => {
-        html += `<div class="date-card" onclick="openDailyDetail('${context}', '${group.dateKey}')"><div class="date-header"><div><div class="date-title">${group.title}</div><div class="date-subtitle">${group.records.length} ${itemLabel}</div></div><div class="date-total"><div class="date-amount" style="color:${amountColor};">${amountPrefix}${fmtMoney(group.totalAmount)}</div><div class="date-arrow">查看明細 〉</div></div></div></div>`;
+        html += `<div class="date-card" onclick="openDailyDetail('${context}', '${group.dateKey}')"><div class="date-header"><div><div class="date-title">${group.title}</div><div class="date-subtitle">${group.records.length} ${itemLabel}</div></div><div class="date-total"><div class="date-amount" style="color:${amountColor};">${amountPrefix}${fmtMoney(group.totalAmount)}${(context === 'income' && group.records.some(r => r.multiplier && Number(r.multiplier) !== 1)) ? flameIconHtml({multiplier: 2}) : ''}</div><div class="date-arrow">查看明細 〉</div></div></div></div>`;
     });
     container.innerHTML = html;
 }

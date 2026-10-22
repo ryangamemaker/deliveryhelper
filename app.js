@@ -42,9 +42,19 @@ const SVG_ICONS = {
 };
 
 /* ================== 更新日誌邏輯 ================== */
-const CURRENT_APP_VERSION = 'v1.3.1';
+const CURRENT_APP_VERSION = 'v1.4.0';
 
 const CHANGELOG_HISTORY = [
+    {
+        version: 'v1.4.0',
+        date: '2026-10-23',
+        tag: '新功能',
+        items: [
+            '【新增】耳機按鈕：啟用滿版地圖時位於右上角，未啟用時位於左上角。',
+            '【倍率調整】可用調整桿或直接輸入設定 1.00 – 5.00 倍，之後結算的 foodpanda 訂單金額（含最低 $45）皆乘上倍率。',
+            '【明細】倍率不為 1.00 的訂單會在單日明細顯示「倍率 x?.??」，修改預估時間重算時沿用該筆原倍率。'
+        ]
+    },
     {
         version: 'v1.3.1',
         date: '2026-10-14',
@@ -334,7 +344,8 @@ function loadSettingsForCurrentUser() {
     if(settings.matrixText1 === undefined) settings.matrixText1 = '01'; if(settings.matrixText2 === undefined) settings.matrixText2 = ''; if(settings.matrixText3 === undefined) settings.matrixText3 = '';
     if(settings.customCardEnable === undefined) settings.customCardEnable = false; if(settings.customCardBg === undefined) settings.customCardBg = '#ffffff'; if(settings.customCardOpacity === undefined) settings.customCardOpacity = 85;
     if(settings.enableMap === undefined) settings.enableMap = true; 
-    if(settings.confirmDelivery === undefined) settings.confirmDelivery = false; 
+    if(settings.confirmDelivery === undefined) settings.confirmDelivery = false;
+    if(settings.payMultiplier === undefined) settings.payMultiplier = 1.00;
 }
 
 window.onload = function() {
@@ -676,6 +687,7 @@ function applySettings() {
         const panel = document.getElementById('bottom-panel');
         if (panel) panel.style.transform = 'none';
     }
+    updateHeadsetBadge();
     applyNightMode();
 }
 
@@ -985,7 +997,10 @@ function updateUIState() {
     const shiftBadge = document.getElementById('shift-status-badge');
     const shiftBadgeRight = document.getElementById('shift-status-badge-right');
 
-    if (isSearchResultOpen || document.getElementById('view-daily-detail').classList.contains('active')) { 
+    const isSubView = isSearchResultOpen || document.getElementById('view-daily-detail').classList.contains('active');
+    document.body.classList.toggle('sub-view-open', isSubView);
+
+    if (isSubView) {
         document.body.classList.remove('on-home-view');
         btnSearch.style.display = 'none'; btnBack.style.display = 'block'; 
         if(btnMenu) btnMenu.style.display = 'none';
@@ -1068,6 +1083,80 @@ async function confirmDeleteUser(name) {
 
 async function addUser() { const name = await appPrompt('請輸入新使用者名稱：', '', '新增使用者'); if (name && name.trim() !== '') { if (usersList.includes(name.trim())) return await appAlert('該使用者已存在！', '錯誤'); usersList.push(name.trim()); localStorage.setItem('app_users_list', JSON.stringify(usersList)); switchUser(name.trim()); } }
 async function renameUser() { const newName = await appPrompt('請輸入新的名稱：', currentUser, '重新命名'); if (newName && newName.trim() !== '' && newName !== currentUser) { if (usersList.includes(newName.trim())) return await appAlert('該名稱已存在！', '錯誤'); const oldPrefix = `${currentUser}_`, newPrefix = `${newName.trim()}_`; ['order_active_timers', 'order_history_records', 'order_tips', 'order_costs', 'order_settings', 'order_last_weather', 'order_active_shift', 'order_shifts', 'order_active_wait', 'order_waits'].forEach(key => { const data = localStorage.getItem(oldPrefix + key); if (data) { localStorage.setItem(newPrefix + key, data); localStorage.removeItem(oldPrefix + key); } }); usersList[usersList.indexOf(currentUser)] = newName.trim(); localStorage.setItem('app_users_list', JSON.stringify(usersList)); currentUser = newName.trim(); localStorage.setItem('app_current_user', currentUser); updateUIState(); await appAlert('重新命名成功！', '成功'); } }
+
+/* ================== 耳機選單：倍率調整 ================== */
+const MULTIPLIER_MIN = 1.00, MULTIPLIER_MAX = 5.00;
+
+function getPayMultiplier() {
+    const m = parseFloat(settings.payMultiplier);
+    if (isNaN(m)) return 1;
+    return Math.min(MULTIPLIER_MAX, Math.max(MULTIPLIER_MIN, m));
+}
+
+// 依計費分鐘數計算金額：(時薪換算，不足取最低金額) × 倍率
+function calcTimedAmount(billableMins, multiplier = 1) {
+    let base = (billableMins / 60) * RATE_PER_HOUR;
+    if (base < MIN_AMOUNT) base = MIN_AMOUNT;
+    return base * multiplier;
+}
+
+function openHeadsetModal() {
+    const modal = document.getElementById('headset-modal');
+    // closeModal 會鎖住輸入框（iOS 修復），開啟時需解鎖
+    modal.querySelectorAll('input').forEach(inp => { inp.disabled = false; inp.readOnly = false; });
+    syncMultiplierUI(getPayMultiplier());
+    modal.classList.add('active');
+}
+
+function syncMultiplierUI(value) {
+    const v = Number(value).toFixed(2);
+    const range = document.getElementById('multiplier-range');
+    const num = document.getElementById('multiplier-input');
+    const preview = document.getElementById('multiplier-preview');
+    if (range) range.value = v;
+    if (num && document.activeElement !== num) num.value = v;
+    if (preview) preview.innerText = `最低金額試算：$${MIN_AMOUNT} × ${v} = ${fmtMoney(MIN_AMOUNT * Number(v))}`;
+    updateHeadsetBadge();
+}
+
+function saveMultiplier(value) {
+    let v = parseFloat(value);
+    if (isNaN(v)) return;
+    v = Math.min(MULTIPLIER_MAX, Math.max(MULTIPLIER_MIN, v));
+    settings.payMultiplier = Number(v.toFixed(2));
+    saveSettings();
+    syncMultiplierUI(settings.payMultiplier);
+}
+
+function onMultiplierRange(el) { saveMultiplier(el.value); }
+
+function onMultiplierInput(el) {
+    // 輸入中：數值在範圍內才即時同步調整桿，不強制改寫使用者正在打的字
+    const v = parseFloat(el.value);
+    if (!isNaN(v) && v >= MULTIPLIER_MIN && v <= MULTIPLIER_MAX) {
+        settings.payMultiplier = Number(v.toFixed(2));
+        saveSettings();
+        document.getElementById('multiplier-range').value = settings.payMultiplier;
+        syncMultiplierUI(settings.payMultiplier);
+    }
+}
+
+function onMultiplierCommit(el) {
+    // 離開輸入框或按 Enter：超出範圍自動修正為 1.00 - 5.00
+    const v = parseFloat(el.value);
+    saveMultiplier(isNaN(v) ? getPayMultiplier() : v);
+    el.value = getPayMultiplier().toFixed(2);
+}
+
+function resetMultiplier() { saveMultiplier(1); const num = document.getElementById('multiplier-input'); if (num) num.value = '1.00'; }
+
+function updateHeadsetBadge() {
+    const m = getPayMultiplier();
+    document.querySelectorAll('.headset-badge').forEach(b => {
+        b.innerText = `x${m.toFixed(2)}`;
+        b.style.display = m !== 1 ? 'block' : 'none';
+    });
+}
 
 /* ================== 計時器與打卡邏輯 ================== */
 function toggleShift() {
@@ -1155,23 +1244,23 @@ async function stopTimer(id) {
     const index = activeTimers.findIndex(t => t.id === id); if (index === -1) return; 
     const timer = activeTimers[index], endTime = Date.now(), diffMins = Math.max(1, Math.round((endTime - timer.startTime) / 60000)); 
     
-    let amount = 0;
+    let amount = 0, multiplier = 1;
     if (timer.platform === 'ubereats' && timer.estimatedAmount) {
-        amount = timer.estimatedAmount; 
+        amount = timer.estimatedAmount;
     } else {
         const billableMins = Math.max(diffMins, timer.estimatedTime || 0);
-        amount = (billableMins / 60) * RATE_PER_HOUR; 
-        if (amount < MIN_AMOUNT) amount = MIN_AMOUNT; 
+        multiplier = getPayMultiplier();
+        amount = calcTimedAmount(billableMins, multiplier);
     }
-    
-    const endDateObj = new Date(endTime); 
-    historyRecords.push({ 
+
+    const endDateObj = new Date(endTime);
+    historyRecords.push({
         id: timer.id, tripId: timer.tripId, platform: timer.platform, status: 'completed',
-        dateKey: getDateKey(endTime), year: endDateObj.getFullYear(), month: endDateObj.getMonth() + 1, day: endDateObj.getDate(), dayOfWeek: DAYS_MAP[endDateObj.getDay()], 
-        startTimeStr: formatTime(new Date(timer.startTime)), endTimeStr: formatTime(endDateObj), 
+        dateKey: getDateKey(endTime), year: endDateObj.getFullYear(), month: endDateObj.getMonth() + 1, day: endDateObj.getDate(), dayOfWeek: DAYS_MAP[endDateObj.getDay()],
+        startTimeStr: formatTime(new Date(timer.startTime)), endTimeStr: formatTime(endDateObj),
         durationMins: diffMins, estimatedTime: timer.estimatedTime || 0, estimatedAmount: timer.estimatedAmount || 0,
-        amount: Number(amount.toFixed(2)), timestamp: endTime, storeName: timer.storeName || '', orderNumber: timer.orderNumber || '' 
-    }); 
+        amount: Number(amount.toFixed(2)), multiplier: multiplier, timestamp: endTime, storeName: timer.storeName || '', orderNumber: timer.orderNumber || ''
+    });
     activeTimers.splice(index, 1); 
     localStorage.setItem(getStoreKey('order_active_timers'), JSON.stringify(activeTimers)); 
     localStorage.setItem(getStoreKey('order_history_records'), JSON.stringify(historyRecords)); 
@@ -1205,16 +1294,16 @@ function confirmCancelTimer(reason) {
 async function settleAndCancelTimer(id) {
     const index = activeTimers.findIndex(t => t.id === id); if (index === -1) return; 
     const timer = activeTimers[index], endTime = Date.now(), diffMins = Math.max(1, Math.round((endTime - timer.startTime) / 60000)); 
-    let amount = 0;
+    let amount = 0, multiplier = 1;
     if (timer.platform === 'ubereats' && timer.estimatedAmount) amount = timer.estimatedAmount;
-    else { const billableMins = Math.max(diffMins, timer.estimatedTime || 0); amount = (billableMins / 60) * RATE_PER_HOUR; if (amount < MIN_AMOUNT) amount = MIN_AMOUNT; }
-    
-    const endDateObj = new Date(endTime); 
-    historyRecords.push({ 
+    else { const billableMins = Math.max(diffMins, timer.estimatedTime || 0); multiplier = getPayMultiplier(); amount = calcTimedAmount(billableMins, multiplier); }
+
+    const endDateObj = new Date(endTime);
+    historyRecords.push({
         id: timer.id, tripId: timer.tripId, platform: timer.platform, status: 'cancelled',
-        dateKey: getDateKey(endTime), year: endDateObj.getFullYear(), month: endDateObj.getMonth() + 1, day: endDateObj.getDate(), dayOfWeek: DAYS_MAP[endDateObj.getDay()], 
+        dateKey: getDateKey(endTime), year: endDateObj.getFullYear(), month: endDateObj.getMonth() + 1, day: endDateObj.getDate(), dayOfWeek: DAYS_MAP[endDateObj.getDay()],
         startTimeStr: formatTime(new Date(timer.startTime)), endTimeStr: formatTime(endDateObj), durationMins: diffMins, estimatedTime: timer.estimatedTime || 0, estimatedAmount: timer.estimatedAmount || 0,
-        amount: Number(amount.toFixed(2)), timestamp: endTime, storeName: timer.storeName || '', orderNumber: timer.orderNumber || '' 
+        amount: Number(amount.toFixed(2)), multiplier: multiplier, timestamp: endTime, storeName: timer.storeName || '', orderNumber: timer.orderNumber || '' 
     }); 
     activeTimers.splice(index, 1); 
     localStorage.setItem(getStoreKey('order_active_timers'), JSON.stringify(activeTimers)); localStorage.setItem(getStoreKey('order_history_records'), JSON.stringify(historyRecords)); 
@@ -1278,7 +1367,7 @@ async function editHistoryEstimatedTime(id) {
             const num = parseInt(val, 10); 
             if (!isNaN(num) && num >= 0) { 
                 record.estimatedTime = num; const billableMins = Math.max(record.durationMins, num); 
-                let amount = (billableMins / 60) * RATE_PER_HOUR; if (amount < MIN_AMOUNT) amount = MIN_AMOUNT; record.amount = Number(amount.toFixed(2)); 
+                const amount = calcTimedAmount(billableMins, record.multiplier || 1); record.amount = Number(amount.toFixed(2));
                 localStorage.setItem(getStoreKey('order_history_records'), JSON.stringify(historyRecords)); 
                 renderWeeklyData(); if(document.getElementById('view-daily-detail').classList.contains('active')) renderDailyDetail(); 
                 if (currentViewIndex === 4) calculatePunctuality(); 
@@ -1549,7 +1638,7 @@ function renderDailyDetail() {
                         const titleStr = r.storeName ? `<div style="font-weight:bold; color:var(--primary); margin-bottom:4px; font-size:1rem; word-break:break-word;">${r.storeName} #${r.orderNumber}</div>` : '';
                         
                         const estAction = isUber ? '預估金額' : '預估';
-                        const estInfo = (isUber && r.estimatedAmount) ? ` / 預估 $${r.estimatedAmount}` : (r.estimatedTime ? ` / 預估 ${r.estimatedTime} 分鐘` : '');
+                        const estInfo = ((isUber && r.estimatedAmount) ? ` / 預估 $${r.estimatedAmount}` : (r.estimatedTime ? ` / 預估 ${r.estimatedTime} 分鐘` : '')) + ((r.multiplier && r.multiplier !== 1) ? ` / 倍率 x${Number(r.multiplier).toFixed(2)}` : '');
 
                         html += `<div class="swipe-container record-swipe-container" data-id="${r.id}"><div class="swipe-content record-swipe-content" ontouchstart="handleItemTouchStart(event)" ontouchmove="handleItemTouchMove(event)" ontouchend="handleItemTouchEnd(event)" ontouchcancel="handleItemTouchEnd(event)"><div class="swipe-edit" style="background:var(--success);" onclick="editHistoryEstimatedTime('${r.id}')">${estAction}</div><div class="record-info" onclick="editIncomeAmount('${r.id}')" style="cursor:pointer;">${titleStr}<div class="record-time" style="color:var(--text-main);">${r.startTimeStr} - ${r.endTimeStr}</div><div class="record-desc" style="color:var(--text-muted);">實際 ${r.durationMins} 分鐘 ${estInfo}</div></div><div class="record-amount" onclick="editIncomeAmount('${r.id}')" style="cursor:pointer;">${fmtMoney(r.amount)}</div><div class="swipe-delete" onclick="deleteHistoryRecord('${r.id}')">刪除</div></div></div>`;
                     });
@@ -1565,7 +1654,7 @@ function renderDailyDetail() {
                     const titleStr = r.storeName ? `<div style="font-weight:bold; color:var(--primary); margin-bottom:4px; font-size:1rem; word-break:break-word;">${r.storeName} #${r.orderNumber}</div>` : '';
                     
                     const estAction = isUber ? '預估金額' : '預估';
-                    const estInfo = (isUber && r.estimatedAmount) ? ` / 預估 $${r.estimatedAmount}` : (r.estimatedTime ? ` / 預估 ${r.estimatedTime} 分鐘` : '');
+                    const estInfo = ((isUber && r.estimatedAmount) ? ` / 預估 $${r.estimatedAmount}` : (r.estimatedTime ? ` / 預估 ${r.estimatedTime} 分鐘` : '')) + ((r.multiplier && r.multiplier !== 1) ? ` / 倍率 x${Number(r.multiplier).toFixed(2)}` : '');
 
                     html += `<div class="swipe-container record-swipe-container" data-id="${r.id}"><div class="swipe-content record-swipe-content" ontouchstart="handleItemTouchStart(event)" ontouchmove="handleItemTouchMove(event)" ontouchend="handleItemTouchEnd(event)" ontouchcancel="handleItemTouchEnd(event)"><div class="swipe-edit" style="background:var(--success);" onclick="editHistoryEstimatedTime('${r.id}')">${estAction}</div><div class="record-info" onclick="editIncomeAmount('${r.id}')" style="cursor:pointer;">${titleStr}<div class="record-time" style="color:var(--text-main);">${r.startTimeStr} - ${r.endTimeStr}</div><div class="record-desc" style="color:var(--text-muted);">實際 ${r.durationMins} 分鐘 ${estInfo}</div></div><div class="record-amount" onclick="editIncomeAmount('${r.id}')" style="cursor:pointer;">${fmtMoney(r.amount)}</div><div class="swipe-delete" onclick="deleteHistoryRecord('${r.id}')">刪除</div></div></div>`;
                 });

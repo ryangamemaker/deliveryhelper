@@ -42,9 +42,20 @@ const SVG_ICONS = {
 };
 
 /* ================== 更新日誌邏輯 ================== */
-const CURRENT_APP_VERSION = 'v1.4.0';
+const CURRENT_APP_VERSION = 'v1.4.1';
 
 const CHANGELOG_HISTORY = [
+    {
+        version: 'v1.4.1',
+        date: '2026-10-23',
+        tag: '修正',
+        items: [
+            '【修復】耳機圖示開啟時不顯示、需調整倍率後才出現的問題（樣式改由程式注入，並加上版本號避免舊檔快取）。',
+            '【位置】耳機按鈕固定：啟用滿版地圖在右上角，未啟用在左上角。',
+            '【簡化】耳機圖示下方不再顯示倍率數字，保留給日後更多功能。',
+            '【收入】明細不再顯示倍率文字，改為在有倍率加成的訂單金額下方顯示火焰圖示。'
+        ]
+    },
     {
         version: 'v1.4.0',
         date: '2026-10-23',
@@ -225,6 +236,33 @@ function injectNewStyles() {
             background-color: #fbf0ea !important;
             color: #8c4a27 !important;
         }
+
+        /* 耳機按鈕：滿版地圖 → 右上角；未啟用 → 左上角 */
+        .header-side { width: 90px !important; flex-shrink: 0; }
+        .btn-headset {
+            position: relative; width: 40px; height: 40px; min-width: 40px;
+            display: flex; justify-content: center; align-items: center;
+            background: none; border: none; padding: 0; margin: 0;
+            color: var(--primary); cursor: pointer; pointer-events: auto;
+            -webkit-appearance: none; appearance: none; transition: transform 0.2s;
+        }
+        .btn-headset:active { transform: scale(0.9); }
+        .btn-headset svg { width: 24px; height: 24px; display: block; flex-shrink: 0; }
+        body.map-enabled .btn-headset-left { display: none !important; }
+        body:not(.map-enabled) .btn-headset-right { display: none !important; }
+        body.sub-view-open .btn-headset { display: none !important; }
+        body.map-enabled.on-home-view .btn-headset-right {
+            width: 44px !important; height: 44px !important;
+            background: var(--card-bg) !important; border-radius: 50% !important;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+        }
+
+        /* 倍率訂單：金額下方火焰圖示 */
+        .record-amount .amount-flame {
+            display: flex; justify-content: flex-end; margin-top: 2px;
+            color: #f97316;
+        }
+        .record-amount .amount-flame svg { display: block; }
     `;
     document.head.appendChild(style);
 }
@@ -687,7 +725,6 @@ function applySettings() {
         const panel = document.getElementById('bottom-panel');
         if (panel) panel.style.transform = 'none';
     }
-    updateHeadsetBadge();
     applyNightMode();
 }
 
@@ -1100,6 +1137,12 @@ function calcTimedAmount(billableMins, multiplier = 1) {
     return base * multiplier;
 }
 
+// 有套用倍率（≠1.00）的訂單，在金額下方顯示火焰圖示
+function flameIconHtml(r) {
+    if (!r.multiplier || Number(r.multiplier) === 1) return '';
+    return `<span class="amount-flame" title="倍率加成"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" stroke="none"><path d="M12 2c.5 3.2-1.2 5.1-2.8 6.9C7.6 10.7 6 12.5 6 15.2 6 18.9 8.7 22 12 22s6-3.1 6-6.8c0-2.4-1.1-4.2-2.3-5.6-.3 1.6-1.1 2.8-2.3 3.4.4-3.5-.4-7.6-1.4-11zM12 20c-1.7 0-3-1.4-3-3.1 0-1.5.9-2.4 1.8-3.3.5 1 1.3 1.6 2.2 1.8-.1-1 .1-2 .6-2.8.9 1 1.4 2.2 1.4 3.4C15 18.6 13.7 20 12 20z"/></svg></span>`;
+}
+
 function openHeadsetModal() {
     const modal = document.getElementById('headset-modal');
     // closeModal 會鎖住輸入框（iOS 修復），開啟時需解鎖
@@ -1116,7 +1159,6 @@ function syncMultiplierUI(value) {
     if (range) range.value = v;
     if (num && document.activeElement !== num) num.value = v;
     if (preview) preview.innerText = `最低金額試算：$${MIN_AMOUNT} × ${v} = ${fmtMoney(MIN_AMOUNT * Number(v))}`;
-    updateHeadsetBadge();
 }
 
 function saveMultiplier(value) {
@@ -1150,13 +1192,6 @@ function onMultiplierCommit(el) {
 
 function resetMultiplier() { saveMultiplier(1); const num = document.getElementById('multiplier-input'); if (num) num.value = '1.00'; }
 
-function updateHeadsetBadge() {
-    const m = getPayMultiplier();
-    document.querySelectorAll('.headset-badge').forEach(b => {
-        b.innerText = `x${m.toFixed(2)}`;
-        b.style.display = m !== 1 ? 'block' : 'none';
-    });
-}
 
 /* ================== 計時器與打卡邏輯 ================== */
 function toggleShift() {
@@ -1638,9 +1673,9 @@ function renderDailyDetail() {
                         const titleStr = r.storeName ? `<div style="font-weight:bold; color:var(--primary); margin-bottom:4px; font-size:1rem; word-break:break-word;">${r.storeName} #${r.orderNumber}</div>` : '';
                         
                         const estAction = isUber ? '預估金額' : '預估';
-                        const estInfo = ((isUber && r.estimatedAmount) ? ` / 預估 $${r.estimatedAmount}` : (r.estimatedTime ? ` / 預估 ${r.estimatedTime} 分鐘` : '')) + ((r.multiplier && r.multiplier !== 1) ? ` / 倍率 x${Number(r.multiplier).toFixed(2)}` : '');
+                        const estInfo = (isUber && r.estimatedAmount) ? ` / 預估 $${r.estimatedAmount}` : (r.estimatedTime ? ` / 預估 ${r.estimatedTime} 分鐘` : '');
 
-                        html += `<div class="swipe-container record-swipe-container" data-id="${r.id}"><div class="swipe-content record-swipe-content" ontouchstart="handleItemTouchStart(event)" ontouchmove="handleItemTouchMove(event)" ontouchend="handleItemTouchEnd(event)" ontouchcancel="handleItemTouchEnd(event)"><div class="swipe-edit" style="background:var(--success);" onclick="editHistoryEstimatedTime('${r.id}')">${estAction}</div><div class="record-info" onclick="editIncomeAmount('${r.id}')" style="cursor:pointer;">${titleStr}<div class="record-time" style="color:var(--text-main);">${r.startTimeStr} - ${r.endTimeStr}</div><div class="record-desc" style="color:var(--text-muted);">實際 ${r.durationMins} 分鐘 ${estInfo}</div></div><div class="record-amount" onclick="editIncomeAmount('${r.id}')" style="cursor:pointer;">${fmtMoney(r.amount)}</div><div class="swipe-delete" onclick="deleteHistoryRecord('${r.id}')">刪除</div></div></div>`;
+                        html += `<div class="swipe-container record-swipe-container" data-id="${r.id}"><div class="swipe-content record-swipe-content" ontouchstart="handleItemTouchStart(event)" ontouchmove="handleItemTouchMove(event)" ontouchend="handleItemTouchEnd(event)" ontouchcancel="handleItemTouchEnd(event)"><div class="swipe-edit" style="background:var(--success);" onclick="editHistoryEstimatedTime('${r.id}')">${estAction}</div><div class="record-info" onclick="editIncomeAmount('${r.id}')" style="cursor:pointer;">${titleStr}<div class="record-time" style="color:var(--text-main);">${r.startTimeStr} - ${r.endTimeStr}</div><div class="record-desc" style="color:var(--text-muted);">實際 ${r.durationMins} 分鐘 ${estInfo}</div></div><div class="record-amount" onclick="editIncomeAmount('${r.id}')" style="cursor:pointer;">${fmtMoney(r.amount)}${flameIconHtml(r)}</div><div class="swipe-delete" onclick="deleteHistoryRecord('${r.id}')">刪除</div></div></div>`;
                     });
                     
                     if (group.length > 1) {
@@ -1654,9 +1689,9 @@ function renderDailyDetail() {
                     const titleStr = r.storeName ? `<div style="font-weight:bold; color:var(--primary); margin-bottom:4px; font-size:1rem; word-break:break-word;">${r.storeName} #${r.orderNumber}</div>` : '';
                     
                     const estAction = isUber ? '預估金額' : '預估';
-                    const estInfo = ((isUber && r.estimatedAmount) ? ` / 預估 $${r.estimatedAmount}` : (r.estimatedTime ? ` / 預估 ${r.estimatedTime} 分鐘` : '')) + ((r.multiplier && r.multiplier !== 1) ? ` / 倍率 x${Number(r.multiplier).toFixed(2)}` : '');
+                    const estInfo = (isUber && r.estimatedAmount) ? ` / 預估 $${r.estimatedAmount}` : (r.estimatedTime ? ` / 預估 ${r.estimatedTime} 分鐘` : '');
 
-                    html += `<div class="swipe-container record-swipe-container" data-id="${r.id}"><div class="swipe-content record-swipe-content" ontouchstart="handleItemTouchStart(event)" ontouchmove="handleItemTouchMove(event)" ontouchend="handleItemTouchEnd(event)" ontouchcancel="handleItemTouchEnd(event)"><div class="swipe-edit" style="background:var(--success);" onclick="editHistoryEstimatedTime('${r.id}')">${estAction}</div><div class="record-info" onclick="editIncomeAmount('${r.id}')" style="cursor:pointer;">${titleStr}<div class="record-time" style="color:var(--text-main);">${r.startTimeStr} - ${r.endTimeStr}</div><div class="record-desc" style="color:var(--text-muted);">實際 ${r.durationMins} 分鐘 ${estInfo}</div></div><div class="record-amount" onclick="editIncomeAmount('${r.id}')" style="cursor:pointer;">${fmtMoney(r.amount)}</div><div class="swipe-delete" onclick="deleteHistoryRecord('${r.id}')">刪除</div></div></div>`;
+                    html += `<div class="swipe-container record-swipe-container" data-id="${r.id}"><div class="swipe-content record-swipe-content" ontouchstart="handleItemTouchStart(event)" ontouchmove="handleItemTouchMove(event)" ontouchend="handleItemTouchEnd(event)" ontouchcancel="handleItemTouchEnd(event)"><div class="swipe-edit" style="background:var(--success);" onclick="editHistoryEstimatedTime('${r.id}')">${estAction}</div><div class="record-info" onclick="editIncomeAmount('${r.id}')" style="cursor:pointer;">${titleStr}<div class="record-time" style="color:var(--text-main);">${r.startTimeStr} - ${r.endTimeStr}</div><div class="record-desc" style="color:var(--text-muted);">實際 ${r.durationMins} 分鐘 ${estInfo}</div></div><div class="record-amount" onclick="editIncomeAmount('${r.id}')" style="cursor:pointer;">${fmtMoney(r.amount)}${flameIconHtml(r)}</div><div class="swipe-delete" onclick="deleteHistoryRecord('${r.id}')">刪除</div></div></div>`;
                 });
             }
         }

@@ -42,29 +42,9 @@ const SVG_ICONS = {
 };
 
 /* ================== 更新日誌邏輯 ================== */
-const CURRENT_APP_VERSION = 'v1.4.2';
+const CURRENT_APP_VERSION = 'v1.4.0';
 
 const CHANGELOG_HISTORY = [
-    {
-        version: 'v1.4.2',
-        date: '2026-10-23',
-        tag: '修正',
-        items: [
-            '【修復】徹底移除耳機圖示下方的倍率數字（含舊版快取殘留）。',
-            '【收入】收入頁每日卡片與單日明細中，有倍率加成的金額下方置中顯示火焰圖示（線條風格、加大尺寸）。'
-        ]
-    },
-    {
-        version: 'v1.4.1',
-        date: '2026-10-23',
-        tag: '修正',
-        items: [
-            '【修復】耳機圖示開啟時不顯示、需調整倍率後才出現的問題（樣式改由程式注入，並加上版本號避免舊檔快取）。',
-            '【位置】耳機按鈕固定：啟用滿版地圖在右上角，未啟用在左上角。',
-            '【簡化】耳機圖示下方不再顯示倍率數字，保留給日後更多功能。',
-            '【收入】明細不再顯示倍率文字，改為在有倍率加成的訂單金額下方顯示火焰圖示。'
-        ]
-    },
     {
         version: 'v1.4.0',
         date: '2026-10-23',
@@ -267,12 +247,12 @@ function injectNewStyles() {
         }
 
         /* 倍率訂單：金額下方火焰圖示（置中於金額下方） */
-        .record-amount, .date-amount { display: inline-flex; flex-direction: column; align-items: center; }
-        .record-amount .amount-flame, .date-amount .amount-flame {
+        .record-amount { display: inline-flex; flex-direction: column; align-items: center; }
+        .record-amount .amount-flame {
             display: flex; justify-content: center; margin-top: 4px;
             color: #e0612b;
         }
-        .record-amount .amount-flame svg, .date-amount .amount-flame svg { display: block; width: 26px; height: 26px; }
+        .record-amount .amount-flame svg { display: block; width: 26px; height: 26px; }
         body.night-mode .amount-flame { color: #fb923c !important; }
     `;
     document.head.appendChild(style);
@@ -1609,7 +1589,7 @@ function renderRecordGroup(data, containerId, emptyMsg, context, itemLabel, amou
     if (data.length === 0) return container.innerHTML = `<div class="empty-state">${emptyMsg}</div>`;
     let html = '';
     Object.values(groupDataByDate(data)).sort((a,b)=>new Date(b.dateKey)-new Date(a.dateKey)).forEach(group => {
-        html += `<div class="date-card" onclick="openDailyDetail('${context}', '${group.dateKey}')"><div class="date-header"><div><div class="date-title">${group.title}</div><div class="date-subtitle">${group.records.length} ${itemLabel}</div></div><div class="date-total"><div class="date-amount" style="color:${amountColor};">${amountPrefix}${fmtMoney(group.totalAmount)}${(context === 'income' && group.records.some(r => r.multiplier && Number(r.multiplier) !== 1)) ? flameIconHtml({multiplier: 2}) : ''}</div><div class="date-arrow">查看明細 〉</div></div></div></div>`;
+        html += `<div class="date-card" onclick="openDailyDetail('${context}', '${group.dateKey}')"><div class="date-header"><div><div class="date-title">${group.title}</div><div class="date-subtitle">${group.records.length} ${itemLabel}</div></div><div class="date-total"><div class="date-amount" style="color:${amountColor};">${amountPrefix}${fmtMoney(group.totalAmount)}</div><div class="date-arrow">查看明細 〉</div></div></div></div>`;
     });
     container.innerHTML = html;
 }

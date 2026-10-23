@@ -1,692 +1,1925 @@
 /* ==============================================================
-   基礎與主題變數
+   全域狀態與資料初始化
    ============================================================== */
-:root {
-    --primary: #ff7597; --primary-hover: #ff4d79; --btn-text: #ffffff;
-    --success: #059669; /* 加深的綠色 */
-    --danger: #ef4444; --danger-text: #ffffff;   
-    --page-bg: #fff0f5; --bg: #fff0f5; --card-bg: #ffffff;       
-    --timer-bg: #f8fafc; --text-main: #3f3f46; --text-muted: #a1a1aa;
-    --border: rgba(255, 117, 151, 0.3); --nav-bg: rgba(255, 255, 255, 0.95);
-    --card-backdrop: blur(12px);
+let currentUser = localStorage.getItem('app_current_user') || '新使用者';
+let usersList = JSON.parse(localStorage.getItem('app_users_list')) || ['新使用者'];
+let customStores = JSON.parse(localStorage.getItem('app_custom_stores')) || [];
+function getStoreKey(key) { return `${currentUser}_${key}`; }
+
+let activeTimers = [], historyRecords = [], tipRecords = [], costRecords = [], shiftRecords = [], activeShift = null, waitRecords = [], activeWait = null, settings = {};
+let viewedWeekStart = new Date(), currentDailyContext = 'income', currentDailyDateObj = new Date();
+
+let sideMenuOpen = false;
+let currentDailyTab = 'foodpanda'; // 記錄單日明細分頁狀態，預設為foodpanda
+
+function switchDailyTab(tab) {
+    currentDailyTab = tab;
+    document.getElementById('tab-foodpanda').classList.toggle('active', tab === 'foodpanda');
+    document.getElementById('tab-ubereats').classList.toggle('active', tab === 'ubereats');
+    document.getElementById('tab-cancelled').classList.toggle('active', tab === 'cancelled');
+    renderDailyDetail();
+}
+
+// Leaflet 地圖變數
+let mapInstance = null;
+let currentTileLayer = null;
+let userMarker = null;
+let currentLoc = [25.0478, 121.5170]; // 預設台北車站
+let geoWatchId = null;
+let hasCenteredMapInit = false; 
+
+// 極簡白淨高畫質圖資 (Esri Light Gray Canvas)
+const MAP_TILE = 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}';
+
+/* ================== SVG 向量圖標庫 ================== */
+const SVG_ICONS = {
+    home: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nav-svg"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>`,
+    income: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nav-svg"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>`,
+    tips: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nav-svg"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>`,
+    costs: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nav-svg"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>`,
+    rate: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nav-svg"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>`,
+    settings: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nav-svg"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>`
+};
+
+/* ================== 更新日誌邏輯 ================== */
+const CURRENT_APP_VERSION = 'v1.5.0';
+
+const CHANGELOG_HISTORY = [
+    {
+        version: 'v1.5.0',
+        date: '2026-10-24',
+        tag: '新功能',
+        items: [
+            '【設定】設定頁改為分頁式：一般、外觀、使用者、資料四個分類，會記住上次停留的分頁。',
+            '【字體】字體大小改用調整桿調整（12px – 22px），拖曳即時預覽，可一鍵恢復預設 16px。'
+        ]
+    },
+    {
+        version: 'v1.4.0',
+        date: '2026-10-23',
+        tag: '新功能',
+        items: [
+            '【新增】耳機按鈕：啟用滿版地圖時位於右上角，未啟用時位於左上角。',
+            '【倍率調整】可用調整桿或直接輸入設定 1.00 – 5.00 倍，之後結算的 foodpanda 訂單金額（含最低 $45）皆乘上倍率。',
+            '【明細】倍率不為 1.00 的訂單，會在單日明細該筆金額下方顯示火焰圖示；修改預估時間重算時沿用該筆原倍率。'
+        ]
+    },
+    {
+        version: 'v1.3.1',
+        date: '2026-10-14',
+        tag: '終極修復',
+        items: [
+            '【修復】徹底根除 iPhone 騎乘時跳出「還原輸入」問題（採用 DOM 節點物理銷毀重置技術）。',
+            '【視覺】預估時間綠底/超時咖啡底動態變色全面支援。',
+            '【地圖】極簡白淨無水印圖資載入優化。'
+        ]
+    },
+    {
+        version: 'v1.3.0',
+        date: '2026-10-09',
+        tag: '視覺升級',
+        items: [
+            '【選單】側邊欄升級高解析向量圖式（SVG）。',
+            '【排版】側邊欄「上線時段」區域向上移，操作更直覺。'
+        ]
+    }
+];
+
+function checkChangelogNotice() {
+    const lastSeenVersion = localStorage.getItem('app_last_seen_changelog');
+    if (lastSeenVersion !== CURRENT_APP_VERSION) {
+        setTimeout(() => {
+            openChangelogModal();
+        }, 600);
+    }
+}
+
+function openChangelogModal() {
+    renderChangelogContent();
+    const modal = document.getElementById('changelog-modal');
+    if (modal) modal.classList.add('active');
+}
+
+function closeChangelogModal(markAsRead = true) {
+    if (markAsRead) {
+        localStorage.setItem('app_last_seen_changelog', CURRENT_APP_VERSION);
+    }
+    closeModal('changelog-modal');
+}
+
+function renderChangelogContent() {
+    const container = document.getElementById('changelog-list-container');
+    if (!container) return;
     
-    /* 立體感核心陰影變數 */
-    --card-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.12), 0 4px 10px -3px rgba(0, 0, 0, 0.08); 
-    --card-shadow-hover: 0 15px 35px -5px rgba(0, 0, 0, 0.18), 0 6px 15px -3px rgba(0, 0, 0, 0.12);
-    --item-shadow: 0 4px 12px -3px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.04);
-    --card-glow: inset 0 1px 1px rgba(255, 255, 255, 0.6);
+    let html = '';
+    CHANGELOG_HISTORY.forEach((log, index) => {
+        const isLatest = index === 0;
+        html += `
+            <div class="changelog-card ${isLatest ? 'latest' : ''}">
+                <div class="changelog-badge-row">
+                    <span class="changelog-ver">${log.version}</span>
+                    <span class="changelog-tag">${log.tag}</span>
+                    <span class="changelog-date">${log.date}</span>
+                </div>
+                <ul class="changelog-items">
+                    ${log.items.map(item => `<li>${item}</li>`).join('')}
+                </ul>
+            </div>
+        `;
+    });
+    container.innerHTML = html;
 }
 
-[data-color-theme="pink"] { --primary: #ff7597; --page-bg: #fff0f5; --bg: #fff0f5; --border: rgba(255, 117, 151, 0.3); --card-bg: #ffffff; --timer-bg: #f8fafc; }
-[data-color-theme="classic-blue"] { --primary: #007aff; --page-bg: #f0f2f5; --bg: #f0f2f5; --border: rgba(0, 122, 255, 0.2); --card-bg: #ffffff; --timer-bg: #f8fafc; }
-[data-color-theme="magenta"] { --primary: #e11d48; --page-bg: #fff1f2; --bg: #fff1f2; --border: rgba(225, 29, 72, 0.2); --card-bg: #ffffff; --timer-bg: #f8fafc; }
-[data-color-theme="blue"] { --primary: #3b82f6; --page-bg: #eff6ff; --bg: #eff6ff; --border: rgba(59, 130, 246, 0.2); --card-bg: #ffffff; --timer-bg: #f8fafc; }
-[data-color-theme="peach"] { --primary: #fb923c; --page-bg: #fff7ed; --bg: #fff7ed; --border: rgba(251, 146, 60, 0.2); --card-bg: #ffffff; --timer-bg: #f8fafc; }
-[data-color-theme="mint"] { --primary: #2dd4bf; --page-bg: #f0fdfa; --bg: #f0fdfa; --border: rgba(45, 212, 191, 0.2); --card-bg: #ffffff; --timer-bg: #f8fafc; }
-[data-color-theme="lavender"] { --primary: #a78bfa; --page-bg: #f5f3ff; --bg: #f5f3ff; --border: rgba(167, 139, 250, 0.2); --card-bg: #ffffff; --timer-bg: #f8fafc; }
-[data-color-theme="mocha"] { --primary: #a16207; --page-bg: #fefce8; --bg: #fefce8; --border: rgba(161, 98, 7, 0.2); --card-bg: #ffffff; --timer-bg: #f8fafc; }
-[data-color-theme="custom"] { --card-bg: #ffffff; --timer-bg: #f8fafc; }
+/* ================== 日期與時間工具 ================== */
+function getDateKey(ts) { const d = new Date(ts); return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`; }
+function formatTime(dateObj) { return `${String(dateObj.getHours()).padStart(2, '0')}:${String(dateObj.getMinutes()).padStart(2, '0')}`; }
+function formatDuration(ms) { const totalSecs = Math.floor(ms / 1000); return `${String(Math.floor(totalSecs / 3600)).padStart(2, '0')}:${String(Math.floor((totalSecs % 3600) / 60)).padStart(2, '0')}:${String(totalSecs % 60).padStart(2, '0')}`; }
+function formatMins(mins) { const h = Math.floor(mins / 60), m = Math.floor(mins % 60); return h > 0 ? `${h}小時 ${m}分鐘` : `${m}分鐘`; }
+function fmtMoney(num) { return '$' + Number(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); } 
+function fmtNum(num) { return Number(num).toLocaleString('en-US'); }
 
-[data-color-theme="dark"] { --primary: #6366f1; --page-bg: #0f172a; --bg: #0f172a; --card-bg: rgba(30, 41, 59, 0.85); --timer-bg: rgba(51, 65, 85, 0.85); --text-main: #f8fafc; --text-muted: #94a3b8; --border: rgba(99, 102, 241, 0.3); --nav-bg: rgba(30, 41, 59, 0.95); --danger: #b91c1c; }
-[data-color-theme="obsidian-gold"] { --primary: #d4af37; --page-bg: #0a0a0a; --bg: #0a0a0a; --card-bg: rgba(26, 26, 26, 0.85); --timer-bg: rgba(38, 38, 38, 0.85); --text-main: #f3f4f6; --text-muted: #9ca3af; --border: rgba(212, 175, 55, 0.3); --nav-bg: rgba(10, 10, 10, 0.95); --danger: #7f1d1d; }
-[data-color-theme="burgundy"] { --primary: #f87171; --page-bg: linear-gradient(to bottom right, #450a0a 0%, #1a0505 100%); --bg: #1a0505; --card-bg: rgba(30, 10, 10, 0.75); --timer-bg: rgba(50, 15, 15, 0.75); --text-main: #fecaca; --text-muted: #fca5a5; --border: rgba(248, 113, 113, 0.3); --nav-bg: rgba(20, 5, 5, 0.95); --danger: #991b1b; }
-[data-color-theme="white-marble"] { --primary: #475569; --page-bg: linear-gradient(135deg, #ffffff 0%, #f1f5f9 50%, #e2e8f0 100%); --bg: #f1f5f9; --card-bg: rgba(255, 255, 255, 0.65); --timer-bg: rgba(255, 255, 255, 0.45); --text-main: #334155; --text-muted: #64748b; --border: rgba(71, 85, 105, 0.2); --nav-bg: rgba(255, 255, 255, 0.9); }
-[data-color-theme="aurora"] { --primary: #00e5ff; --page-bg: linear-gradient(135deg, #1a1025 0%, #120b2e 50%, #0d1b2a 100%); --bg: #120b2e; --card-bg: rgba(30, 41, 59, 0.65); --timer-bg: rgba(255,255,255,0.05); --text-main: #e2e8f0; --text-muted: #94a3b8; --border: rgba(0, 229, 255, 0.3); --nav-bg: rgba(15, 23, 42, 0.85); --danger: #be123c; }
-[data-color-theme="cyberpunk"] { --primary: #ff00ff; --page-bg: linear-gradient(45deg, #09090e 0%, #1f0b2e 50%, #0b1a30 100%); --bg: #09090e; --card-bg: rgba(20, 20, 30, 0.75); --timer-bg: rgba(255,0,255,0.08); --text-main: #00ffff; --text-muted: #a8a8b3; --border: rgba(255, 0, 255, 0.4); --nav-bg: rgba(10, 10, 15, 0.9); --danger: #e11d48; }
-[data-color-theme="beach"] { --primary: #ea580c; --page-bg: linear-gradient(to bottom, #7dd3fc 0%, #bae6fd 40%, #fde047 100%); --bg: #bae6fd; --card-bg: rgba(255, 255, 255, 0.7); --timer-bg: rgba(255,255,255,0.5); --border: rgba(255, 255, 255, 0.5); --nav-bg: rgba(255, 255, 255, 0.85); }
-[data-color-theme="clouds"] { --primary: #ec4899; --page-bg: linear-gradient(120deg, #fbcfe8 0%, #e0e7ff 100%); --bg: #e0e7ff; --card-bg: rgba(255, 255, 255, 0.65); --timer-bg: rgba(255,255,255,0.5); --border: rgba(236, 72, 153, 0.2); --nav-bg: rgba(255, 255, 255, 0.85); }
-[data-color-theme="forest"] { --primary: #059669; --page-bg: linear-gradient(135deg, #dcfce7 0%, #a7f3d0 50%, #86efac 100%); --bg: #a7f3d0; --card-bg: rgba(255, 255, 255, 0.65); --timer-bg: rgba(255,255,255,0.5); --text-main: #064e3b; --border: rgba(5, 150, 105, 0.2); --nav-bg: rgba(255, 255, 255, 0.85); }
+/* ================== 動態注入新功能 CSS ================== */
+function injectNewStyles() {
+    if (document.getElementById('injected-new-styles')) return;
+    const style = document.createElement('style');
+    style.id = 'injected-new-styles';
+    style.innerHTML = `
+        .swipe-edit { position: absolute; top: 0; left: -80px; bottom: 0; width: 80px; background: var(--primary); color: var(--btn-text); display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 1rem; cursor: pointer; z-index: 10; box-shadow: inset -2px 0 5px rgba(0,0,0,0.1); }
+        body:not(.map-enabled) #stats-list, 
+        body:not(.map-enabled) #tips-list, 
+        body:not(.map-enabled) #costs-list { padding-bottom: 80px; }
+        body:not(.map-enabled) .handle-bar-wrapper { display: none !important; }
+        body:not(.map-enabled) .panel-header { cursor: default !important; }
+        body:not(.map-enabled) #btn-menu { display: none !important; }
+        
+        body.map-enabled #map {
+            display: block !important;
+            width: 100vw !important;
+            height: 100vh !important;
+        }
 
-/* --- 特效層與材質 --- */
-.advanced-bg { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -2; pointer-events: none; transition: opacity 0.5s ease; }
-.btn, .btn-preset { position: relative; overflow: hidden; z-index: 1; }
-.btn::after, .btn-preset::after { content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 2; pointer-events: none; transition: opacity 0.3s; opacity: 0; }
+        body.map-enabled .bottom-nav { display: none !important; }
 
-[data-effect-theme="pattern-dots"] .advanced-bg { background-image: radial-gradient(var(--primary) 2px, transparent 2px), radial-gradient(var(--primary) 2px, transparent 2px); background-size: 30px 30px; background-position: 0 0, 15px 15px; opacity: 0.2; }
-[data-effect-theme="pattern-grid"] .advanced-bg { background-image: linear-gradient(var(--primary) 1px, transparent 1px), linear-gradient(90deg, var(--primary) 1px, transparent 1px); background-size: 25px 25px; opacity: 0.15; }
-[data-effect-theme="pattern-checker"] .advanced-bg { background-image: repeating-linear-gradient(45deg, var(--primary) 25%, transparent 25%, transparent 75%, var(--primary) 75%, var(--primary)), repeating-linear-gradient(45deg, var(--primary) 25%, transparent 25%, transparent 75%, var(--primary) 75%, var(--primary)); background-size: 40px 40px; background-position: 0 0, 20px 20px; opacity: 0.08; }
-[data-effect-theme="pattern-twill"] .advanced-bg { background-image: repeating-linear-gradient(-45deg, transparent, transparent 10px, var(--primary) 10px, var(--primary) 20px); opacity: 0.1; }
-[data-effect-theme="pattern-wave"] .advanced-bg { background-image: radial-gradient(circle at 100% 50%, transparent 20%, var(--primary) 21%, var(--primary) 34%, transparent 35%, transparent), radial-gradient(circle at 0% 50%, transparent 20%, var(--primary) 21%, var(--primary) 34%, transparent 35%, transparent); background-size: 50px 50px; background-position: 0 0, 25px 25px; opacity: 0.15; }
+        .side-menu-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); z-index: 2999; opacity: 0; visibility: hidden; transition: opacity 0.3s, visibility 0.3s; backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); }
+        .side-menu-overlay.active { opacity: 1; visibility: visible; }
+        
+        .side-menu { position: fixed; top: 0; left: -100%; width: 280px; max-width: 80vw; height: 100vh; background: var(--card-bg); z-index: 3000; box-shadow: 4px 0 15px rgba(0,0,0,0.1); transition: left 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); display: flex; flex-direction: column; backdrop-filter: var(--card-backdrop); -webkit-backdrop-filter: var(--card-backdrop); }
+        .side-menu.active { left: 0; }
+        
+        .side-menu-header { padding: 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+        .side-menu-header h2 { font-size: 1.2rem; color: var(--primary); margin: 0; font-weight: bold; }
+        
+        .side-menu-content { flex: 0 1 auto; overflow-y: auto; padding: 10px 0; -webkit-overflow-scrolling: touch; }
+        .side-nav-item { display: flex; align-items: center; padding: 14px 20px; color: var(--text-main); text-decoration: none; font-size: 1.05rem; cursor: pointer; transition: background 0.2s, color 0.2s; }
+        .side-nav-item:active { background: var(--timer-bg); }
+        .side-nav-item .nav-icon { margin-right: 16px; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; }
+        .side-nav-item.active { background: var(--timer-bg); color: var(--primary); font-weight: bold; border-left: 4px solid var(--primary); }
+        
+        .nav-svg { width: 20px; height: 20px; stroke: currentColor; transition: stroke 0.2s; }
+        .side-nav-item.active .nav-svg { stroke: var(--primary); }
 
-[data-effect-theme="texture-kraft"] .advanced-bg, [data-effect-theme="texture-kraft"] .btn::after, [data-effect-theme="texture-kraft"] .btn-preset::after { background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.04' numOctaves='5' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); opacity: 0.25; filter: contrast(180%) brightness(90%); }
-[data-effect-theme="texture-glass"] .advanced-bg, [data-effect-theme="texture-glass"] .btn::after, [data-effect-theme="texture-glass"] .btn-preset::after { background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.5' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); opacity: 0.25; filter: contrast(140%); }
-[data-effect-theme="texture-metal"] .advanced-bg, [data-effect-theme="texture-metal"] .btn::after, [data-effect-theme="texture-metal"] .btn-preset::after { background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.005 1.5' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); opacity: 0.35; filter: contrast(250%) brightness(110%); transform: scale(1.1); }
-[data-effect-theme="texture-denim"] .advanced-bg, [data-effect-theme="texture-denim"] .btn::after, [data-effect-theme="texture-denim"] .btn-preset::after { background-image: repeating-linear-gradient(45deg, rgba(0,0,0,0.05) 0, rgba(0,0,0,0.05) 2px, transparent 2px, transparent 4px), repeating-linear-gradient(-45deg, rgba(255,255,255,0.05) 0, rgba(255,255,255,0.05) 2px, transparent 2px, transparent 4px), url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); opacity: 0.35; filter: contrast(150%); }
-[data-effect-theme="texture-watercolor"] .advanced-bg, [data-effect-theme="texture-watercolor"] .btn::after, [data-effect-theme="texture-watercolor"] .btn-preset::after { background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.012' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); opacity: 0.15; filter: contrast(300%) brightness(120%); }
-[data-effect-theme="texture-stucco"] .advanced-bg, [data-effect-theme="texture-stucco"] .btn::after, [data-effect-theme="texture-stucco"] .btn-preset::after { background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.2' numOctaves='5' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); opacity: 0.18; filter: contrast(150%) brightness(85%); }
-[data-effect-theme="texture-carbon"] .advanced-bg, [data-effect-theme="texture-carbon"] .btn::after, [data-effect-theme="texture-carbon"] .btn-preset::after { background-image: linear-gradient(45deg, transparent 48%, rgba(0,0,0,0.15) 49%, rgba(0,0,0,0.15) 51%, transparent 52%), linear-gradient(-45deg, transparent 48%, rgba(0,0,0,0.15) 49%, rgba(0,0,0,0.15) 51%, transparent 52%); background-size: 16px 16px; opacity: 0.6; }
+        #side-menu-shift-section {
+            padding: 16px 20px;
+            margin-top: 5px;
+            border-top: 1px solid var(--border);
+            background: transparent;
+        }
 
-#dynamic-canvas { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -3; pointer-events: none; display: none; opacity: 0.8; }
+        body.map-enabled.on-home-view .header {
+            background: transparent !important;
+            box-shadow: none !important;
+            border-bottom: none !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+            pointer-events: none; 
+        }
+        body.map-enabled.on-home-view #btn-menu {
+            background: var(--card-bg) !important;
+            border-radius: 50% !important;
+            width: 44px !important;
+            height: 44px !important;
+            display: flex !important;
+            justify-content: center !important;
+            align-items: center !important;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+            pointer-events: auto !important;
+        }
+        body.map-enabled.on-home-view #btn-back { display: none !important; }
+        body.map-enabled.on-home-view #header-title-wrapper {
+            background: var(--card-bg) !important;
+            padding: 8px 20px !important;
+            border-radius: 20px !important;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+            pointer-events: auto !important;
+        }
+        body.map-enabled.on-home-view #btn-search { pointer-events: auto !important; }
+        body.map-enabled.on-home-view #shift-status-badge,
+        body.map-enabled.on-home-view #shift-status-badge-right { display: none !important; }
 
-/* --- 夜間模式 --- */
-body.night-mode {
-    --page-bg: #0f172a !important; --bg: #0f172a !important; --card-bg: rgba(30, 41, 59, 0.85) !important; 
-    --timer-bg: rgba(51, 65, 85, 0.85) !important; --text-main: #f8fafc !important; --text-muted: #94a3b8 !important;
-    --border: rgba(255,255,255,0.1) !important; --nav-bg: rgba(30, 41, 59, 0.95) !important; --card-backdrop: blur(12px) !important;
-    --success: #10b981 !important;
-    --card-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.6), 0 4px 10px -3px rgba(0, 0, 0, 0.4) !important;
-    --card-shadow-hover: 0 15px 35px -5px rgba(0, 0, 0, 0.8), 0 6px 15px -3px rgba(0, 0, 0, 0.5) !important;
-    --item-shadow: 0 4px 12px -3px rgba(0, 0, 0, 0.5), 0 2px 4px -2px rgba(0, 0, 0, 0.3) !important;
-    --card-glow: inset 0 1px 1px rgba(255, 255, 255, 0.05) !important;
+        .est-pill {
+            display: inline-block;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-left: 8px;
+            padding: 2px 8px;
+            border-radius: 6px;
+            letter-spacing: 0.3px;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        .est-pill.normal {
+            background-color: #eafaf1 !important;
+            color: #1e7e48 !important;
+        }
+        .est-pill.overtime {
+            background-color: #fbf0ea !important;
+            color: #8c4a27 !important;
+        }
+
+        /* 耳機按鈕：滿版地圖 → 右上角；未啟用 → 左上角 */
+        .header-side { width: 90px !important; flex-shrink: 0; }
+        .btn-headset {
+            position: relative; width: 40px; height: 40px; min-width: 40px;
+            display: flex; justify-content: center; align-items: center;
+            background: none; border: none; padding: 0; margin: 0;
+            color: var(--primary); cursor: pointer; pointer-events: auto;
+            -webkit-appearance: none; appearance: none; transition: transform 0.2s;
+        }
+        .btn-headset:active { transform: scale(0.9); }
+        .btn-headset svg { width: 24px; height: 24px; display: block; flex-shrink: 0; }
+        body.map-enabled .btn-headset-left { display: none !important; }
+        body:not(.map-enabled) .btn-headset-right { display: none !important; }
+        body.sub-view-open .btn-headset { display: none !important; }
+        body.map-enabled.on-home-view .btn-headset-right {
+            width: 44px !important; height: 44px !important;
+            background: var(--card-bg) !important; border-radius: 50% !important;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+        }
+
+        /* 設定分頁 */
+        .settings-tabs {
+            display: flex; gap: 6px; padding: 5px; margin-bottom: 16px;
+            background: var(--card-bg); border: 1px solid var(--border); border-radius: 14px;
+            box-shadow: var(--item-shadow);
+            backdrop-filter: var(--card-backdrop); -webkit-backdrop-filter: var(--card-backdrop);
+        }
+        .settings-tab {
+            flex: 1; min-width: 0; padding: 10px 4px; border: none; border-radius: 10px;
+            background: transparent; color: var(--text-muted); font-size: 0.95rem; font-weight: 600;
+            cursor: pointer; transition: background 0.2s, color 0.2s, box-shadow 0.2s; white-space: nowrap;
+        }
+        .settings-tab.active {
+            background: var(--primary); color: var(--btn-text);
+            box-shadow: 0 3px 8px -2px rgba(0,0,0,0.2), inset 0 1px 1px rgba(255,255,255,0.2);
+        }
+        .settings-panel { display: none; }
+        .settings-panel.active { display: block; animation: settingsFade 0.25s ease; }
+        @keyframes settingsFade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+        /* 字體大小調整桿 */
+        .fontsize-row { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
+        .fontsize-range { flex: 1; min-width: 0; height: 28px; accent-color: var(--primary); cursor: pointer; }
+        .fontsize-a { color: var(--text-muted); font-weight: bold; line-height: 1; flex-shrink: 0; }
+        .fontsize-a.small { font-size: 12px; }
+        .fontsize-a.large { font-size: 22px; }
+        .fontsize-meta { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; }
+        #font-size-val { font-weight: bold; color: var(--primary); font-size: 0.95rem; }
+        .fontsize-reset { background: none; border: none; color: var(--text-muted); font-size: 0.85rem; cursor: pointer; text-decoration: underline; padding: 4px; }
+        .fontsize-preview {
+            margin-top: 12px; padding: 10px 12px; background: var(--timer-bg);
+            border: 1px dashed var(--border); border-radius: 8px; color: var(--text-main); font-size: 1rem;
+        }
+
+        /* 倍率訂單：金額下方火焰圖示（置中於金額下方） */
+        .record-amount { display: inline-flex; flex-direction: column; align-items: center; }
+        .record-amount .amount-flame {
+            display: flex; justify-content: center; margin-top: 4px;
+            color: #e0612b;
+        }
+        .record-amount .amount-flame svg { display: block; width: 26px; height: 26px; }
+        body.night-mode .amount-flame { color: #fb923c !important; }
+    `;
+    document.head.appendChild(style);
+}
+
+/* ================== 自訂對話框引擎 (含節點物理銷毀技術) ================== */
+let currentDialogResolve = null;
+function showCustomDialog({ type, title, message, defaultValue = '', confirmText = '確認', cancelText = '取消', isDanger = false }) {
+    return new Promise((resolve) => {
+        currentDialogResolve = resolve;
+        const modal = document.getElementById('custom-dialog-modal');
+        const titleEl = document.getElementById('custom-dialog-title');
+        const msgEl = document.getElementById('custom-dialog-msg');
+        const inputGroup = document.getElementById('custom-dialog-input-group');
+        let inputEl = document.getElementById('custom-dialog-input');
+        const btnsEl = document.getElementById('custom-dialog-btns');
+
+        titleEl.innerText = title;
+        msgEl.innerHTML = message.replace(/\n/g, '<br>');
+        btnsEl.innerHTML = '';
+
+        if (type === 'prompt') {
+            inputGroup.style.display = 'block';
+            inputEl.disabled = false;
+            inputEl.readOnly = false;
+            inputEl.value = defaultValue;
+        } else {
+            inputGroup.style.display = 'none';
+        }
+
+        const handleClose = (value) => {
+            // ★ 終極修復核心：以全新元素物理替換，強制銷毀 iOS WebKit Undo Stack
+            if (inputEl) {
+                inputEl.blur();
+                inputEl.disabled = true;
+                inputEl.readOnly = true;
+
+                const freshInput = document.createElement('input');
+                freshInput.type = 'text';
+                freshInput.id = 'custom-dialog-input';
+                freshInput.className = 'form-control';
+                freshInput.style.textAlign = 'center';
+                freshInput.autocomplete = 'off';
+                freshInput.autocorrect = 'off';
+                freshInput.autocapitalize = 'off';
+                freshInput.spellcheck = false;
+                freshInput.disabled = true;
+                freshInput.readOnly = true;
+
+                if (inputEl.parentNode) {
+                    inputEl.parentNode.replaceChild(freshInput, inputEl);
+                }
+            }
+
+            if (document.activeElement && typeof document.activeElement.blur === 'function') {
+                document.activeElement.blur();
+            }
+
+            closeModal('custom-dialog-modal');
+            currentDialogResolve = null;
+            resolve(value);
+        };
+
+        if (type === 'confirm' || type === 'prompt') {
+            const cancelBtn = document.createElement('button');
+            cancelBtn.className = 'btn btn-outline';
+            cancelBtn.innerText = cancelText;
+            cancelBtn.onclick = () => handleClose(null);
+            cancelBtn.style.flex = '1';
+            btnsEl.appendChild(cancelBtn);
+        }
+
+        const confirmBtn = document.createElement('button');
+        confirmBtn.className = 'btn';
+        confirmBtn.innerText = confirmText;
+        if (isDanger) {
+            confirmBtn.style.backgroundColor = 'var(--danger)';
+            confirmBtn.style.borderColor = 'var(--danger)';
+            confirmBtn.style.color = 'var(--danger-text)';
+        }
+        confirmBtn.onclick = () => {
+            if (type === 'prompt') {
+                const currentVal = document.getElementById('custom-dialog-input') ? document.getElementById('custom-dialog-input').value : '';
+                handleClose(currentVal);
+            } else {
+                handleClose(true);
+            }
+        };
+        confirmBtn.style.flex = '1';
+        btnsEl.appendChild(confirmBtn);
+
+        modal.classList.add('active');
+
+        if (type === 'prompt') {
+            const activeInput = document.getElementById('custom-dialog-input');
+            activeInput.focus();
+            setTimeout(() => {
+                activeInput.focus();
+                activeInput.setSelectionRange(activeInput.value.length, activeInput.value.length);
+            }, 50);
+        }
+    });
+}
+
+async function appAlert(message, title = '提示') { return await showCustomDialog({ type: 'alert', title, message }); }
+async function appConfirm(message, title = '請確認', isDanger = false) { return await showCustomDialog({ type: 'confirm', title, message, isDanger }); }
+async function appPrompt(message, defaultValue = '', title = '請輸入') { return await showCustomDialog({ type: 'prompt', title, message, defaultValue }); }
+
+/* ================== 載入初始化 ================== */
+function loadSettingsForCurrentUser() {
+    let saved = localStorage.getItem(getStoreKey('order_settings'));
+    if (saved) { settings = JSON.parse(saved); } 
+    else {
+        let globalSaved = localStorage.getItem('order_settings');
+        if (globalSaved) { settings = JSON.parse(globalSaved); if(settings.theme && !settings.colorTheme) { settings.colorTheme = settings.theme; settings.effectTheme = 'none'; delete settings.theme; } } 
+        else { settings = { colorTheme: 'pink', effectTheme: 'none', fontSize: '16px', customPrimary: '#ff7597', autoNightMode: false }; }
+    }
+    if(settings.matrixText1 === undefined) settings.matrixText1 = '01'; if(settings.matrixText2 === undefined) settings.matrixText2 = ''; if(settings.matrixText3 === undefined) settings.matrixText3 = '';
+    if(settings.customCardEnable === undefined) settings.customCardEnable = false; if(settings.customCardBg === undefined) settings.customCardBg = '#ffffff'; if(settings.customCardOpacity === undefined) settings.customCardOpacity = 85;
+    if(settings.enableMap === undefined) settings.enableMap = true; 
+    if(settings.confirmDelivery === undefined) settings.confirmDelivery = false;
+    if(settings.payMultiplier === undefined) settings.payMultiplier = 1.00;
+}
+
+window.onload = function() {
+    injectNewStyles();
+    restoreSettingsTab();
+    document.querySelectorAll('.headset-badge').forEach(el => el.remove()); // 移除舊版殘留的倍率標籤
+    if (currentUser === '新使用者' && !localStorage.getItem(getStoreKey('order_history_records')) && localStorage.getItem('order_history_records')) {
+        ['order_active_timers', 'order_history_records', 'order_tips', 'order_costs'].forEach(k => { localStorage.setItem(getStoreKey(k), localStorage.getItem(k) || '[]'); });
+    }
+    initWeeklyView(); 
+    loadSettingsForCurrentUser(); 
+    loadData(); 
+    
+    initMap();
+    initBottomPanel();
+
+    applySettings(); 
+    updateUIState();
+    
+    setInterval(updateTimersDisplay, 1000); 
+    setInterval(applyNightMode, 60000);
+    toggleMileageInput(); 
+    initSwipeNavigation(); 
+    switchView(0, true);
+
+    checkChangelogNotice();
+};
+
+/* ================== 地圖、即時路況與面板邏輯 ================== */
+let trafficLayer = null;
+let isFetchingTraffic = false;
+
+function initMap() {
+    if (typeof L === 'undefined') { console.warn('無法載入地圖資源'); return; }
+    if (mapInstance) return;
+    
+    mapInstance = L.map('map', {zoomControl: false, attributionControl: false}).setView(currentLoc, 15);
+    currentTileLayer = L.tileLayer(MAP_TILE, { maxZoom: 19 }).addTo(mapInstance);
+    
+    trafficLayer = L.layerGroup().addTo(mapInstance);
+    
+    const blueDotIcon = L.divIcon({
+        className: 'custom-blue-dot',
+        html: `<div id="map-dir-marker" style="width: 18px; height: 18px; background-color: #007aff; border: 2.5px solid white; border-radius: 50%; box-shadow: 0 2px 6px rgba(0,0,0,0.4); position: relative; transition: transform 0.2s ease-out; display: flex; justify-content: center; align-items: center;">
+                  <div style="position: absolute; bottom: 50%; left: 50%; transform: translateX(-50%); width: 220px; height: 100px; background: radial-gradient(circle at bottom center, rgba(0, 122, 255, 0.4) 0%, rgba(0, 122, 255, 0) 70%); clip-path: polygon(50% 100%, 0% 0%, 100% 0%); transform-origin: bottom center;"></div>
+               </div>`,
+        iconSize: [18, 18],
+        iconAnchor: [9, 9]
+    });
+    userMarker = L.marker(currentLoc, {icon: blueDotIcon}).addTo(mapInstance);
+        
+    if ("geolocation" in navigator) {
+        geoWatchId = navigator.geolocation.watchPosition(
+            (position) => {
+                currentLoc = [position.coords.latitude, position.coords.longitude];
+                if (userMarker) {
+                    userMarker.setLatLng(currentLoc);
+                    if (position.coords.heading !== null && !isNaN(position.coords.heading)) {
+                        const markerDiv = document.getElementById('map-dir-marker');
+                        if (markerDiv) markerDiv.style.transform = `rotate(${position.coords.heading}deg)`;
+                    }
+                }
+                if (!hasCenteredMapInit) {
+                    recenterMap(true); 
+                    hasCenteredMapInit = true;
+                } else if (mapInstance) {
+                    const bounds = mapInstance.getBounds();
+                    if (!bounds.contains(currentLoc)) recenterMap();
+                }
+            },
+            (error) => { console.warn("定位獲取失敗: ", error); },
+            { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+        );
+    }
+
+    mapInstance.on('moveend', () => {
+        clearTimeout(window.trafficTimer);
+        window.trafficTimer = setTimeout(loadFakeTraffic, 800);
+    });
+    setTimeout(loadFakeTraffic, 1000);
+    
+    setTimeout(() => { if (mapInstance) mapInstance.invalidateSize(); }, 500);
+}
+
+function loadFakeTraffic() {
+    if (!document.body.classList.contains('map-enabled') || !mapInstance) return;
+    if (mapInstance.getZoom() < 13) {
+        trafficLayer.clearLayers();
+        return;
+    }
+    if (isFetchingTraffic) return;
+    isFetchingTraffic = true;
+    
+    const bounds = mapInstance.getBounds();
+    const s = bounds.getSouth() - 0.01;
+    const n = bounds.getNorth() + 0.01;
+    const w = bounds.getWest() - 0.01;
+    const e = bounds.getEast() + 0.01;
+    
+    const query = `[out:json][timeout:5];(way["highway"~"primary|secondary"](${s},${w},${n},${e}););out geom;`;
+    
+    fetch('https://overpass-api.de/api/interpreter', {
+        method: 'POST',
+        body: query
+    }).then(res => res.json()).then(data => {
+        trafficLayer.clearLayers();
+        data.elements.forEach(el => {
+            if (el.type === 'way' && el.geometry) {
+                const latlngs = el.geometry.map(g => [g.lat, g.lon]);
+                const rand = Math.random();
+                let color = '#22c55e';
+                if (rand > 0.8) color = '#eab308';
+                if (rand > 0.95) color = '#ef4444';
+                
+                L.polyline(latlngs, {
+                    color: color,
+                    weight: 6,
+                    opacity: 0.9,
+                    lineCap: 'round',
+                    lineJoin: 'round',
+                    className: 'fake-traffic-line-bg'
+                }).addTo(trafficLayer);
+
+                L.polyline(latlngs, {
+                    color: '#ffffff', 
+                    weight: 2,
+                    opacity: 1,
+                    lineCap: 'round',
+                    lineJoin: 'round',
+                    className: 'fake-traffic-line-fg'
+                }).addTo(trafficLayer);
+            }
+        });
+        isFetchingTraffic = false;
+    }).catch(() => {
+        isFetchingTraffic = false; 
+    });
+}
+
+function recenterMap(instant = false) {
+    if (mapInstance && currentLoc) {
+        const zoom = mapInstance.getZoom() || 15;
+        const targetPoint = mapInstance.project(currentLoc, zoom);
+        targetPoint.y += (window.innerHeight / 4); 
+        const targetLatLng = mapInstance.unproject(targetPoint, zoom);
+        
+        if (instant) {
+            mapInstance.setView(targetLatLng, zoom, { animate: false });
+        } else {
+            mapInstance.setView(targetLatLng, zoom, { animate: true, duration: 0.25 });
+        }
+    }
+}
+
+function initBottomPanel() {
+    const panel = document.getElementById('bottom-panel');
+    const header = document.getElementById('panel-drag-handle');
+    const content = document.getElementById('panel-scroll-content');
+    if (!panel || !header || !content) return;
+
+    let isDraggingPanel = false, isContentDragging = false, startY = 0, contentStartY = 0, initialTranslateY = 0, snapPoints = [], hasMoved = false;
+
+    function updatePanelDimensions() {
+        let viewH = window.innerHeight;
+        snapPoints = [
+            70,             // 最高
+            viewH * 0.5,    // 中間
+            viewH - 160     // 最低
+        ];
+    }
+
+    function getTranslateY() {
+        const match = panel.style.transform.match(/translateY\(([-\d.]+)px\)/);
+        return match ? parseFloat(match[1]) : snapPoints[1];
+    }
+
+    header.addEventListener('touchstart', (e) => {
+        if (!document.body.classList.contains('map-enabled')) return;
+        isDraggingPanel = true; hasMoved = false;
+        updatePanelDimensions(); 
+        startY = e.touches[0].clientY;
+        initialTranslateY = getTranslateY();
+        panel.classList.add('dragging');
+    }, {passive: true});
+
+    content.addEventListener('touchstart', (e) => {
+        if (!document.body.classList.contains('map-enabled')) return;
+        contentStartY = e.touches[0].clientY;
+        updatePanelDimensions();
+        initialTranslateY = getTranslateY();
+        isContentDragging = false;
+    }, {passive: true});
+
+    document.addEventListener('touchmove', (e) => {
+        if (!document.body.classList.contains('map-enabled')) return;
+        const currentY = e.touches[0].clientY;
+
+        if (isDraggingPanel) {
+            const deltaY = currentY - startY;
+            if (Math.abs(deltaY) > 5) hasMoved = true;
+            if (e.cancelable) e.preventDefault(); 
+            let newY = initialTranslateY + deltaY;
+            if (newY < snapPoints[0]) newY = snapPoints[0] - (snapPoints[0] - newY) * 0.2; 
+            if (newY > snapPoints[2]) newY = snapPoints[2] + (newY - snapPoints[2]) * 0.2;
+            panel.style.transform = `translateY(${newY}px)`;
+        } 
+        else if (e.target.closest('#panel-scroll-content')) {
+            const deltaY = currentY - contentStartY;
+            const isScrollingUp = deltaY > 0;
+            const isScrollingDown = deltaY < 0; 
+            
+            let shouldDrag = false;
+            if (isScrollingDown && initialTranslateY > snapPoints[0] + 5) {
+                shouldDrag = true;
+            } else if (isScrollingUp && content.scrollTop <= 0) {
+                shouldDrag = true;
+            }
+            
+            if (shouldDrag) {
+                if (e.cancelable) e.preventDefault(); 
+                
+                if (!isContentDragging) {
+                    isContentDragging = true;
+                    hasMoved = false;
+                    startY = currentY;
+                    initialTranslateY = getTranslateY();
+                    panel.classList.add('dragging');
+                }
+                
+                const dragDelta = currentY - startY;
+                if (Math.abs(dragDelta) > 5) hasMoved = true;
+                
+                let newY = initialTranslateY + dragDelta;
+                if (newY < snapPoints[0]) newY = snapPoints[0] - (snapPoints[0] - newY) * 0.2; 
+                if (newY > snapPoints[2]) newY = snapPoints[2] + (newY - snapPoints[2]) * 0.2;
+                panel.style.transform = `translateY(${newY}px)`;
+            } else if (isContentDragging) {
+                if (e.cancelable) e.preventDefault(); 
+            }
+        }
+    }, {passive: false});
+
+    function handlePanelEndOrCancel() {
+        if (!isDraggingPanel && !isContentDragging) return;
+        const wasDragging = isDraggingPanel || isContentDragging;
+        isDraggingPanel = false;
+        isContentDragging = false;
+        panel.classList.remove('dragging');
+
+        if (!wasDragging || !document.body.classList.contains('map-enabled')) return;
+
+        let endY = getTranslateY();
+        let closest = snapPoints[0];
+        
+        if (!hasMoved) {
+            closest = initialTranslateY;
+        } else {
+            let minDiff = Math.abs(endY - snapPoints[0]);
+            for(let i=1; i<snapPoints.length; i++) {
+                let diff = Math.abs(endY - snapPoints[i]);
+                if(diff < minDiff) { minDiff = diff; closest = snapPoints[i]; }
+            }
+        }
+        
+        panel.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)';
+        panel.style.transform = `translateY(${closest}px)`;
+        
+        const contentEl = document.getElementById('panel-scroll-content');
+        if (contentEl) contentEl.style.paddingBottom = `${closest + 40}px`;
+        
+        if (mapInstance) setTimeout(() => mapInstance.invalidateSize(), 300);
+    }
+
+    document.addEventListener('touchend', handlePanelEndOrCancel);
+    document.addEventListener('touchcancel', handlePanelEndOrCancel); 
+
+    setTimeout(() => {
+        updatePanelDimensions();
+        if(document.body.classList.contains('map-enabled') && (!panel.style.transform || panel.style.transform === 'none')) {
+            let initY = snapPoints[1];
+            panel.style.transform = `translateY(${initY}px)`;
+            const contentEl = document.getElementById('panel-scroll-content');
+            if (contentEl) contentEl.style.paddingBottom = `${initY + 40}px`;
+        }
+    }, 300);
+    window.addEventListener('resize', updatePanelDimensions);
+}
+
+function getLuminance(r, g, b) { return (0.299 * r + 0.587 * g + 0.114 * b) / 255; }
+function hexToRgb(hex) { hex = hex.replace('#', ''); if (hex.length === 3) hex = hex.split('').map(c => c + c).join(''); const num = parseInt(hex, 16); return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 }; }
+
+function applySettings() {
+    document.documentElement.style.cssText = ''; document.body.style.removeProperty('--card-bg'); document.body.style.removeProperty('--timer-bg'); document.documentElement.style.fontSize = settings.fontSize; syncFontSizeUI();
+    document.getElementById('auto-night-toggle').checked = settings.autoNightMode || false; document.getElementById('color-theme-select').value = settings.colorTheme; document.getElementById('effect-theme-select').value = settings.effectTheme;
+    document.getElementById('custom-matrix-text-1').value = settings.matrixText1 || ''; document.getElementById('custom-matrix-text-2').value = settings.matrixText2 || ''; document.getElementById('custom-matrix-text-3').value = settings.matrixText3 || '';
+    document.getElementById('custom-matrix-input-group').style.display = (settings.effectTheme === 'canvas-matrix-custom') ? 'block' : 'none';
+    document.getElementById('custom-card-toggle').checked = settings.customCardEnable; document.getElementById('custom-card-panel').style.display = settings.customCardEnable ? 'block' : 'none';
+    document.getElementById('picker-card-bg').value = settings.customCardBg; document.getElementById('picker-card-opacity').value = settings.customCardOpacity; document.getElementById('card-opacity-val').innerText = settings.customCardOpacity;
+    
+    document.getElementById('setting-map-toggle').checked = settings.enableMap !== false;
+    document.getElementById('setting-confirm-delivery').checked = settings.confirmDelivery || false;
+
+    if (settings.colorTheme === 'custom') {
+        document.body.setAttribute('data-color-theme', 'custom');
+        const pColor = settings.customPrimary || '#ff7597', rgb = hexToRgb(pColor), lum = getLuminance(rgb.r, rgb.g, rgb.b), btnText = lum > 0.6 ? '#000000' : '#ffffff', autoBg = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.05)`;
+        document.documentElement.style.setProperty('--primary', pColor); document.documentElement.style.setProperty('--primary-hover', pColor); document.documentElement.style.setProperty('--btn-text', btnText); document.documentElement.style.setProperty('--page-bg', autoBg); document.documentElement.style.setProperty('--bg', autoBg); document.documentElement.style.setProperty('--border', `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.3)`); document.documentElement.style.setProperty('--card-bg', '#ffffff'); document.documentElement.style.setProperty('--timer-bg', '#f8fafc'); document.documentElement.style.setProperty('--danger', `rgba(${Math.max(0, rgb.r-60)}, ${Math.max(0, rgb.g-60)}, ${Math.max(0, rgb.b-60)}, 1)`);
+        document.getElementById('custom-theme-panel').style.display = 'block'; document.getElementById('picker-primary').value = pColor;
+    } else { document.body.setAttribute('data-color-theme', settings.colorTheme); document.getElementById('custom-theme-panel').style.display = 'none'; }
+
+    document.body.setAttribute('data-effect-theme', settings.effectTheme);
+    if (settings.effectTheme.startsWith('canvas-')) setTimeout(() => startCanvasEngine(settings.effectTheme), 50); else stopCanvasEngine();
+    document.querySelectorAll('.btn, .btn-preset').forEach(btn => btn.style.setProperty('--btn-texture-opacity', settings.effectTheme.startsWith('texture-') ? '0.4' : '0'));
+    
+    if (settings.customCardEnable) {
+        const cardRgb = hexToRgb(settings.customCardBg || '#ffffff'), op = (settings.customCardOpacity !== undefined ? settings.customCardOpacity : 85) / 100, opTimer = Math.max(0, op - 0.15); 
+        document.body.style.setProperty('--card-bg', `rgba(${cardRgb.r}, ${cardRgb.g}, ${cardRgb.b}, ${op})`, 'important'); document.body.style.setProperty('--timer-bg', `rgba(${cardRgb.r}, ${cardRgb.g}, ${cardRgb.b}, ${opTimer})`, 'important');
+    }
+    
+    if (settings.enableMap !== false) {
+        document.body.classList.add('map-enabled');
+        const sideShift = document.getElementById('side-menu-shift-section');
+        if (sideShift) sideShift.style.display = 'block';
+        const bottomShift = document.getElementById('bottom-panel-shift-card');
+        if (bottomShift) bottomShift.style.display = 'none';
+
+        if (mapInstance) { 
+            setTimeout(() => mapInstance.invalidateSize(), 300); 
+            const panel = document.getElementById('bottom-panel');
+            if (panel && (!panel.style.transform || panel.style.transform === 'none')) {
+                const snapMiddle = window.innerHeight * 0.5;
+                panel.style.transform = `translateY(${snapMiddle}px)`;
+            }
+        }
+    } else {
+        document.body.classList.remove('map-enabled');
+        const sideShift = document.getElementById('side-menu-shift-section');
+        if (sideShift) sideShift.style.display = 'none';
+        const bottomShift = document.getElementById('bottom-panel-shift-card');
+        if (bottomShift) bottomShift.style.display = 'block';
+
+        const panel = document.getElementById('bottom-panel');
+        if (panel) panel.style.transform = 'none';
+    }
+    applyNightMode();
+}
+
+function changeTheme() { settings.colorTheme = document.getElementById('color-theme-select').value; settings.effectTheme = document.getElementById('effect-theme-select').value; saveSettings(); applySettings(); }
+function applyPremiumPreset(colorTheme, effectTheme) { settings.colorTheme = colorTheme; settings.effectTheme = effectTheme; settings.customCardEnable = false; saveSettings(); applySettings(); window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }); }
+function applyCustomPalette() { settings.colorTheme = 'custom'; settings.customPrimary = document.getElementById('picker-primary').value; saveSettings(); applySettings(); }
+function saveMatrixText() { settings.matrixText1 = document.getElementById('custom-matrix-text-1').value; settings.matrixText2 = document.getElementById('custom-matrix-text-2').value; settings.matrixText3 = document.getElementById('custom-matrix-text-3').value; saveSettings(); applySettings(); }
+function toggleCustomCard() { settings.customCardEnable = document.getElementById('custom-card-toggle').checked; saveSettings(); applySettings(); }
+function updateCustomCard() { settings.customCardBg = document.getElementById('picker-card-bg').value; settings.customCardOpacity = document.getElementById('picker-card-opacity').value; document.getElementById('card-opacity-val').innerText = settings.customCardOpacity; saveSettings(); applySettings(); }
+function setFontSize(size) { settings.fontSize = size; saveSettings(); applySettings(); }
+
+/* ================== 設定分頁與字體調整桿 ================== */
+const FONT_SIZE_MIN = 12, FONT_SIZE_MAX = 22, FONT_SIZE_DEFAULT = 16;
+
+function onFontSizeSlide(val, commit = false) {
+    let px = Math.round(parseFloat(val));
+    if (isNaN(px)) px = FONT_SIZE_DEFAULT;
+    px = Math.min(FONT_SIZE_MAX, Math.max(FONT_SIZE_MIN, px));
+    settings.fontSize = px + 'px';
+    document.documentElement.style.fontSize = settings.fontSize; // 拖曳時即時預覽
+    syncFontSizeUI();
+    if (commit) saveSettings();
+}
+
+function syncFontSizeUI() {
+    const px = parseInt(settings.fontSize, 10) || FONT_SIZE_DEFAULT;
+    const range = document.getElementById('font-size-range');
+    const label = document.getElementById('font-size-val');
+    if (range) range.value = px;
+    if (label) label.innerText = px === FONT_SIZE_DEFAULT ? `${px}px（預設）` : `${px}px`;
+}
+
+function switchSettingsTab(name) {
+    document.querySelectorAll('.settings-tab').forEach(t => t.classList.toggle('active', t.dataset.settingsTab === name));
+    document.querySelectorAll('.settings-panel').forEach(p => p.classList.toggle('active', p.dataset.settingsPanel === name));
+    const view = document.getElementById('view-settings');
+    if (view) view.scrollTop = 0;
+    try { localStorage.setItem('settings_last_tab', name); } catch (e) {}
+}
+
+function restoreSettingsTab() {
+    let name = 'general';
+    try { name = localStorage.getItem('settings_last_tab') || 'general'; } catch (e) {}
+    if (!document.querySelector(`.settings-tab[data-settings-tab="${name}"]`)) name = 'general';
+    switchSettingsTab(name);
+}
+function saveSettings() { localStorage.setItem(getStoreKey('order_settings'), JSON.stringify(settings)); }
+function applyNightMode() { 
+    const hour = new Date().getHours(); 
+    const isNight = settings.autoNightMode && (hour >= 18 || hour < 6);
+    if (isNight) document.body.classList.add('night-mode'); 
+    else document.body.classList.remove('night-mode'); 
+}
+function toggleAutoNight() { settings.autoNightMode = document.getElementById('auto-night-toggle').checked; saveSettings(); applyNightMode(); }
+function toggleMapSetting() { 
+    settings.enableMap = document.getElementById('setting-map-toggle').checked; 
+    saveSettings(); 
+    applySettings(); 
+    updateUIState(); 
+    updateShiftUI(); 
+}
+function toggleConfirmDelivery() { settings.confirmDelivery = document.getElementById('setting-confirm-delivery').checked; saveSettings(); applySettings(); }
+
+/* ================== UI 摺疊互動 ================== */
+function toggleCollapse(header) {
+    header.classList.toggle('collapsed');
+    const wrap = header.nextElementSibling;
+    if(wrap && wrap.classList.contains('collapsible-wrap')) wrap.classList.toggle('collapsed');
+}
+
+/* ================== 單號專用 Modal (含節點物理銷毀技術) ================== */
+let pendingOrderAction = null;
+function openOrderNumberModal(title, defaultValue, callback) {
+    document.getElementById('order-modal-title').innerText = title;
+    let input = document.getElementById('order-number-input');
+    input.disabled = false;
+    input.readOnly = false;
+    input.value = defaultValue;
+    pendingOrderAction = callback;
+    document.getElementById('order-number-modal').classList.add('active');
+    input.focus();
+    setTimeout(() => { input.focus(); input.setSelectionRange(input.value.length, input.value.length); }, 50);
+    input.onkeypress = function(e) { if (e.key === 'Enter') confirmOrderNumber(); };
+}
+
+function confirmOrderNumber() {
+    let input = document.getElementById('order-number-input');
+    const val = input ? input.value.trim() : '';
+
+    if (input) {
+        input.blur();
+        input.disabled = true;
+        input.readOnly = true;
+
+        const freshInput = document.createElement('input');
+        freshInput.type = 'text';
+        freshInput.id = 'order-number-input';
+        freshInput.className = 'form-control';
+        freshInput.placeholder = '輸入單號 (例: 01, A3)';
+        freshInput.style.fontSize = '1.2rem';
+        freshInput.style.textAlign = 'center';
+        freshInput.autocomplete = 'off';
+        freshInput.autocorrect = 'off';
+        freshInput.autocapitalize = 'off';
+        freshInput.spellcheck = false;
+        freshInput.disabled = true;
+        freshInput.readOnly = true;
+        freshInput.oninput = function() { this.value = this.value.replace(/[^a-zA-Z0-9]/g, ''); };
+
+        if (input.parentNode) {
+            input.parentNode.replaceChild(freshInput, input);
+        }
+    }
+
+    if (document.activeElement && typeof document.activeElement.blur === 'function') {
+        document.activeElement.blur();
+    }
+
+    if (val !== '') { 
+        closeModal('order-number-modal'); 
+        if (pendingOrderAction) { 
+            pendingOrderAction(val); 
+            pendingOrderAction = null; 
+        } 
+    }
+}
+
+/* ================== 每週油耗與圖表 ================== */
+function calculateWeeklyFuel(startTs, endTs) {
+    const allFuel = costRecords.filter(r => r.type === '加油' && r.mileage && Number(r.mileage) > 0).sort((a,b) => a.timestamp - b.timestamp);
+    const weeklyFuel = allFuel.filter(r => r.timestamp >= startTs && r.timestamp <= endTs);
+    if (weeklyFuel.length === 0) return null;
+    const maxRecord = weeklyFuel[weeklyFuel.length - 1], firstThisWeek = weeklyFuel[0], prevRecords = allFuel.filter(r => r.timestamp < firstThisWeek.timestamp), prevRecord = prevRecords.length > 0 ? prevRecords[prevRecords.length - 1] : null;
+    let distance = 0, fuelMoney = 0;
+    if (prevRecord) { distance = maxRecord.mileage - prevRecord.mileage; fuelMoney = weeklyFuel.reduce((sum, r) => sum + r.amount, 0); } else if (weeklyFuel.length > 1) { distance = maxRecord.mileage - firstThisWeek.mileage; fuelMoney = weeklyFuel.slice(1).reduce((sum, r) => sum + r.amount, 0); } else return null;
+    if (distance <= 0 || fuelMoney <= 0) return null; return { distance, fuelMoney, kmPerCost: (distance / fuelMoney).toFixed(2) };
+}
+
+function initWeeklyView() { const now = new Date(), day = now.getDay() || 7; now.setHours(0, 0, 0, 0); viewedWeekStart = new Date(now); viewedWeekStart.setDate(now.getDate() - day + 1); }
+function prevWeek() { const sInput = document.getElementById('cost-search-input'); if(sInput) sInput.value = ''; viewedWeekStart.setDate(viewedWeekStart.getDate() - 7); renderWeeklyData(); }
+function nextWeek() { const sInput = document.getElementById('cost-search-input'); if(sInput) sInput.value = ''; viewedWeekStart.setDate(viewedWeekStart.getDate() + 7); renderWeeklyData(); }
+function getWeekNumber(d) { const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())); date.setUTCDate(date.getUTCDate() + 4 - (date.getUTCDay()||7)); return Math.ceil(( ( (date - new Date(Date.UTC(date.getUTCFullYear(),0,1))) / 86400000) + 1)/7); }
+
+function renderWeeklyChart(containerId, records, type) {
+    const container = document.getElementById(containerId); if (!container) return;
+    let dailyTotals = [0, 0, 0, 0, 0, 0, 0], dayLabels = ['一', '二', '三', '四', '五', '六', '日'];
+    records.forEach(r => { let dayIdx = new Date(r.timestamp).getDay() - 1; if (dayIdx === -1) dayIdx = 6; dailyTotals[dayIdx] += r.amount; });
+    const maxAmt = Math.max(...dailyTotals, 1); let html = '';
+    for (let i = 0; i < 7; i++) { let heightPct = Math.max((dailyTotals[i] / maxAmt) * 100, dailyTotals[i] > 0 ? 5 : 0); html += `<div class="chart-bar-wrap"><div class="chart-val">${dailyTotals[i] > 0 ? fmtNum(dailyTotals[i]) : ''}</div><div class="chart-bar ${type}" style="height: ${heightPct}%;"></div><div class="chart-label">${dayLabels[i]}</div></div>`; }
+    container.innerHTML = html;
+}
+
+function filterCostRecords() {
+    const keyword = document.getElementById('cost-search-input').value.trim().toLowerCase(); if (!keyword) { renderWeeklyData(); return; }
+    const filtered = costRecords.filter(r => (r.type && r.type.toLowerCase().includes(keyword)) || (r.memo && r.memo.toLowerCase().includes(keyword)) || (r.mileage && String(r.mileage).includes(keyword)) );
+    document.getElementById('weekly-date-range-costs').innerText = '搜尋結果'; document.getElementById('weekly-week-number-costs').innerText = `關鍵字: ${keyword}`; document.getElementById('weekly-total-amount-costs').innerText = fmtMoney(filtered.reduce((s,r)=>s+r.amount, 0));
+    document.getElementById('weekly-fuel-consumption').style.display = 'none'; document.getElementById('weekly-chart-costs').innerHTML = ''; renderCosts(filtered, 'costs-list');
+}
+
+function renderWeeklyData() {
+    const startStr = `${viewedWeekStart.getMonth() + 1}月${viewedWeekStart.getDate()}日週${['日','一','二','三','四','五','六'][viewedWeekStart.getDay()]}`;
+    const end = new Date(viewedWeekStart); end.setDate(end.getDate() + 6); end.setHours(23, 59, 59, 999);
+    const endStr = `${end.getMonth() + 1}月${end.getDate()}日週${['日','一','二','三','四','五','六'][end.getDay()]}`;
+    const rangeText = `${startStr} - ${endStr}`, weekText = `第${getWeekNumber(viewedWeekStart)}週 ${viewedWeekStart.getFullYear()}`;
+
+    ['', '-tips', '-costs'].forEach(suffix => {
+        if (document.getElementById('weekly-date-range' + suffix)) document.getElementById('weekly-date-range' + suffix).innerText = rangeText;
+        if (document.getElementById('weekly-week-number' + suffix)) document.getElementById('weekly-week-number' + suffix).innerText = weekText;
+    });
+
+    const startTs = viewedWeekStart.getTime(), endTs = end.getTime();
+    const weeklyRecords = historyRecords.filter(r => r.timestamp >= startTs && r.timestamp <= endTs && (r.status || 'completed') === 'completed');
+    document.getElementById('weekly-total-amount').innerText = fmtMoney(weeklyRecords.reduce((sum, r) => sum + r.amount, 0));
+    document.getElementById('weekly-online-hours').innerText = `上線時數: ${formatMins(shiftRecords.filter(r => r.timestamp >= startTs && r.timestamp <= endTs).reduce((s, r) => s + r.durationMins, 0))}`;
+    renderStats(weeklyRecords, 'stats-list'); renderWeeklyChart('weekly-chart-income', weeklyRecords, 'income');
+
+    const weeklyTips = tipRecords.filter(r => r.timestamp >= startTs && r.timestamp <= endTs);
+    document.getElementById('weekly-total-amount-tips').innerText = fmtMoney(weeklyTips.reduce((sum, r) => sum + r.amount, 0));
+    renderTips(weeklyTips, 'tips-list'); renderWeeklyChart('weekly-chart-tips', weeklyTips, 'tip');
+
+    const weeklyCosts = costRecords.filter(r => r.timestamp >= startTs && r.timestamp <= endTs);
+    document.getElementById('weekly-total-amount-costs').innerText = fmtMoney(weeklyCosts.reduce((sum, r) => sum + r.amount, 0));
+    const fuelInfo = calculateWeeklyFuel(startTs, endTs);
+    document.getElementById('weekly-fuel-consumption').style.display = fuelInfo ? 'block' : 'none'; if (fuelInfo) document.getElementById('fuel-consumption-val').innerText = `${fuelInfo.distance}km / $${fuelInfo.fuelMoney} (約 ${fuelInfo.kmPerCost} km/$)`;
+    renderCosts(weeklyCosts, 'costs-list'); renderWeeklyChart('weekly-chart-costs', weeklyCosts, 'cost');
+}
+
+/* ================== Canvas 動態色彩渲染引擎 ================== */
+let canvasAnimationId = null;
+function stopCanvasEngine() { if(canvasAnimationId) cancelAnimationFrame(canvasAnimationId); document.getElementById('dynamic-canvas').style.display = 'none'; }
+function startCanvasEngine(themeType) {
+    stopCanvasEngine(); const canvas = document.getElementById('dynamic-canvas'), ctx = canvas.getContext('2d'); canvas.style.display = 'block';
+    let w = canvas.width = window.innerWidth, h = canvas.height = window.innerHeight; window.onresize = () => { w = canvas.width = window.innerWidth; h = canvas.height = window.innerHeight; };
+    const rgb = hexToRgb(getComputedStyle(document.body).getPropertyValue('--primary').trim() || '#38bdf8'), primaryRgbStr = `${rgb.r}, ${rgb.g}, ${rgb.b}`;
+
+    if (themeType === 'canvas-ocean') {
+        let bubbles = Array.from({length: 40}, () => ({ x: Math.random() * w, y: Math.random() * h, r: Math.random() * 4 + 1, speedY: Math.random() * 1.5 + 0.5, wobble: Math.random() * Math.PI * 2, wobbleSpeed: Math.random() * 0.05 }));
+        let rays = Array.from({length: 5}, (_, i) => ({ x: (w / 5) * i, width: Math.random() * 100 + 50, angle: Math.random() * 0.2 - 0.1, alpha: Math.random() * 0.08 + 0.02 }));
+        let time = 0;
+        function draw() {
+            ctx.clearRect(0, 0, w, h); time += 0.01; let bgGrad = ctx.createLinearGradient(0, 0, 0, h); bgGrad.addColorStop(0, `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.3)`); bgGrad.addColorStop(1, `rgba(0, 10, 25, 0.85)`); ctx.fillStyle = bgGrad; ctx.fillRect(0, 0, w, h); ctx.globalCompositeOperation = 'screen';
+            rays.forEach((r, i) => { let sway = Math.sin(time + i) * 60; ctx.beginPath(); ctx.moveTo(r.x + sway, 0); ctx.lineTo(r.x + r.width + sway, 0); ctx.lineTo(r.x + r.width + sway + h * Math.sin(r.angle), h); ctx.lineTo(r.x + sway + h * Math.sin(r.angle), h); let rayGrad = ctx.createLinearGradient(0, 0, 0, h); rayGrad.addColorStop(0, `rgba(255, 255, 255, ${r.alpha})`); rayGrad.addColorStop(1, `rgba(255, 255, 255, 0)`); ctx.fillStyle = rayGrad; ctx.fill(); });
+            ctx.globalCompositeOperation = 'source-over';
+            bubbles.forEach(b => { b.y -= b.speedY; b.wobble += b.wobbleSpeed; let bx = b.x + Math.sin(b.wobble) * 20; if (b.y < -10) { b.y = h + 10; b.x = Math.random() * w; } ctx.beginPath(); ctx.arc(bx, b.y, b.r, 0, Math.PI * 2); ctx.strokeStyle = `rgba(255, 255, 255, 0.4)`; ctx.fillStyle = `rgba(255, 255, 255, 0.1)`; ctx.stroke(); ctx.fill(); });
+            canvasAnimationId = requestAnimationFrame(draw);
+        } draw();
+    } else if (themeType === 'canvas-matrix-custom') {
+        let lines = [settings.matrixText1, settings.matrixText2, settings.matrixText3].filter(t => t && t.trim() !== ''); if (lines.length === 0) lines = ["0", "1"]; let charArray = lines.join('').split(''); const fontSize = 16, columns = Math.floor(w / fontSize) + 1;
+        let streams = Array.from({length: columns}, (_, i) => ({ x: i * fontSize, y: Math.random() * -h, speed: Math.random() * 2 + 2, chars: Array.from({length: Math.floor(Math.random()*15 + 10)}, () => charArray[Math.floor(Math.random() * charArray.length)]) }));
+        function draw() {
+            ctx.clearRect(0,0,w,h); ctx.font = `bold ${fontSize}px monospace`;
+            streams.forEach(s => { s.y += s.speed; if (s.y > h + 300) { s.y = Math.random() * -200; s.speed = Math.random() * 2 + 2; } for(let j=0; j<s.chars.length; j++) { let charY = s.y - (j * fontSize); if (charY > h || charY < 0) continue; if (Math.random() < 0.05) s.chars[j] = charArray[Math.floor(Math.random() * charArray.length)]; ctx.fillStyle = (j === 0) ? `rgba(255,255,255,1)` : `rgba(${primaryRgbStr}, ${1 - (j / s.chars.length)})`; ctx.fillText(s.chars[j], s.x, charY); } });
+            canvasAnimationId = requestAnimationFrame(draw);
+        } draw();
+    } else if (themeType === 'canvas-stars') {
+        let stars = Array.from({length: 150}, () => ({ x: Math.random() * w, y: Math.random() * h, r: Math.random() * 1.5, alpha: Math.random(), speed: (Math.random() * 0.03) + 0.005 })), meteors = [];
+        function draw() {
+            ctx.clearRect(0, 0, w, h);
+            stars.forEach(s => { s.alpha += s.speed; if (s.alpha > 1 || s.alpha < 0) s.speed *= -1; ctx.globalAlpha = Math.abs(s.alpha); ctx.fillStyle = `rgba(255, 255, 255, 0.8)`; ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill(); }); ctx.globalAlpha = 1; if (Math.random() < 0.02) meteors.push({ x: Math.random() * w, y: 0, len: Math.random() * 60 + 20, speed: Math.random() * 10 + 5, angle: Math.PI / 4 + (Math.random() * 0.2 - 0.1) }); ctx.lineWidth = 1.5;
+            for (let i = meteors.length - 1; i >= 0; i--) { let m = meteors[i], grad = ctx.createLinearGradient(m.x, m.y, m.x - m.len * Math.cos(m.angle), m.y - m.len * Math.sin(m.angle)); grad.addColorStop(0, `rgba(255, 255, 255, 1)`); grad.addColorStop(0.2, `rgba(${primaryRgbStr}, 0.8)`); grad.addColorStop(1, `rgba(${primaryRgbStr}, 0)`); ctx.strokeStyle = grad; ctx.beginPath(); ctx.moveTo(m.x, m.y); ctx.lineTo(m.x - m.len * Math.cos(m.angle), m.y - m.len * Math.sin(m.angle)); ctx.stroke(); m.x += m.speed * Math.cos(m.angle); m.y += m.speed * Math.sin(m.angle); if (m.y > h + m.len || m.x > w + m.len) meteors.splice(i, 1); }
+            canvasAnimationId = requestAnimationFrame(draw);
+        } draw();
+    } else if (themeType === 'canvas-particles') {
+        let pts = Array.from({length: 60}, () => ({ x: Math.random()*w, y: Math.random()*h, vx: (Math.random()-0.5)*1.5, vy: (Math.random()-0.5)*1.5 }));
+        function draw() { ctx.clearRect(0,0,w,h); ctx.fillStyle = `rgba(${primaryRgbStr}, 1)`; ctx.strokeStyle = `rgba(${primaryRgbStr}, 0.2)`; pts.forEach(p => { p.x += p.vx; p.y += p.vy; if(p.x<0 || p.x>w) p.vx*=-1; if(p.y<0 || p.y>h) p.vy*=-1; ctx.beginPath(); ctx.arc(p.x, p.y, 1.5, 0, Math.PI*2); ctx.fill(); }); for(let i=0; i<pts.length; i++){ for(let j=i+1; j<pts.length; j++){ let d = Math.hypot(pts[i].x-pts[j].x, pts[i].y-pts[j].y); if(d < 120) { ctx.beginPath(); ctx.moveTo(pts[i].x, pts[i].y); ctx.lineTo(pts[j].x, pts[j].y); ctx.stroke(); } } } canvasAnimationId = requestAnimationFrame(draw); } draw();
+    } else if (themeType === 'canvas-beams') {
+        let rot = 0; function draw() { ctx.clearRect(0,0,w,h); ctx.save(); ctx.translate(w/2, h/2); ctx.rotate(rot += 0.002); ctx.globalCompositeOperation = 'lighter'; for(let i=0; i<6; i++) { ctx.rotate((Math.PI*2)/6); let grad = ctx.createLinearGradient(0, 0, w, 0); grad.addColorStop(0, 'transparent'); grad.addColorStop(0.5, `rgba(${primaryRgbStr}, 0.04)`); grad.addColorStop(1, 'rgba(255,255,255, 0.02)'); ctx.fillStyle = grad; ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(w, -200); ctx.lineTo(w, 200); ctx.fill(); } ctx.restore(); canvasAnimationId = requestAnimationFrame(draw); } draw();
+    }
 }
 
 /* ==============================================================
-    版面與元件樣式
+    視圖切換與使用者管理邏輯
     ============================================================== */
-html { font-size: 16px; overflow-x: hidden; scroll-behavior: smooth;}
-* { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; -webkit-tap-highlight-color: transparent; }
-
-body { background: var(--page-bg); color: var(--text-main); max-width: 600px; margin: 0 auto; min-height: 100vh; background-attachment: fixed; background-size: cover; transition: background 0.4s ease, color 0.4s ease; overflow-x: hidden; position: relative; }
-
-.header { display: flex; justify-content: space-between; align-items: center; padding: 16px; background: var(--card-bg); box-shadow: 0 4px 20px rgba(0,0,0,0.06); position: fixed; top: 0; left: 0; right: 0; z-index: 100; max-width: 600px; margin: 0 auto; backdrop-filter: var(--card-backdrop); -webkit-backdrop-filter: var(--card-backdrop); transition: background 0.4s; }
-.header-center { flex-grow: 1; display: flex; justify-content: center; align-items: center; }
-.header h1 { font-size: 1.2rem; color: var(--primary); margin: 0; text-align: center; text-shadow: 0 1px 2px rgba(0,0,0,0.1); display: flex; align-items: center; justify-content: center; gap: 4px; transition: 0.2s; }
-.btn-icon { background: none; border: none; font-size: 1.5rem; color: var(--primary); cursor: pointer; padding: 4px; min-width: 40px; text-shadow: 0 1px 2px rgba(0,0,0,0.1); }
-
-#app-container { position: relative; width: 100vw; height: 100vh; overflow: hidden; display: block; }
-
-.view-section { 
-    position: absolute; top: 0; left: 0; right: 0; bottom: 0; 
-    width: 100vw; max-width: 600px; margin: 0 auto; 
-    padding: 76px 16px 96px 16px; 
-    overflow-y: auto; visibility: hidden; transform: translateX(100vw);
-    will-change: transform; -webkit-overflow-scrolling: touch; 
+function loadData() { 
+    activeTimers = JSON.parse(localStorage.getItem(getStoreKey('order_active_timers'))) || []; 
+    historyRecords = JSON.parse(localStorage.getItem(getStoreKey('order_history_records'))) || []; 
+    tipRecords = JSON.parse(localStorage.getItem(getStoreKey('order_tips'))) || []; 
+    costRecords = JSON.parse(localStorage.getItem(getStoreKey('order_costs'))) || []; 
+    activeShift = JSON.parse(localStorage.getItem(getStoreKey('order_active_shift'))) || null;
+    shiftRecords = JSON.parse(localStorage.getItem(getStoreKey('order_shifts'))) || [];
+    activeWait = JSON.parse(localStorage.getItem(getStoreKey('order_active_wait'))) || null;
+    waitRecords = JSON.parse(localStorage.getItem(getStoreKey('order_waits'))) || [];
+    renderActiveTimers(); updateShiftUI(); initWeeklyView(); renderWeeklyData(); 
 }
 
-#view-search-result { 
-    position: fixed; top: 60px; left: 0; right: 0; bottom: 80px; background: #ffffff; 
-    z-index: 50; transform: translateX(100%); transition: transform 0.3s ease-out; 
-    padding: 16px; padding-bottom: 40px; overflow-y: auto; max-width: 600px; margin: 0 auto; box-shadow: -5px 0 25px rgba(0,0,0,0.1); 
-    -webkit-overflow-scrolling: touch; 
-}
-#view-search-result.active { transform: translateX(0); }
+let currentViewIndex = 0, isSearchResultOpen = false; 
+const views = ['home', 'income', 'tips', 'costs', 'rate', 'settings']; 
+const viewTitles = ['新使用者', '收入', '小費', '成本', '準時率', '設定']; 
+const viewHasSearch = [false, true, true, true, false, false]; 
 
-#view-daily-detail { 
-    position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #ffffff; 
-    z-index: 150; transform: translateX(100%); transition: transform 0.3s ease-out; 
-    overflow-y: auto; max-width: 600px; margin: 0 auto; visibility: hidden; 
-    -webkit-overflow-scrolling: touch; 
-}
-#view-daily-detail.active { transform: translateX(0); visibility: visible; }
+function switchView(index, isInstant = false) { 
+    document.querySelectorAll('.date-card.active').forEach(c => c.classList.remove('active')); 
+    const dailyDetail = document.getElementById('view-daily-detail');
+    if (dailyDetail.classList.contains('active')) { dailyDetail.style.transition = 'none'; dailyDetail.classList.remove('active'); void dailyDetail.offsetWidth; dailyDetail.style.transition = 'transform 0.3s ease-out'; }
+    if (isSearchResultOpen) { const sr = document.getElementById('view-search-result'); sr.style.transition = 'none'; sr.classList.remove('active'); void sr.offsetWidth; sr.style.transition = 'transform 0.3s ease-out'; isSearchResultOpen = false; }
+    if (currentViewIndex === index && !isInstant) return updateUIState();
 
-body.night-mode #view-search-result, body.night-mode #view-daily-detail { background: #0f172a; }
+    const oldIndex = currentViewIndex; currentViewIndex = index;
+    let direction = 'right'; 
+    if (oldIndex === 0 && index === views.length - 1 && !isInstant) direction = 'left'; 
+    else if (oldIndex === views.length - 1 && index === 0 && !isInstant) direction = 'right'; 
+    else if (index < oldIndex && !isInstant) direction = 'left';
 
-/* --- 卡片陰影 --- */
-.card { 
-    background: var(--card-bg); 
-    padding: 16px; 
-    border-radius: 16px; 
-    box-shadow: var(--card-shadow), var(--card-glow); 
-    margin-bottom: 20px; 
-    border: 1px solid var(--border); 
-    backdrop-filter: var(--card-backdrop); 
-    -webkit-backdrop-filter: var(--card-backdrop); 
-    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-}
-.card:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--card-shadow-hover), var(--card-glow);
-}
-.card h2 { font-size: 1.1rem; margin-bottom: 12px; color: var(--text-main); display: flex; align-items: center; gap: 8px;}
-
-/* --- 摺疊功能 --- */
-.collapsible-header { cursor: pointer; display: flex; justify-content: space-between; align-items: center; user-select: none; }
-.collapsible-header::after { content: '▾'; transition: transform 0.3s ease; margin-left: 8px; color: var(--primary); font-size: 1.2rem; text-shadow: 0 1px 1px rgba(0,0,0,0.1); }
-.collapsible-header.collapsed::after { transform: rotate(-90deg); }
-.collapsible-wrap { display: grid; grid-template-rows: 1fr; transition: grid-template-rows 0.3s ease, margin 0.3s ease; }
-.collapsible-wrap.collapsed { grid-template-rows: 0fr; }
-.collapsible-content { overflow: hidden; min-height: 0; }
-
-.input-group { margin-bottom: 12px; }
-.input-group label { display: block; font-size: 0.9rem; margin-bottom: 4px; color: var(--text-muted); }
-.form-control { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--border); font-size: 1rem; background: var(--timer-bg); color: var(--text-main); transition: 0.3s; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); }
-.form-control:focus { outline: 2px solid var(--primary); border-color: transparent; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02), 0 0 0 4px rgba(255, 117, 151, 0.1); }
-
-/* --- 按鈕陰影 --- */
-.btn { 
-    background-color: var(--primary); color: var(--btn-text); border: 1px solid rgba(0,0,0,0.1); 
-    padding: 14px 12px; font-size: 1rem; font-weight: bold; border-radius: 10px; cursor: pointer; 
-    width: 100%; transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1); 
-    box-shadow: 0 6px 12px -2px rgba(0,0,0,0.15), inset 0 1px 1px rgba(255, 255, 255, 0.2); 
-}
-.btn:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 8px 16px -2px rgba(0,0,0,0.2), inset 0 1px 1px rgba(255, 255, 255, 0.3);
-}
-.btn:active { 
-    transform: scale(0.97) translateY(2px); 
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1), inset 0 3px 6px rgba(0,0,0,0.15); 
-}
-.btn-outline { background: transparent; border: 1px solid var(--primary); color: var(--primary); box-shadow: 0 2px 6px rgba(0,0,0,0.05); }
-.btn-outline:active { background: var(--primary); color: var(--btn-text); box-shadow: inset 0 3px 6px rgba(0,0,0,0.15); }
-.btn-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-
-.btn-preset { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 12px 6px; border-radius: 12px; border: 1px solid var(--border); background: var(--timer-bg); cursor: pointer; transition: all 0.2s; text-align:center; box-shadow: var(--item-shadow); }
-.btn-preset:hover { transform: translateY(-2px); box-shadow: var(--card-shadow); }
-.btn-preset:active { transform: scale(0.95); box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-.btn-preset.golden { background: linear-gradient(135deg, #2c2c2c, #000); color: #d4af37; border-color: #d4af37; box-shadow: 0 6px 12px rgba(0,0,0,0.2), inset 0 1px 1px rgba(255,255,255,0.1);}
-.btn-preset.burgundy { background: linear-gradient(135deg, #450a0a, #1a0505); color: #f87171; border-color: #7f1d1d; box-shadow: 0 6px 12px rgba(0,0,0,0.2), inset 0 1px 1px rgba(255,255,255,0.1);}
-.btn-preset.aurora { background: linear-gradient(135deg, #1a1025, #0d1b2a); color: #00e5ff; border-color: #00e5ff; box-shadow: 0 6px 12px rgba(0,0,0,0.2), inset 0 1px 1px rgba(255,255,255,0.1);}
-.btn-preset.marble { background: linear-gradient(135deg, #ffffff, #f1f5f9); color: #475569; border-color: #cbd5e1; }
-.btn-preset.cyber { background: linear-gradient(45deg, #09090e, #1f0b2e); color: #00ffff; border-color: #ff00ff; box-shadow: 0 6px 12px rgba(0,0,0,0.3), inset 0 1px 1px rgba(255,255,255,0.05);}
-.btn-preset.ocean { background: linear-gradient(180deg, #0284c7, #082f49); color: #38bdf8; border-color: #0284c7; box-shadow: 0 6px 12px rgba(0,0,0,0.2), inset 0 1px 1px rgba(255,255,255,0.1);}
-
-/* --- 滑動刪除與列表拖拉排序 --- */
-.timer-list { position: relative; } 
-.swipe-container { position: relative; overflow: hidden; border-radius: 12px; margin-bottom: 12px; background: transparent; box-shadow: var(--item-shadow); transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease; }
-.swipe-container:hover { transform: translateY(-1px); box-shadow: var(--card-shadow); }
-.swipe-delete { position: absolute; top: 0; right: -80px; bottom: 0; width: 80px; background: var(--danger); color: var(--danger-text); display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 1rem; cursor: pointer; z-index: 10; box-shadow: inset 2px 0 5px rgba(0,0,0,0.1); }
-.active-timer-container { border: 1px solid var(--border); }
-
-/* 拖拉中的卡片樣式：強制關閉過渡動畫，實現零延遲跟隨 */
-.active-timer-container.dragging {
-    opacity: 0.95 !important;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.1), 0 0 0 1.5px var(--primary) !important;
-    pointer-events: none;
-    transition: none !important; 
+    views.forEach((v, i) => {
+        const el = document.getElementById(`view-${v}`);
+        if (isInstant) { el.style.transition = 'none'; el.style.transform = i === index ? 'translateX(0)' : 'translateX(100vw)'; el.style.visibility = i === index ? 'visible' : 'hidden'; } 
+        else if (i === index) { el.style.transition = 'none'; el.style.transform = direction === 'right' ? 'translateX(100vw)' : 'translateX(-100vw)'; el.style.visibility = 'visible'; void el.offsetWidth; el.style.transition = 'transform 0.3s ease-out'; el.style.transform = 'translateX(0)'; } 
+        else if (i === oldIndex) { el.style.transition = 'transform 0.3s ease-out'; el.style.transform = direction === 'right' ? 'translateX(-100vw)' : 'translateX(100vw)'; setTimeout(() => { if (currentViewIndex !== i) el.style.visibility = 'hidden'; }, 300); } 
+        else { el.style.transition = 'none'; el.style.visibility = 'hidden'; }
+    });
+    
+    if([1, 2, 3].includes(index)) { initWeeklyView(); renderWeeklyData(); }
+    if(index === 4) { calculatePunctuality(); }
+    
+    if (index === 0 && document.body.classList.contains('map-enabled') && mapInstance) {
+        setTimeout(() => mapInstance.invalidateSize(), 350);
+    }
+    
+    updateUIState(); 
 }
 
-body.night-mode .active-timer-container.dragging {
-    box-shadow: 0 4px 15px rgba(0,0,0,0.5), 0 0 0 1.5px var(--primary) !important;
+let appTouchStartX = 0, appTouchStartY = 0, isSwipingApp = false;
+function initSwipeNavigation() { 
+    const appContainer = document.getElementById('app-container'); 
+    appContainer.addEventListener('touchstart', (e) => { 
+        if (e.target.closest('.swipe-content') || e.target.closest('.record-swipe-content') || e.target.closest('.horizontal-scroll-ignore') || e.target.type === 'range' || e.target.closest('.bottom-panel') || e.target.closest('.map-btn-recenter') || e.target.closest('#map')) return; 
+        appTouchStartX = e.changedTouches[0].screenX; appTouchStartY = e.changedTouches[0].screenY; isSwipingApp = true; 
+    }, {passive: true}); 
+    appContainer.addEventListener('touchmove', (e) => { 
+        if (!isSwipingApp) return; 
+        if (Math.abs(e.changedTouches[0].screenY - appTouchStartY) > Math.abs(e.changedTouches[0].screenX - appTouchStartX)) isSwipingApp = false; 
+    }, {passive: true}); 
+    appContainer.addEventListener('touchend', (e) => { 
+        if (!isSwipingApp) return; 
+        let diffX = e.changedTouches[0].screenX - appTouchStartX; 
+        if (diffX < -50) switchView(currentViewIndex < views.length - 1 ? currentViewIndex + 1 : 0, false); 
+        else if (diffX > 50) switchView(currentViewIndex > 0 ? currentViewIndex - 1 : views.length - 1, false); 
+        isSwipingApp = false; 
+    }); 
 }
 
-/* 拖拉佔位符：虛線框提示 */
-.drag-placeholder {
-    border: 2px dashed var(--primary);
-    border-radius: 12px;
-    background: rgba(255, 117, 151, 0.05);
-    margin-bottom: 12px;
-    transition: height 0.2s ease;
+function toggleSideMenu() {
+    sideMenuOpen = !sideMenuOpen;
+    const menu = document.getElementById('side-menu');
+    const overlay = document.getElementById('side-menu-overlay');
+    if (sideMenuOpen) { menu.classList.add('active'); overlay.classList.add('active'); } 
+    else { menu.classList.remove('active'); overlay.classList.remove('active'); }
 }
 
-.active-timer-content { position: relative; z-index: 2; width: 100%; background: var(--timer-bg); padding: 16px; display: flex; justify-content: space-between; align-items: center; border-left: 5px solid var(--success); transition: transform 0.3s ease; touch-action: pan-y; backdrop-filter: var(--card-backdrop); -webkit-backdrop-filter: var(--card-backdrop); box-shadow: var(--card-glow); user-select: none; -webkit-user-select: none; cursor: grab; }
-.active-timer-content:active { cursor: grabbing; }
+function updateUIState() { 
+    const unselectedIcons = ['☖', '＄', '♡', '☇', '◑', '⛭'], selectedIcons = ['☗', '＄', '♥\uFE0E', '☈', '◕', '⛯'];
+    const navKeys = ['home', 'income', 'tips', 'costs', 'rate', 'settings'];
 
-.timer-info { flex-grow: 1; min-width: 0; padding-right: 12px; pointer-events: auto; }
-.timer-info h3 { font-size: 1.05rem; margin-bottom: 4px; color: var(--text-main); word-break: break-word; line-height: 1.3; cursor: pointer; display: flex; align-items: center; flex-wrap: wrap; }
-.timer-info p { font-size: 0.85rem; color: var(--text-muted); }
-.timer-duration { font-family: monospace; font-size: 1.1rem; font-weight: bold; color: var(--success); margin-top: 4px; text-shadow: 0 1px 1px rgba(0,0,0,0.05); }
-.btn-stop { pointer-events: auto; width: auto; padding: 12px 16px; font-size: 0.95rem; background-color: var(--primary); color: var(--btn-text); border: 1px solid rgba(0,0,0,0.1); font-weight: bold; border-radius: 10px; cursor: pointer; box-shadow: 0 4px 8px rgba(0,0,0,0.15), inset 0 1px 1px rgba(255,255,255,0.2); transition: all 0.2s; flex-shrink: 0; }
-.btn-stop:active { transform: translateY(2px) scale(0.95); box-shadow: 0 1px 2px rgba(0,0,0,0.1), inset 0 2px 4px rgba(0,0,0,0.15); }
+    document.querySelectorAll('.bottom-nav .nav-item').forEach((el, index) => { 
+        el.classList.remove('active'); 
+        const iconSpan = el.querySelector('.nav-icon'); 
+        if (iconSpan) { iconSpan.innerText = unselectedIcons[index]; iconSpan.style.transform = 'scale(1)'; } 
+    }); 
+    const activeNavBottom = document.getElementById(`nav-${currentViewIndex}`); 
+    if(activeNavBottom) {
+        activeNavBottom.classList.add('active'); 
+        const activeIconSpan = activeNavBottom.querySelector('.nav-icon');
+        if (activeIconSpan) { activeIconSpan.innerText = selectedIcons[currentViewIndex]; if ([2, 4].includes(currentViewIndex)) activeIconSpan.style.transform = 'scale(1.25)'; }
+    }
 
-/* ★ 需求 1：預估時間標籤（綠底 vs 超時咖啡底） */
-.est-pill {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.85rem;
-    font-weight: 600;
-    margin-left: 8px;
-    padding: 2px 8px;
-    border-radius: 6px;
-    line-height: 1.3;
-    transition: background-color 0.3s ease, color 0.3s ease;
-    white-space: nowrap;
+    document.querySelectorAll('.side-nav-item').forEach((el, index) => { 
+        el.classList.remove('active'); 
+        const iconSpan = el.querySelector('.nav-icon'); 
+        if (iconSpan && SVG_ICONS[navKeys[index]]) { 
+            iconSpan.innerHTML = SVG_ICONS[navKeys[index]]; 
+        } 
+    }); 
+    const activeNavSide = document.getElementById(`side-nav-${currentViewIndex}`); 
+    if(activeNavSide) {
+        activeNavSide.classList.add('active'); 
+    }
+
+    const title = document.getElementById('header-title');
+    const titleWrapper = document.getElementById('header-title-wrapper');
+    const btnSearch = document.getElementById('btn-search');
+    const btnBack = document.getElementById('btn-back');
+    const btnMenu = document.getElementById('btn-menu');
+    const shiftBadge = document.getElementById('shift-status-badge');
+    const shiftBadgeRight = document.getElementById('shift-status-badge-right');
+
+    const isSubView = isSearchResultOpen || document.getElementById('view-daily-detail').classList.contains('active');
+    document.body.classList.toggle('sub-view-open', isSubView);
+
+    if (isSubView) {
+        document.body.classList.remove('on-home-view');
+        btnSearch.style.display = 'none'; btnBack.style.display = 'block'; 
+        if(btnMenu) btnMenu.style.display = 'none';
+        shiftBadge.style.display = 'none';
+        if(shiftBadgeRight) shiftBadgeRight.style.display = 'none';
+        titleWrapper.style.pointerEvents = 'none'; titleWrapper.style.cursor = 'default'; titleWrapper.onclick = null;
+        title.innerHTML = document.getElementById('view-daily-detail').classList.contains('active') ? '單日明細' : '查照結果';
+    } else { 
+        if (currentViewIndex === 0) {
+            document.body.classList.add('on-home-view');
+            title.innerHTML = `${currentUser} <span style="font-size: 0.8rem; vertical-align: middle;">▾</span>`;
+            titleWrapper.style.pointerEvents = 'auto'; titleWrapper.style.cursor = 'pointer'; 
+            titleWrapper.onclick = () => openUserModal('switch');
+            if (activeShift) updateShiftUI();
+        } else {
+            document.body.classList.remove('on-home-view');
+            title.innerHTML = viewTitles[currentViewIndex]; 
+            titleWrapper.style.pointerEvents = 'none'; titleWrapper.style.cursor = 'default'; titleWrapper.onclick = null;
+            shiftBadge.style.display = 'none';
+            if(shiftBadgeRight) shiftBadgeRight.style.display = 'none';
+        }
+        btnSearch.style.display = viewHasSearch[currentViewIndex] ? 'block' : 'none'; 
+        btnBack.style.display = 'none'; 
+        if(btnMenu) btnMenu.style.display = 'block';
+    } 
 }
 
-/* 正常時間：淡綠底色 + 綠字 */
-.est-pill.normal {
-    background-color: #eafaf1 !important;
-    color: #1e7e48 !important;
+function handleBack() { if(document.getElementById('view-daily-detail').classList.contains('active')) closeDailyDetail(); else if (isSearchResultOpen) { document.getElementById('view-search-result').classList.remove('active'); isSearchResultOpen = false; updateUIState(); } }
+
+function openUserModal(mode = 'switch') {
+    const container = document.getElementById('user-list-container'); container.innerHTML = '';
+    const title = document.getElementById('user-modal-title');
+    
+    if (mode === 'remove') {
+        title.innerText = '移除使用者';
+        usersList.forEach(u => {
+            const wrap = document.createElement('div');
+            wrap.style.display = 'flex'; wrap.style.gap = '8px'; wrap.style.alignItems = 'center'; wrap.style.marginBottom = '8px';
+            const nameDiv = document.createElement('div');
+            nameDiv.className = 'form-control'; nameDiv.style.flex = '1'; nameDiv.style.padding = '10px'; nameDiv.innerText = u;
+            const delBtn = document.createElement('button');
+            delBtn.className = 'btn'; delBtn.style.background = 'var(--danger)'; delBtn.style.borderColor = 'var(--danger)'; delBtn.style.padding = '10px'; delBtn.style.width = '70px'; delBtn.innerText = '移除';
+            if (usersList.length <= 1) delBtn.disabled = true;
+            delBtn.onclick = () => confirmDeleteUser(u);
+            wrap.appendChild(nameDiv); wrap.appendChild(delBtn);
+            container.appendChild(wrap);
+        });
+    } else {
+        title.innerText = '切換使用者';
+        usersList.forEach(u => {
+            const btn = document.createElement('button'); btn.className = (u === currentUser) ? 'btn' : 'btn-outline';
+            btn.style.width = '100%'; btn.style.padding = '12px'; btn.innerText = u; btn.onclick = () => switchUser(u); container.appendChild(btn);
+        });
+    }
+    document.getElementById('user-modal').classList.add('active');
 }
 
-/* 超時狀態：淡咖啡底色 + 咖啡字 */
-.est-pill.overtime {
-    background-color: #fbf0ea !important;
-    color: #8c4a27 !important;
+function switchUser(name) {
+    currentUser = name; localStorage.setItem('app_current_user', currentUser);
+    loadSettingsForCurrentUser(); applySettings(); loadData(); updateUIState(); closeModal('user-modal');
 }
 
-/* 夜間模式適配 */
-body.night-mode .est-pill.normal {
-    background-color: rgba(16, 185, 129, 0.18) !important;
-    color: #6ee7b7 !important;
-}
-body.night-mode .est-pill.overtime {
-    background-color: rgba(180, 83, 9, 0.22) !important;
-    color: #fdba74 !important;
-}
-
-.section-title { font-size: 1.1rem; margin: 20px 0 10px 4px; display: flex; justify-content: space-between; align-items: center; font-weight: bold;}
-.badge { background: var(--card-bg); border: 1px solid var(--border); color: var(--text-main); padding: 2px 8px; border-radius: 12px; font-size: 0.85rem; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-
-.date-card { background: var(--card-bg); border-radius: 14px; overflow: hidden; border: 1px solid var(--border); margin-bottom: 12px; transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); backdrop-filter: var(--card-backdrop); -webkit-backdrop-filter: var(--card-backdrop); cursor: pointer; box-shadow: var(--item-shadow), var(--card-glow); }
-.date-card:hover { transform: translateY(-2px); box-shadow: var(--card-shadow), var(--card-glow); }
-.date-header { padding: 16px; display: flex; justify-content: space-between; align-items: center; background: transparent; }
-.date-title { font-size: 1.05rem; font-weight: bold; text-shadow: 0 1px 1px rgba(0,0,0,0.05); }
-.date-subtitle { font-size: 0.85rem; color: var(--text-muted); margin-top: 4px; }
-.date-total { text-align: right; }
-.date-amount { font-size: 1.2rem; font-weight: bold; color: var(--success); text-shadow: 0 1px 2px rgba(0,0,0,0.05); }
-.date-arrow { font-size: 0.85rem; color: var(--primary); margin-top: 4px; }
-
-.record-item { background: var(--timer-bg); padding: 12px; border-radius: 8px; margin-bottom: 8px; border: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; position: relative; box-shadow: var(--item-shadow); transition: transform 0.2s; }
-.record-item:hover { transform: translateY(-1px); box-shadow: var(--card-shadow); }
-.record-swipe-container { border-radius: 8px; margin-bottom: 8px; border: 1px solid var(--border); overflow: hidden; background: transparent; }
-.record-swipe-content { position: relative; z-index: 2; background: var(--timer-bg); padding: 12px; display: flex; justify-content: space-between; align-items: center; width: 100%; transition: transform 0.3s ease; touch-action: pan-y; backdrop-filter: var(--card-backdrop); -webkit-backdrop-filter: var(--card-backdrop); box-shadow: var(--card-glow); }
-.record-info { flex-grow: 1; }
-.record-time { font-weight: 600; font-size: 0.95rem; color: var(--text-main); }
-.record-desc { font-size: 0.8rem; color: var(--text-muted); margin-top: 2px; }
-.record-amount { font-weight: bold; font-size: 1.05rem; color: var(--success); margin-right: 10px;}
-.btn-edit { background: none; border: none; color: var(--primary); font-size: 0.95rem; cursor: pointer; padding: 4px; font-weight: bold; text-shadow: 0 1px 1px rgba(0,0,0,0.05); transition: 0.2s; }
-.btn-edit:hover { transform: scale(1.1); }
-
-.bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--nav-bg); border-top: 1px solid var(--border); display: flex; justify-content: space-around; padding: 10px 0; padding-bottom: calc(10px + env(safe-area-inset-bottom)); box-shadow: 0 -5px 25px rgba(0,0,0,0.08); z-index: 1000; max-width: 600px; margin: 0 auto; backdrop-filter: var(--card-backdrop); -webkit-backdrop-filter: var(--card-backdrop); transition: background 0.4s; }
-.nav-item { display: flex; flex-direction: column; align-items: center; color: var(--text-muted); font-size: 0.75rem; text-decoration: none; cursor: pointer; flex: 1; transition: 0.2s;}
-.nav-item.active { color: var(--primary); font-weight: bold; transform: translateY(-2px); text-shadow: 0 2px 4px rgba(255, 117, 151, 0.2); }
-.nav-icon { display: inline-block; font-size: 1.4rem; margin-bottom: 4px; transition: transform 0.2s; font-family: "Segoe UI Symbol", "Apple Symbols", "Arial Unicode MS", sans-serif; font-weight: normal; }
-
-/* --- 📊 一週統計長條圖樣式 --- */
-.chart-container { display: flex; align-items: flex-end; justify-content: space-between; height: 100px; padding: 10px 5px 0 5px; margin-top: 15px; border-top: 1px dashed var(--border); }
-.chart-bar-wrap { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; width: 13%; height: 100%; }
-.chart-val { font-size: 0.65rem; color: var(--text-main); margin-bottom: 4px; font-weight: bold; height: 12px; text-shadow: 0 1px 1px rgba(0,0,0,0.05); }
-.chart-bar { width: 100%; max-width: 20px; border-radius: 4px 4px 0 0; transition: height 0.6s ease; background: var(--primary); min-height: 2px; box-shadow: 0 2px 6px rgba(0,0,0,0.1), inset 1px 0 2px rgba(255,255,255,0.3); }
-.chart-label { font-size: 0.75rem; color: var(--text-muted); margin-top: 6px; }
-.chart-bar.income { background: linear-gradient(to top, var(--success), #34d399); }
-.chart-bar.tip { background: linear-gradient(to top, var(--primary), #fb7185); }
-.chart-bar.cost { background: linear-gradient(to top, #94a3b8, #cbd5e1); }
-
-/* Modal 等其他樣式 */
-.calendar-wrapper { background: var(--card-bg); border-radius: 12px; padding: 12px; border: 1px solid var(--border); margin-bottom: 15px; box-shadow: inset 0 2px 6px rgba(0,0,0,0.03); }
-.calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-weight: bold; font-size:1.1rem; color:var(--text-main);}
-.calendar-header button { background: var(--timer-bg); border: 1px solid var(--border); border-radius: 8px; padding: 4px 12px; font-size: 1.2rem; color: var(--primary); cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: 0.2s; }
-.calendar-header button:active { transform: scale(0.9); box-shadow: inset 0 2px 4px rgba(0,0,0,0.1); }
-.calendar-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 8px; }
-.calendar-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center; }
-.cal-day { padding: 10px 0; border-radius: 8px; cursor: pointer; transition: 0.2s; font-size: 0.95rem; color:var(--text-main);}
-.cal-day:hover:not(.empty) { background: var(--timer-bg); transform: scale(1.05); box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-.cal-day:active { transform: scale(0.9); }
-.cal-day.empty { cursor: default; }
-.cal-day.selected { background: var(--primary) !important; color: var(--btn-text); font-weight: bold; box-shadow: 0 4px 8px rgba(0,0,0,0.2), inset 0 1px 1px rgba(255,255,255,0.3) !important; transform: scale(1.05); }
-.cal-day.in-range { background: var(--border); color: var(--text-main); }
-
-.modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 2000; backdrop-filter: blur(4px); }
-.modal-overlay.active { display: flex; }
-.modal-content { background: var(--card-bg); padding: 20px; border-radius: 16px; width: 90%; max-width: 400px; animation: slideUp 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); max-height: 90vh; overflow-y: auto; backdrop-filter: var(--card-backdrop); -webkit-backdrop-filter: var(--card-backdrop); box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.35), var(--card-glow); border: 1px solid var(--border); }
-@keyframes slideUp { from { transform: translateY(30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-
-.empty-state { text-align: center; padding: 24px; color: var(--text-muted); font-size: 0.9rem; background: var(--timer-bg); border-radius: 12px; border: 1px dashed var(--border); box-shadow: inset 0 2px 6px rgba(0,0,0,0.02); }
-.result-box { background: var(--timer-bg); border: 1px solid var(--primary); padding: 16px; border-radius: 12px; text-align: center; margin-top: 16px; box-shadow: inset 0 2px 8px rgba(0,0,0,0.03), 0 4px 12px rgba(255, 117, 151, 0.1); }
-.result-box h3 { color: var(--primary); font-size: 2rem; margin-bottom: 4px; text-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-.tag { display: inline-block; padding: 2px 6px; background: var(--timer-bg); border-radius: 4px; font-size: 0.75rem; color: var(--text-main); margin-left: 4px; border: 1px solid var(--border); box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
-.summary-block { display: flex; justify-content: space-around; margin-top: 15px; padding-top: 15px; border-top: 1px dashed var(--border); }
-.summary-item { text-align: center; }
-.summary-item span { font-size: 0.8rem; color: var(--text-muted); }
-.summary-item strong { display: block; font-size: 1.15rem; margin-top: 4px; text-shadow: 0 1px 2px rgba(0,0,0,0.05); }
-
-/* ==============================================================
-   地圖與底部拖曳面板樣式
-   ============================================================== */
-.map-view-override {
-    padding: 0 !important;
-    overflow: hidden !important;
+async function confirmDeleteUser(name) {
+    if (usersList.length <= 1) return await appAlert('至少需保留一位使用者！', '錯誤');
+    if (await appConfirm(`確定要永久移除使用者 [${name}] 嗎？\n此動作將清空該使用者的所有紀錄，且無法復原！`, '移除確認', true)) {
+        ['order_active_timers', 'order_history_records', 'order_tips', 'order_costs', 'order_settings', 'order_last_weather', 'order_active_shift', 'order_shifts', 'order_active_wait', 'order_waits'].forEach(key => {
+            localStorage.removeItem(`${name}_${key}`);
+        });
+        usersList = usersList.filter(u => u !== name);
+        localStorage.setItem('app_users_list', JSON.stringify(usersList));
+        
+        if (currentUser === name) {
+            switchUser(usersList[0]);
+        } else {
+            openUserModal('remove'); 
+        }
+        await appAlert(`已移除使用者 [${name}]`, '成功');
+    }
 }
 
-body:not(.map-enabled) #view-home.map-view-override {
-    padding: 76px 16px 96px 16px !important;
-    overflow-y: auto !important;
+async function addUser() { const name = await appPrompt('請輸入新使用者名稱：', '', '新增使用者'); if (name && name.trim() !== '') { if (usersList.includes(name.trim())) return await appAlert('該使用者已存在！', '錯誤'); usersList.push(name.trim()); localStorage.setItem('app_users_list', JSON.stringify(usersList)); switchUser(name.trim()); } }
+async function renameUser() { const newName = await appPrompt('請輸入新的名稱：', currentUser, '重新命名'); if (newName && newName.trim() !== '' && newName !== currentUser) { if (usersList.includes(newName.trim())) return await appAlert('該名稱已存在！', '錯誤'); const oldPrefix = `${currentUser}_`, newPrefix = `${newName.trim()}_`; ['order_active_timers', 'order_history_records', 'order_tips', 'order_costs', 'order_settings', 'order_last_weather', 'order_active_shift', 'order_shifts', 'order_active_wait', 'order_waits'].forEach(key => { const data = localStorage.getItem(oldPrefix + key); if (data) { localStorage.setItem(newPrefix + key, data); localStorage.removeItem(oldPrefix + key); } }); usersList[usersList.indexOf(currentUser)] = newName.trim(); localStorage.setItem('app_users_list', JSON.stringify(usersList)); currentUser = newName.trim(); localStorage.setItem('app_current_user', currentUser); updateUIState(); await appAlert('重新命名成功！', '成功'); } }
+
+/* ================== 耳機選單：倍率調整 ================== */
+const MULTIPLIER_MIN = 1.00, MULTIPLIER_MAX = 5.00;
+
+function getPayMultiplier() {
+    const m = parseFloat(settings.payMultiplier);
+    if (isNaN(m)) return 1;
+    return Math.min(MULTIPLIER_MAX, Math.max(MULTIPLIER_MIN, m));
 }
 
-#map {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 1;
-    display: none;
-    background-color: #f8fafc;
-}
-body.map-enabled #map {
-    display: block;
+// 依計費分鐘數計算金額：(時薪換算，不足取最低金額) × 倍率
+function calcTimedAmount(billableMins, multiplier = 1) {
+    let base = (billableMins / 60) * RATE_PER_HOUR;
+    if (base < MIN_AMOUNT) base = MIN_AMOUNT;
+    return base * multiplier;
 }
 
-/* ★ 需求 4：確保白淨地圖清晰度與無水印呈現 */
-.leaflet-tile {
-    filter: brightness(1.02) contrast(1.03);
-}
-.leaflet-control-attribution {
-    display: none !important;
+// 有套用倍率（≠1.00）的訂單，在金額下方顯示火焰圖示
+function flameIconHtml(r) {
+    if (!r.multiplier || Number(r.multiplier) === 1) return '';
+    return `<span class="amount-flame" title="倍率加成"><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5c.6 3.2-1 5.2-2.7 7C7.7 11.2 6 13.1 6 15.8 6 19.3 8.7 22 12 22s6-2.7 6-6.2c0-2.6-1.3-4.6-2.7-6.1-.3 1.7-1.2 2.8-2.3 3.3.4-3.4-.2-7.4-1-10.5z"/><path d="M12 20c-1.5 0-2.6-1.1-2.6-2.6 0-1.3.8-2.2 1.6-3 .3.9 1 1.5 1.8 1.7 0-.8.3-1.5.7-2.1.7.8 1.1 1.8 1.1 2.9 0 1.6-1.1 3.1-2.6 3.1z"/></svg></span>`;
 }
 
-/* 底部面板本體 */
-.bottom-panel {
-    position: absolute;
-    top: 70px;
-    left: 0;
-    right: 0;
-    height: calc(100% - 70px);
-    background: var(--card-bg) !important;
-    z-index: 10;
-    border-radius: 24px 24px 0 0;
-    box-shadow: 0 -10px 30px rgba(0,0,0,0.15);
-    display: flex;
-    flex-direction: column;
-    transform: translateY(100%);
-    transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-    will-change: transform;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
+function openHeadsetModal() {
+    const modal = document.getElementById('headset-modal');
+    // closeModal 會鎖住輸入框（iOS 修復），開啟時需解鎖
+    modal.querySelectorAll('input').forEach(inp => { inp.disabled = false; inp.readOnly = false; });
+    syncMultiplierUI(getPayMultiplier());
+    modal.classList.add('active');
 }
 
-/* 確保客製化主題的不透明背景支援 */
-body[data-color-theme="obsidian-gold"] .bottom-panel { background: #1a1a1a !important; }
-body[data-color-theme="burgundy"] .bottom-panel { background: #2a0a0a !important; }
-body[data-color-theme="aurora"] .bottom-panel { background: #120b2e !important; }
-body[data-color-theme="cyberpunk"] .bottom-panel { background: #09090e !important; }
-body.night-mode .bottom-panel { background: #0f172a !important; }
-
-/* 關閉地圖時還原排版 */
-body:not(.map-enabled) .bottom-panel {
-    position: static;
-    height: auto;
-    transform: none !important;
-    box-shadow: none;
-    border-radius: 0;
-    background: transparent !important;
-    border-top: none;
-    display: block; 
+function syncMultiplierUI(value) {
+    const v = Number(value).toFixed(2);
+    const range = document.getElementById('multiplier-range');
+    const num = document.getElementById('multiplier-input');
+    const preview = document.getElementById('multiplier-preview');
+    if (range) range.value = v;
+    if (num && document.activeElement !== num) num.value = v;
+    if (preview) preview.innerText = `最低金額試算：$${MIN_AMOUNT} × ${v} = ${fmtMoney(MIN_AMOUNT * Number(v))}`;
 }
 
-.bottom-panel.dragging {
-    transition: none;
+function saveMultiplier(value) {
+    let v = parseFloat(value);
+    if (isNaN(v)) return;
+    v = Math.min(MULTIPLIER_MAX, Math.max(MULTIPLIER_MIN, v));
+    settings.payMultiplier = Number(v.toFixed(2));
+    saveSettings();
+    syncMultiplierUI(settings.payMultiplier);
 }
 
-/* 拖曳把手區域 */
-.panel-header {
-    height: 40px;
-    flex-shrink: 0;
-    display: none;
-    justify-content: center;
-    align-items: center;
-    touch-action: none;
-    cursor: grab;
-}
-body.map-enabled .panel-header {
-    display: flex;
+function onMultiplierRange(el) { saveMultiplier(el.value); }
+
+function onMultiplierInput(el) {
+    // 輸入中：數值在範圍內才即時同步調整桿，不強制改寫使用者正在打的字
+    const v = parseFloat(el.value);
+    if (!isNaN(v) && v >= MULTIPLIER_MIN && v <= MULTIPLIER_MAX) {
+        settings.payMultiplier = Number(v.toFixed(2));
+        saveSettings();
+        document.getElementById('multiplier-range').value = settings.payMultiplier;
+        syncMultiplierUI(settings.payMultiplier);
+    }
 }
 
-.panel-handle-bar {
-    width: 40px;
-    height: 5px;
-    background: var(--text-muted);
-    border-radius: 3px;
-    opacity: 0.5;
+function onMultiplierCommit(el) {
+    // 離開輸入框或按 Enter：超出範圍自動修正為 1.00 - 5.00
+    const v = parseFloat(el.value);
+    saveMultiplier(isNaN(v) ? getPayMultiplier() : v);
+    el.value = getPayMultiplier().toFixed(2);
 }
 
-.panel-content {
-    flex: 1;
-    overflow-y: auto;
-    padding: 0 16px 120px 16px;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior: contain;
-}
-body:not(.map-enabled) .panel-content {
-    padding: 0;
-    overflow: visible;
-}
-
-/* 🎯 定位按鈕 (依附在面板上緣，隨面板移動) */
-.map-btn-recenter {
-    position: absolute;
-    top: -60px;
-    right: 16px;
-    width: 46px;
-    height: 46px;
-    background: var(--card-bg);
-    border: 2px solid var(--primary);
-    border-radius: 50%;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    color: var(--primary);
-    z-index: 1000;
-    cursor: pointer;
-    backdrop-filter: var(--card-backdrop);
-    -webkit-backdrop-filter: var(--card-backdrop);
-    transition: transform 0.2s;
-}
-.map-btn-recenter:active {
-    transform: scale(0.9);
-}
-body:not(.map-enabled) .map-btn-recenter {
-    display: none;
-}
-
-/* 確保 Leaflet 控制項不會蓋到 Header */
-.leaflet-top, .leaflet-bottom { z-index: 9 !important; }
-.leaflet-control-container .leaflet-top { top: 70px; }
-
-/* --- 單日明細頁籤 --- */
-.detail-tabs-container { display: flex; gap: 15px; border-bottom: 1px solid var(--border); padding-bottom: 5px; margin-bottom: 15px; justify-content: flex-start; }
-.detail-tab { font-size: 1.05rem; cursor: pointer; color: var(--text-muted); transition: 0.2s; position: relative; padding: 0 4px 4px 4px; }
-.detail-tab.active { color: var(--primary); font-weight: bold; }
-.detail-tab.active::after { content: ''; position: absolute; bottom: -6px; left: 0; width: 100%; height: 3px; background: var(--primary); border-radius: 3px; }
-
-/* ==============================================================
-   ★ 需求 2 & 3：側邊欄選單與向量圖式、按鈕位置微調
-   ============================================================== */
-.side-menu-header {
-    padding: 20px;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-
-.side-nav-item {
-    display: flex;
-    align-items: center;
-    padding: 14px 20px;
-    color: var(--text-main);
-    text-decoration: none;
-    font-size: 1.05rem;
-    cursor: pointer;
-    transition: background 0.2s, color 0.2s;
-}
-
-.side-nav-item:active {
-    background: var(--timer-bg);
-}
-
-.side-nav-item .nav-icon {
-    margin-right: 16px;
-    width: 24px;
-    height: 24px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--text-muted);
-}
-
-.side-nav-item.active {
-    background: var(--timer-bg);
-    color: var(--primary);
-    font-weight: bold;
-    border-left: 4px solid var(--primary);
-}
-
-.side-nav-item.active .nav-icon,
-.side-nav-item.active .nav-icon svg {
-    color: var(--primary);
-    stroke: var(--primary);
-}
-
-.nav-svg {
-    width: 22px;
-    height: 22px;
-    stroke: currentColor;
-    display: block;
-    transition: stroke 0.2s;
-}
-
-/* ★ 需求 3：上線時段區域上移，靠攏在選單下方 */
-#side-menu-shift-section {
-    padding: 16px 20px 20px 20px;
-    margin-top: 4px;
-    border-top: 1px solid var(--border);
-    background: transparent;
-}
-
-/* ==============================================================
-   版本更新日誌 Modal 專屬樣式
-   ============================================================== */
-.changelog-modal-content {
-    max-width: 380px !important;
-    padding: 20px 18px !important;
-}
-
-.changelog-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-bottom: 1px solid var(--border);
-    padding-bottom: 10px;
-    margin-bottom: 14px;
-}
-
-.changelog-header h2 {
-    margin: 0;
-    font-size: 1.15rem;
-    color: var(--primary);
-    font-weight: bold;
-}
-
-.changelog-close-btn {
-    cursor: pointer;
-    font-size: 1.2rem;
-    color: var(--text-muted);
-    padding: 2px 6px;
-    line-height: 1;
-    border-radius: 50%;
-    transition: color 0.2s;
-}
-.changelog-close-btn:active {
-    color: var(--primary);
-}
-
-.changelog-body {
-    max-height: 55vh;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    padding-right: 4px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-.changelog-card {
-    background: var(--timer-bg);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 12px;
-    box-shadow: var(--item-shadow);
-}
-
-.changelog-card.latest {
-    border: 1.5px solid var(--primary);
-    background: rgba(255, 117, 151, 0.05);
-}
-
-body.night-mode .changelog-card.latest {
-    background: rgba(99, 102, 241, 0.08);
-}
-
-.changelog-badge-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    margin-bottom: 8px;
-    font-size: 0.8rem;
-}
-
-.changelog-ver {
-    font-weight: bold;
-    font-size: 0.95rem;
-    color: var(--text-main);
-}
-
-.changelog-tag {
-    background: var(--primary);
-    color: var(--btn-text);
-    padding: 1px 6px;
-    border-radius: 4px;
-    font-size: 0.72rem;
-    font-weight: bold;
-}
-
-.changelog-date {
-    color: var(--text-muted);
-    margin-left: auto;
-    font-size: 0.75rem;
-}
-
-.changelog-items {
-    margin: 0;
-    padding-left: 18px;
-    font-size: 0.86rem;
-    line-height: 1.5;
-    color: var(--text-main);
-}
-
-.changelog-items li {
-    margin-bottom: 4px;
-}
-.changelog-items li:last-child {
-    margin-bottom: 0;
-}
-/* ==============================================================
-   耳機按鈕與倍率調整 (v1.4.0)
-   ============================================================== */
-.header-side { width: 90px; flex-shrink: 0; }
-
-.btn-headset {
-    position: relative;
-    width: 40px;
-    height: 40px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    background: none;
-    border: none;
-    color: var(--primary);
-    cursor: pointer;
-    padding: 0;
-    flex-shrink: 0;
-    pointer-events: auto;
-    transition: transform 0.2s;
-}
-.btn-headset:active { transform: scale(0.9); }
-.headset-svg { width: 24px; height: 24px; display: block; }
-
-/* 啟用滿版地圖 → 右上角；未啟用 → 左上角 */
-body.map-enabled .btn-headset-left { display: none !important; }
-body:not(.map-enabled) .btn-headset-right { display: none !important; }
-/* 單日明細 / 查詢結果時，左側讓給返回鍵 */
-body.sub-view-open .btn-headset { display: none !important; }
-
-/* 地圖首頁：與左上選單鍵同款的浮動圓形按鈕 */
-body.map-enabled.on-home-view .btn-headset-right {
-    width: 44px;
-    height: 44px;
-    background: var(--card-bg);
-    border-radius: 50%;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-}
+function resetMultiplier() { saveMultiplier(1); const num = document.getElementById('multiplier-input'); if (num) num.value = '1.00'; }
 
 
-.multiplier-section { padding-top: 4px; }
-.multiplier-title { font-weight: bold; font-size: 1rem; color: var(--text-main); margin-bottom: 12px; }
-.multiplier-row { display: flex; align-items: center; gap: 12px; }
-.multiplier-range { flex: 1; min-width: 0; accent-color: var(--primary); height: 28px; cursor: pointer; }
-.multiplier-input { width: 84px !important; flex-shrink: 0; text-align: center; font-weight: bold; font-size: 1.1rem; padding: 10px 6px; }
-.multiplier-scale { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted); margin: 2px 96px 0 2px; }
-.multiplier-preview {
-    margin-top: 12px;
-    padding: 10px 12px;
-    background: var(--timer-bg);
-    border: 1px dashed var(--border);
-    border-radius: 8px;
-    font-size: 0.88rem;
-    color: var(--text-main);
-    text-align: center;
+/* ================== 計時器與打卡邏輯 ================== */
+function toggleShift() {
+    const now = Date.now();
+    if (activeShift) {
+        const diffMins = Math.round((now - activeShift.startTime) / 60000);
+        if (diffMins >= 0) { shiftRecords.push({ id: 'shift_' + now, dateKey: getDateKey(activeShift.startTime), startTime: activeShift.startTime, endTime: now, durationMins: diffMins, timestamp: now }); localStorage.setItem(getStoreKey('order_shifts'), JSON.stringify(shiftRecords)); }
+        activeShift = null; localStorage.setItem(getStoreKey('order_active_shift'), JSON.stringify(null)); if(activeWait) checkWaitState();
+    } else { activeShift = { startTime: now }; localStorage.setItem(getStoreKey('order_active_shift'), JSON.stringify(activeShift)); }
+    updateShiftUI(); checkWaitState(); renderWeeklyData();
+}
+
+function updateShiftUI() {
+    const btns = document.querySelectorAll('.btn-shift-toggle-class');
+    const durations = document.querySelectorAll('.shift-current-duration-class');
+    const badgeCenter = document.getElementById('shift-status-badge');
+    const badgeRight = document.getElementById('shift-status-badge-right');
+    const startBtns = document.querySelectorAll('.btn-start');
+    
+    const isMapEnabled = document.body.classList.contains('map-enabled');
+
+    if (activeShift) {
+        btns.forEach(btn => { btn.innerHTML = '時段結束'; btn.style.background = 'transparent'; btn.style.border = '2px solid var(--danger)'; btn.style.color = 'var(--danger)'; });
+        
+        if (currentViewIndex === 0) {
+            if (isMapEnabled) {
+                badgeCenter.style.display = 'none';
+                if (badgeRight) badgeRight.style.display = 'none';
+            } else {
+                badgeCenter.style.display = 'none';
+                if (badgeRight) badgeRight.style.display = 'inline-block';
+            }
+        }
+        durations.forEach(el => el.style.display = 'block'); 
+        startBtns.forEach(b => { b.disabled = false; b.style.opacity = '1'; b.style.cursor = 'pointer'; });
+    } else {
+        btns.forEach(btn => { btn.innerHTML = '時段開始'; btn.style.background = 'var(--primary)'; btn.style.border = 'none'; btn.style.color = 'var(--btn-text)'; });
+        badgeCenter.style.display = 'none';
+        if (badgeRight) badgeRight.style.display = 'none';
+        
+        badgeCenter.innerText = '未上線'; badgeCenter.style.background = 'var(--timer-bg)'; badgeCenter.style.color = 'var(--text-main)'; badgeCenter.style.border = '1px solid var(--border)';
+
+        durations.forEach(el => el.style.display = 'none'); 
+        startBtns.forEach(b => { b.disabled = true; b.style.opacity = '0.5'; b.style.cursor = 'not-allowed'; });
+    }
+    updateActiveOrdersTitle();
+}
+
+function checkWaitState() {
+    const now = Date.now(), isWaiting = (activeShift !== null) && (activeTimers.length === 0);
+    if (isWaiting && !activeWait) { activeWait = { startTime: now }; localStorage.setItem(getStoreKey('order_active_wait'), JSON.stringify(activeWait)); } 
+    else if (!isWaiting && activeWait) { const diffMins = Math.round((now - activeWait.startTime) / 60000); if (diffMins >= 0) { waitRecords.push({ id: 'wait_' + now, dateKey: getDateKey(activeWait.startTime), durationMins: diffMins, timestamp: now }); localStorage.setItem(getStoreKey('order_waits'), JSON.stringify(waitRecords)); } activeWait = null; localStorage.setItem(getStoreKey('order_active_wait'), JSON.stringify(null)); }
+    const waitContainer = document.getElementById('wait-time-container');
+    if (activeWait) { waitContainer.style.display = 'block'; document.getElementById('wait-current-duration').innerText = formatDuration(now - activeWait.startTime); } else { waitContainer.style.display = 'none'; }
+}
+
+function submitStartTimers(count) {
+    closeModal('order-quantity-modal');
+    const platform = document.querySelector('input[name="platform-select"]:checked').value;
+    startTimers(count, platform);
+}
+
+async function startTimers(count, platform = 'foodpanda') { 
+    if (!activeShift) return await appAlert('請先點擊「時段開始」進入上線狀態，才能開始接單！'); 
+    const now = Date.now(); 
+    const tripId = 'trip_' + now;
+    for (let i = 0; i < count; i++) {
+        activeTimers.push({ 
+            id: 'timer_' + now + '_' + Math.random().toString(36).substr(2, 5), 
+            startTime: now,
+            platform: platform,
+            tripId: tripId
+        });
+    }
+    localStorage.setItem(getStoreKey('order_active_timers'), JSON.stringify(activeTimers)); 
+    renderActiveTimers(); checkWaitState(); 
+}
+
+async function stopTimer(id) { 
+    closeAllSwipes();
+    if (settings.confirmDelivery) {
+        const confirmed = await appConfirm('確定要完成配送並結算此訂單嗎？', '配送確認');
+        if (!confirmed) return;
+    }
+    const index = activeTimers.findIndex(t => t.id === id); if (index === -1) return; 
+    const timer = activeTimers[index], endTime = Date.now(), diffMins = Math.max(1, Math.round((endTime - timer.startTime) / 60000)); 
+    
+    let amount = 0, multiplier = 1;
+    if (timer.platform === 'ubereats' && timer.estimatedAmount) {
+        amount = timer.estimatedAmount;
+    } else {
+        const billableMins = Math.max(diffMins, timer.estimatedTime || 0);
+        multiplier = getPayMultiplier();
+        amount = calcTimedAmount(billableMins, multiplier);
+    }
+
+    const endDateObj = new Date(endTime);
+    historyRecords.push({
+        id: timer.id, tripId: timer.tripId, platform: timer.platform, status: 'completed',
+        dateKey: getDateKey(endTime), year: endDateObj.getFullYear(), month: endDateObj.getMonth() + 1, day: endDateObj.getDate(), dayOfWeek: DAYS_MAP[endDateObj.getDay()],
+        startTimeStr: formatTime(new Date(timer.startTime)), endTimeStr: formatTime(endDateObj),
+        durationMins: diffMins, estimatedTime: timer.estimatedTime || 0, estimatedAmount: timer.estimatedAmount || 0,
+        amount: Number(amount.toFixed(2)), multiplier: multiplier, timestamp: endTime, storeName: timer.storeName || '', orderNumber: timer.orderNumber || ''
+    });
+    activeTimers.splice(index, 1); 
+    localStorage.setItem(getStoreKey('order_active_timers'), JSON.stringify(activeTimers)); 
+    localStorage.setItem(getStoreKey('order_history_records'), JSON.stringify(historyRecords)); 
+    renderActiveTimers(); renderWeeklyData(); checkWaitState(); 
+    if (currentViewIndex === 4) calculatePunctuality();
+}
+
+function cancelTimer(id) { closeAllSwipes(); const index = activeTimers.findIndex(t => t.id === id); if (index > -1) { activeTimers.splice(index, 1); localStorage.setItem(getStoreKey('order_active_timers'), JSON.stringify(activeTimers)); renderActiveTimers(); checkWaitState(); } }
+
+/* ================== UberEats預估金額與取消邏輯 ================== */
+async function setEstimatedAmount(id) { 
+    closeAllSwipes(); const timer = activeTimers.find(t => t.id === id); if (!timer) return; 
+    const val = await appPrompt('請輸入預估金額 ($):', timer.estimatedAmount || '', '設定預估金額'); 
+    if (val !== null && val.trim() !== '') { 
+        const num = parseFloat(val); 
+        if (!isNaN(num) && num >= 0) { 
+            timer.estimatedAmount = num; localStorage.setItem(getStoreKey('order_active_timers'), JSON.stringify(activeTimers)); renderActiveTimers(); 
+        } else { await appAlert('請輸入有效的數字', '錯誤'); } 
+    } 
+}
+
+function promptCancelTimer(id) {
+    closeAllSwipes(); document.getElementById('cancel-target-id').value = id; document.getElementById('cancel-timer-modal').classList.add('active');
+}
+
+function confirmCancelTimer(reason) {
+    const id = document.getElementById('cancel-target-id').value; closeModal('cancel-timer-modal');
+    if (reason === 'picked_up') settleAndCancelTimer(id); else cancelTimer(id); 
+}
+
+async function settleAndCancelTimer(id) {
+    const index = activeTimers.findIndex(t => t.id === id); if (index === -1) return; 
+    const timer = activeTimers[index], endTime = Date.now(), diffMins = Math.max(1, Math.round((endTime - timer.startTime) / 60000)); 
+    let amount = 0, multiplier = 1;
+    if (timer.platform === 'ubereats' && timer.estimatedAmount) amount = timer.estimatedAmount;
+    else { const billableMins = Math.max(diffMins, timer.estimatedTime || 0); multiplier = getPayMultiplier(); amount = calcTimedAmount(billableMins, multiplier); }
+
+    const endDateObj = new Date(endTime);
+    historyRecords.push({
+        id: timer.id, tripId: timer.tripId, platform: timer.platform, status: 'cancelled',
+        dateKey: getDateKey(endTime), year: endDateObj.getFullYear(), month: endDateObj.getMonth() + 1, day: endDateObj.getDate(), dayOfWeek: DAYS_MAP[endDateObj.getDay()],
+        startTimeStr: formatTime(new Date(timer.startTime)), endTimeStr: formatTime(endDateObj), durationMins: diffMins, estimatedTime: timer.estimatedTime || 0, estimatedAmount: timer.estimatedAmount || 0,
+        amount: Number(amount.toFixed(2)), multiplier: multiplier, timestamp: endTime, storeName: timer.storeName || '', orderNumber: timer.orderNumber || '' 
+    }); 
+    activeTimers.splice(index, 1); 
+    localStorage.setItem(getStoreKey('order_active_timers'), JSON.stringify(activeTimers)); localStorage.setItem(getStoreKey('order_history_records'), JSON.stringify(historyRecords)); 
+    renderActiveTimers(); renderWeeklyData(); checkWaitState(); 
+}
+
+/* ================== 店家搜尋與綁定邏輯 ================== */
+function incrementOrderNumber(str) {
+    if (!str) return '1'; const match = str.match(/(\d+)$/);
+    if (match) { const numLen = match[1].length; const nextNum = parseInt(match[1], 10) + 1; return str.slice(0, -numLen) + String(nextNum).padStart(numLen, '0'); }
+    return str + '1';
+}
+
+function openStoreModal(id) { document.getElementById('store-target-id').value = id; const kwInput = document.getElementById('store-keyword'); kwInput.value = ''; document.getElementById('store-result-list').innerHTML = ''; document.getElementById('store-modal').classList.add('active'); kwInput.focus(); setTimeout(() => { kwInput.focus(); }, 50); }
+function handleTimerTitleClick(id) { const timer = activeTimers.find(t => t.id === id); if (!timer) return; if (timer.storeName) { document.getElementById('timer-action-title').innerText = timer.storeName; document.getElementById('timer-action-id').value = id; document.getElementById('timer-action-modal').classList.add('active'); } else { openStoreModal(id); } }
+function editOrderNumber() { const id = document.getElementById('timer-action-id').value, timer = activeTimers.find(t => t.id === id); if(timer) { closeModal('timer-action-modal'); openOrderNumberModal('修改單號', timer.orderNumber || '', function(newNum) { timer.orderNumber = newNum; localStorage.setItem(getStoreKey('order_active_timers'), JSON.stringify(activeTimers)); renderActiveTimers(); }); } }
+function cloneTimer() { const id = document.getElementById('timer-action-id').value, timer = activeTimers.find(t => t.id === id); if(timer) { closeModal('timer-action-modal'); const nextNum = incrementOrderNumber(timer.orderNumber); openOrderNumberModal(`為【${timer.storeName}】新增訂單`, nextNum, function(orderNum) { const now = Date.now(); activeTimers.push({ id: 'timer_' + now + '_' + Math.random().toString(36).substr(2, 5), startTime: now, storeName: timer.storeName, orderNumber: orderNum }); localStorage.setItem(getStoreKey('order_active_timers'), JSON.stringify(activeTimers)); renderActiveTimers(); checkWaitState(); }); } }
+function rebindTimer() { const id = document.getElementById('timer-action-id').value; closeModal('timer-action-modal'); openStoreModal(id); }
+
+async function addCustomStore() { const kw = document.getElementById('store-keyword').value.trim(); const name = await appPrompt('請輸入新店家名稱：', kw, '新增自訂店家'); if (name && name.trim() !== '') { customStores.push({ code: '自訂', name: name.trim() }); localStorage.setItem('app_custom_stores', JSON.stringify(customStores)); searchStore(); selectStore(name.trim()); } }
+function searchStore() {
+    const keyword = document.getElementById('store-keyword').value.trim().toLowerCase(), listEl = document.getElementById('store-result-list'); listEl.innerHTML = '';
+    if (!keyword) return; const allStores = STORE_LIST.concat(customStores); const results = allStores.filter(s => s.code.toLowerCase().includes(keyword) || s.name.toLowerCase().includes(keyword));
+    if (results.length === 0) return listEl.innerHTML = '<div style="padding:10px; text-align:center; color:var(--text-muted);">無符合的店家，請點擊上方 [新增]</div>';
+    results.forEach(s => {
+        const div = document.createElement('div'); div.style.padding = '12px'; div.style.borderBottom = '1px solid var(--border)'; div.style.cursor = 'pointer'; div.style.color = 'var(--text-main)';
+        div.innerHTML = `<span style="font-size:0.8rem; background:var(--primary); color:var(--btn-text); padding:2px 6px; border-radius:4px; margin-right:8px; box-shadow:0 1px 2px rgba(0,0,0,0.1);">${s.code}</span><strong>${s.name}</strong>`;
+        div.onclick = () => selectStore(s.name); listEl.appendChild(div);
+    });
+}
+function selectStore(storeName) {
+    const id = document.getElementById('store-target-id').value, timer = activeTimers.find(t => t.id === id); if (!timer) return;
+    closeModal('store-modal'); 
+    openOrderNumberModal(`已選擇：${storeName}\n請輸入訂單號碼`, '', async function(orderNum) {
+        timer.storeName = storeName; timer.orderNumber = orderNum; 
+        const unboundTimers = activeTimers.filter(t => !t.storeName && t.id !== id);
+        if (unboundTimers.length > 0) { if (await appConfirm(`您還有 ${unboundTimers.length} 個未綁定的計時器。\n是否要自動套用【${storeName}】並自動遞增單號？`, '自動綁定')) { let currentNum = timer.orderNumber; unboundTimers.forEach(ut => { currentNum = incrementOrderNumber(currentNum); ut.storeName = storeName; ut.orderNumber = currentNum; }); } }
+        localStorage.setItem(getStoreKey('order_active_timers'), JSON.stringify(activeTimers)); renderActiveTimers(); 
+    });
+}
+
+/* ================== 預估時間與刪除紀錄邏輯 ================== */
+async function setEstimatedTime(id) { closeAllSwipes(); const timer = activeTimers.find(t => t.id === id); if (!timer) return; const val = await appPrompt('請輸入預估時間 (分鐘):', timer.estimatedTime || '', '設定預估時間'); if (val !== null && val.trim() !== '') { const num = parseInt(val, 10); if (!isNaN(num) && num >= 0) { timer.estimatedTime = num; localStorage.setItem(getStoreKey('order_active_timers'), JSON.stringify(activeTimers)); renderActiveTimers(); } else { await appAlert('請輸入有效的數字', '錯誤'); } } }
+async function editHistoryEstimatedTime(id) { 
+    closeAllSwipes(); const record = historyRecords.find(r => r.id === id); if (!record) return; 
+    
+    if (record.platform === 'ubereats') {
+        const val = await appPrompt('請輸入預估金額 ($):', record.estimatedAmount || '', '設定預估金額');
+        if (val !== null && val.trim() !== '') {
+            const num = parseFloat(val);
+            if (!isNaN(num) && num >= 0) {
+                record.estimatedAmount = num; record.amount = num;
+                localStorage.setItem(getStoreKey('order_history_records'), JSON.stringify(historyRecords)); 
+                renderWeeklyData(); if(document.getElementById('view-daily-detail').classList.contains('active')) renderDailyDetail();
+                if (currentViewIndex === 4) calculatePunctuality();
+            } else { await appAlert('請輸入有效的數字', '錯誤'); }
+        }
+    } else {
+        const val = await appPrompt('請輸入預估時間 (分鐘):', record.estimatedTime || '', '設定預估時間'); 
+        if (val !== null && val.trim() !== '') { 
+            const num = parseInt(val, 10); 
+            if (!isNaN(num) && num >= 0) { 
+                record.estimatedTime = num; const billableMins = Math.max(record.durationMins, num); 
+                const amount = calcTimedAmount(billableMins, record.multiplier || 1); record.amount = Number(amount.toFixed(2));
+                localStorage.setItem(getStoreKey('order_history_records'), JSON.stringify(historyRecords)); 
+                renderWeeklyData(); if(document.getElementById('view-daily-detail').classList.contains('active')) renderDailyDetail(); 
+                if (currentViewIndex === 4) calculatePunctuality(); 
+            } else { await appAlert('請輸入有效的數字', '錯誤'); } 
+        }
+    }
+}
+
+async function deleteHistoryRecord(id) { closeAllSwipes(); if(await appConfirm('確定刪除這筆收入紀錄嗎？', '刪除確認', true)) { historyRecords = historyRecords.filter(t => t.id !== id); localStorage.setItem(getStoreKey('order_history_records'), JSON.stringify(historyRecords)); renderWeeklyData(); if(document.getElementById('view-daily-detail').classList.contains('active')) renderDailyDetail(); if (currentViewIndex === 4) calculatePunctuality(); } }
+
+/* ================== 卡片拖曳排序邏輯 ================== */
+let pressTimer = null, isDraggingItem = false, dragTarget = null, placeholder = null, initialClientY = 0, currentTouchY = 0; 
+let itemSwipeStartX = 0, itemSwipeStartY = 0, itemSwipeCurrentX = 0, itemSwipingEl = null, openItemSwipeEl = null, itemSwipeDirection = null;
+
+function closeAllSwipes() { if (openItemSwipeEl) { openItemSwipeEl.style.transition = 'transform 0.3s ease'; openItemSwipeEl.style.transform = 'translateX(0px)'; openItemSwipeEl = null; } }
+function forceCleanupDrag() { isDraggingItem = false; clearTimeout(pressTimer); closeAllSwipes(); document.querySelectorAll('.drag-placeholder').forEach(el => el.remove()); const list = document.getElementById('active-timers-list'); document.querySelectorAll('.active-timer-container.dragging').forEach(el => { el.classList.remove('dragging'); el.style.position = ''; el.style.top = ''; el.style.left = ''; el.style.width = ''; el.style.margin = ''; el.style.zIndex = ''; el.style.transform = ''; if (el.parentNode === document.body && list) { list.appendChild(el); } }); if (!document.body.classList.contains('map-enabled')) { document.getElementById('view-home').style.overflowY = ''; } else { const panelScroll = document.getElementById('panel-scroll-content'); if (panelScroll) panelScroll.style.overflowY = ''; } dragTarget = null; placeholder = null; }
+
+document.addEventListener('visibilitychange', () => { if (document.hidden) { forceCleanupDrag(); renderActiveTimers(); } }); window.addEventListener('pagehide', () => { forceCleanupDrag(); }); window.addEventListener('blur', () => { forceCleanupDrag(); });
+
+function handleItemTouchStart(e) { 
+    if (isDraggingItem) { forceCleanupDrag(); renderActiveTimers(); return; }
+    clearTimeout(pressTimer);
+    if (openItemSwipeEl && openItemSwipeEl !== e.currentTarget) { openItemSwipeEl.style.transform = 'translateX(0px)'; openItemSwipeEl = null; } 
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX; currentTouchY = e.touches ? e.touches[0].clientY : e.clientY;
+    itemSwipeStartX = clientX; itemSwipeStartY = currentTouchY; itemSwipingEl = e.currentTarget; itemSwipingEl.style.transition = 'none'; itemSwipeCurrentX = window.getComputedStyle(itemSwipingEl).transform !== 'none' ? parseInt(window.getComputedStyle(itemSwipingEl).transform.split(',')[4]) || 0 : 0; itemSwipeDirection = null; 
+
+    const isClickable = e.target.closest('button') || e.target.closest('.swipe-delete') || e.target.closest('.swipe-edit') || e.target.tagName.toLowerCase() === 'h3';
+    if (!isClickable && e.currentTarget.closest('.active-timer-container')) {
+        dragTarget = e.currentTarget.closest('.active-timer-container');
+        pressTimer = setTimeout(() => {
+            if (isDraggingItem) return;
+            isDraggingItem = true;
+            if (navigator.vibrate) navigator.vibrate(50);
+            if (!document.body.classList.contains('map-enabled')) { document.getElementById('view-home').style.overflowY = 'hidden'; } else { document.getElementById('panel-scroll-content').style.overflowY = 'hidden'; }
+            initialClientY = currentTouchY;
+            const rect = dragTarget.getBoundingClientRect();
+            document.querySelectorAll('.drag-placeholder').forEach(el => el.remove());
+            placeholder = document.createElement('div'); placeholder.className = 'drag-placeholder'; placeholder.style.height = rect.height + 'px';
+            dragTarget.parentNode.insertBefore(placeholder, dragTarget);
+            dragTarget.style.position = 'fixed'; dragTarget.style.top = rect.top + 'px'; dragTarget.style.left = rect.left + 'px'; dragTarget.style.width = rect.width + 'px'; dragTarget.style.margin = '0'; dragTarget.style.zIndex = '5000'; dragTarget.classList.add('dragging');
+            document.body.appendChild(dragTarget);
+        }, 200); 
+    }
+}
+
+function handleItemTouchMove(e) { 
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX; currentTouchY = e.touches ? e.touches[0].clientY : e.clientY;
+    let diffX = clientX - itemSwipeStartX; let diffY = currentTouchY - itemSwipeStartY; 
+    if (!isDraggingItem) {
+        if (Math.abs(diffX) > 10 || Math.abs(diffY) > 10) clearTimeout(pressTimer);
+        if (!itemSwipeDirection) { if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 5) itemSwipeDirection = 'horizontal'; else if (Math.abs(diffY) > Math.abs(diffX) && Math.abs(diffY) > 5) itemSwipeDirection = 'vertical'; } 
+        if (itemSwipeDirection === 'vertical') return; 
+        if (itemSwipeDirection === 'horizontal') { 
+            if (e.cancelable) e.preventDefault(); 
+            let moveX = itemSwipeCurrentX + diffX; 
+            let hasRightAction = itemSwipingEl.querySelector('.swipe-edit') !== null, hasLeftAction = itemSwipingEl.querySelector('.swipe-delete') !== null;
+            if (!hasRightAction && moveX > 0) moveX = 0; if (!hasLeftAction && moveX < 0) moveX = 0;
+            if (moveX > 90) moveX = 90; if (moveX < -90) moveX = -90; 
+            itemSwipingEl.style.transform = `translateX(${moveX}px)`; 
+        } 
+    } else {
+        if (e.cancelable) e.preventDefault(); 
+        const deltaY = currentTouchY - initialClientY; dragTarget.style.transform = `translateY(${deltaY}px) scale(1.02)`;
+        const list = document.getElementById('active-timers-list'), siblings = [...list.querySelectorAll('.active-timer-container:not(.dragging)')];
+        let nextSibling = siblings.find(sibling => { const box = sibling.getBoundingClientRect(); return currentTouchY < box.top + box.height / 2; });
+        if (placeholder) { if (nextSibling) list.insertBefore(placeholder, nextSibling); else list.appendChild(placeholder); }
+    }
+}
+
+function handleItemTouchEnd(e) { 
+    clearTimeout(pressTimer);
+    if (isDraggingItem) {
+        isDraggingItem = false;
+        if (!document.body.classList.contains('map-enabled')) { document.getElementById('view-home').style.overflowY = ''; } else { const panelScroll = document.getElementById('panel-scroll-content'); if (panelScroll) panelScroll.style.overflowY = ''; }
+        if (dragTarget && placeholder && placeholder.parentNode) { placeholder.parentNode.insertBefore(dragTarget, placeholder); } else if (dragTarget) { const list = document.getElementById('active-timers-list'); if (list && dragTarget.parentNode !== list) list.appendChild(dragTarget); }
+        if (dragTarget) { dragTarget.classList.remove('dragging'); dragTarget.style.position = ''; dragTarget.style.top = ''; dragTarget.style.left = ''; dragTarget.style.width = ''; dragTarget.style.margin = ''; dragTarget.style.zIndex = ''; dragTarget.style.transform = ''; }
+        document.querySelectorAll('.drag-placeholder').forEach(el => el.remove()); placeholder = null;
+        if (navigator.vibrate) navigator.vibrate(20);
+        const list = document.getElementById('active-timers-list');
+        if (list) { const newOrderIds = [...list.querySelectorAll('.active-timer-container')].map(el => el.getAttribute('data-id')); if (newOrderIds.length === activeTimers.length) { activeTimers.sort((a, b) => newOrderIds.indexOf(a.id) - newOrderIds.indexOf(b.id)); localStorage.setItem(getStoreKey('order_active_timers'), JSON.stringify(activeTimers)); } }
+        dragTarget = null; return;
+    }
+    if (!itemSwipingEl || itemSwipeDirection === 'vertical') return; 
+    itemSwipingEl.style.transition = 'transform 0.3s ease'; 
+    let currentX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX; 
+    let finalX = itemSwipeCurrentX + (currentX - itemSwipeStartX); 
+    let hasRightAction = itemSwipingEl.querySelector('.swipe-edit') !== null, hasLeftAction = itemSwipingEl.querySelector('.swipe-delete') !== null;
+    if (hasLeftAction && finalX < -40) { itemSwipingEl.style.transform = `translateX(-80px)`; openItemSwipeEl = itemSwipingEl; } else if (hasRightAction && finalX > 40) { itemSwipingEl.style.transform = `translateX(80px)`; openItemSwipeEl = itemSwipingEl; } else { itemSwipingEl.style.transform = `translateX(0px)`; if (openItemSwipeEl === itemSwipingEl) openItemSwipeEl = null; } 
+    itemSwipingEl = null; 
+}
+
+function openOrderQuantityModal() {
+    document.getElementById('order-quantity-modal').classList.add('active');
+}
+
+function updateActiveOrdersTitle() {
+    const titleEl = document.getElementById('active-orders-title');
+    const hintEl = document.querySelector('#panel-drag-handle p');
+    if (!titleEl) return;
+    
+    if (activeTimers.length === 0) {
+        titleEl.innerText = '目前沒有訂單...';
+        titleEl.style.color = 'inherit';
+        if (hintEl) hintEl.innerText = '前往熱點地區將更有機會接到訂單';
+    } else {
+        titleEl.innerText = '進行中的訂單';
+        titleEl.style.color = 'inherit';
+        if (hintEl) hintEl.innerText = '提示：長按卡片拖曳排序，往左滑動刪除，點擊標題綁定店家';
+    }
+}
+
+function renderActiveTimers() {
+    forceCleanupDrag();
+    const listEl = document.getElementById('active-timers-list'); 
+    document.getElementById('active-count').innerText = `${activeTimers.length} 個進行中`;
+    if (activeTimers.length === 0) {
+        listEl.innerHTML = '<div class="empty-state">目前沒有進行中的訂單</div>';
+        updateActiveOrdersTitle();
+        return;
+    }
+    const now = Date.now();
+    let html = '';
+    activeTimers.forEach((timer, idx) => {
+        const titleStr = timer.storeName ? `${timer.storeName} #${timer.orderNumber}` : `訂單計時 #${idx + 1}`;
+        const isUber = timer.platform === 'ubereats';
+        
+        const estAction = isUber ? `setEstimatedAmount('${timer.id}')` : `setEstimatedTime('${timer.id}')`;
+        const estLabel = isUber ? '預估金額' : '預估';
+        let estStr = '';
+
+        if (isUber) {
+            estStr = timer.estimatedAmount ? `<span class="est-pill normal">預估 $${timer.estimatedAmount}</span>` : '';
+        } else if (timer.estimatedTime) {
+            const elapsedMins = (now - timer.startTime) / 60000;
+            const isOvertime = elapsedMins > timer.estimatedTime;
+            const statusClass = isOvertime ? 'overtime' : 'normal';
+            estStr = `<span class="est-pill ${statusClass}" id="est_pill_${timer.id}">預估 ${timer.estimatedTime}分鐘</span>`;
+        }
+        
+        html += `<div class="swipe-container active-timer-container" data-id="${timer.id}"><div class="swipe-content active-timer-content" onmousedown="handleItemTouchStart(event)" ontouchstart="handleItemTouchStart(event)" onmousemove="handleItemTouchMove(event)" ontouchmove="handleItemTouchMove(event)" onmouseup="handleItemTouchEnd(event)" ontouchend="handleItemTouchEnd(event)" ontouchcancel="handleItemTouchEnd(event)" onmouseleave="handleItemTouchEnd(event)"><div class="swipe-edit" style="background:var(--success);" onclick="${estAction}">${estLabel}</div><div class="timer-info"><h3 onclick="handleTimerTitleClick('${timer.id}')">${titleStr} ${estStr}</h3><p>開始時間：${formatTime(new Date(timer.startTime))}</p><div class="timer-duration" id="duration_${timer.id}">00:00:00</div></div><button class="btn-stop" onclick="stopTimer('${timer.id}')">配送</button><div class="swipe-delete" onclick="promptCancelTimer('${timer.id}')">刪除</div></div></div>`;
+    });
+    listEl.innerHTML = html; 
+    updateTimersDisplay(); updateActiveOrdersTitle();
+}
+
+function updateTimersDisplay() {
+    const now = Date.now();
+    activeTimers.forEach(timer => { 
+        const el = document.getElementById(`duration_${timer.id}`); 
+        if (el) el.innerText = formatDuration(now - timer.startTime); 
+
+        if (timer.platform !== 'ubereats' && timer.estimatedTime) {
+            const pillEl = document.getElementById(`est_pill_${timer.id}`);
+            if (pillEl) {
+                const elapsedMins = (now - timer.startTime) / 60000;
+                if (elapsedMins > timer.estimatedTime) {
+                    pillEl.classList.remove('normal');
+                    pillEl.classList.add('overtime');
+                } else {
+                    pillEl.classList.remove('overtime');
+                    pillEl.classList.add('normal');
+                }
+            }
+        }
+    });
+    if (activeShift) { const shiftEls = document.querySelectorAll('.shift-current-duration-class'); shiftEls.forEach(el => el.innerText = formatDuration(now - activeShift.startTime)); } checkWaitState();
+}
+
+/* ================== 修改訂單(收入)金額邏輯 ================== */
+async function editIncomeAmount(id) {
+    const record = historyRecords.find(r => r.id === id); if (!record) return;
+    const newAmtStr = await appPrompt(`請輸入新的訂單金額\n(原金額: $${record.amount})：`, record.amount, '修改訂單金額');
+    if (newAmtStr !== null && newAmtStr.trim() !== '') {
+        const numAmt = Number(newAmtStr); if (isNaN(numAmt) || numAmt < 0) { return await appAlert('請輸入有效的數字', '輸入錯誤'); }
+        record.amount = numAmt; localStorage.setItem(getStoreKey('order_history_records'), JSON.stringify(historyRecords)); renderWeeklyData(); 
+        if(document.getElementById('view-daily-detail').classList.contains('active')) { renderDailyDetail(); }
+    }
+}
+
+/* ================== 小費與成本紀錄邏輯 ================== */
+async function deleteTip(id) { closeAllSwipes(); if(await appConfirm('確定刪除這筆小費紀錄嗎？', '刪除確認', true)) { tipRecords = tipRecords.filter(t => t.id !== id); localStorage.setItem(getStoreKey('order_tips'), JSON.stringify(tipRecords)); renderWeeklyData(); if(document.getElementById('view-daily-detail').classList.contains('active')) renderDailyDetail(); } } 
+async function deleteCost(id) { closeAllSwipes(); if(await appConfirm('確定刪除這筆成本紀錄嗎？', '刪除確認', true)) { costRecords = costRecords.filter(t => t.id !== id); localStorage.setItem(getStoreKey('order_costs'), JSON.stringify(costRecords)); renderWeeklyData(); if(document.getElementById('view-daily-detail').classList.contains('active')) renderDailyDetail(); } }
+
+async function saveTip() { const amt = Number(document.getElementById('tip-amount').value); if(!amt || amt <= 0) return await appAlert('請輸入有效金額', '輸入錯誤'); const now = Date.now(), d = new Date(now); tipRecords.push({ id: 'tip_' + now, dateKey: getDateKey(now), year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate(), dayOfWeek: DAYS_MAP[d.getDay()], amount: amt, method: document.getElementById('tip-method').value, timestamp: now, timeStr: formatTime(d) }); localStorage.setItem(getStoreKey('order_tips'), JSON.stringify(tipRecords)); document.getElementById('tip-amount').value = ''; renderWeeklyData(); await appAlert('小費紀錄成功！', '成功'); }
+async function saveCost() { const amt = Number(document.getElementById('cost-amount').value); if(!amt || amt <= 0) return await appAlert('請輸入有效金額', '輸入錯誤'); const now = Date.now(), d = new Date(now); costRecords.push({ id: 'cost_' + now, dateKey: getDateKey(now), year: d.getFullYear(), month: d.getMonth() + 1, day: d.getDate(), dayOfWeek: DAYS_MAP[d.getDay()], amount: amt, type: document.getElementById('cost-type').value, memo: document.getElementById('cost-memo').value, mileage: document.getElementById('cost-mileage').value, timestamp: now, timeStr: formatTime(d) }); localStorage.setItem(getStoreKey('order_costs'), JSON.stringify(costRecords)); document.getElementById('cost-amount').value = ''; document.getElementById('cost-memo').value = ''; document.getElementById('cost-mileage').value = ''; renderWeeklyData(); await appAlert('成本紀錄成功！', '成功'); }
+function toggleMileageInput() { const type = document.getElementById('cost-type').value; document.getElementById('mileage-group').style.display = (type === '保養維修' || type === '加油') ? 'block' : 'none'; } function toggleEditMileage() { const type = document.getElementById('edit-cost-type').value; document.getElementById('edit-mileage-group').style.display = (type === '保養維修' || type === '加油') ? 'block' : 'none'; }
+
+/* ================== 共用群組渲染函數 ================== */
+function groupDataByDate(records) { const grouped = {}; records.forEach(rec => { if (!grouped[rec.dateKey]) grouped[rec.dateKey] = { dateKey: rec.dateKey, title: `${rec.year}年${rec.month}月${rec.day}日`, totalAmount: 0, records: [] }; grouped[rec.dateKey].records.push(rec); grouped[rec.dateKey].totalAmount += rec.amount; }); return grouped; }
+function renderRecordGroup(data, containerId, emptyMsg, context, itemLabel, amountPrefix = '', amountColor = 'var(--success)') {
+    const container = document.getElementById(containerId);
+    if (data.length === 0) return container.innerHTML = `<div class="empty-state">${emptyMsg}</div>`;
+    let html = '';
+    Object.values(groupDataByDate(data)).sort((a,b)=>new Date(b.dateKey)-new Date(a.dateKey)).forEach(group => {
+        html += `<div class="date-card" onclick="openDailyDetail('${context}', '${group.dateKey}')"><div class="date-header"><div><div class="date-title">${group.title}</div><div class="date-subtitle">${group.records.length} ${itemLabel}</div></div><div class="date-total"><div class="date-amount" style="color:${amountColor};">${amountPrefix}${fmtMoney(group.totalAmount)}</div><div class="date-arrow">查看明細 〉</div></div></div></div>`;
+    });
+    container.innerHTML = html;
+}
+function renderTips(data = tipRecords, containerId = 'tips-list') { renderRecordGroup(data, containerId, '此區間尚無小費紀錄', 'tip', '筆小費'); }
+function renderCosts(data = costRecords, containerId = 'costs-list') { renderRecordGroup(data, containerId, '此區間尚無成本紀錄', 'cost', '筆成本', '支出 ', 'var(--text-main)'); }
+function renderStats(data = historyRecords, containerId = 'stats-list') { renderRecordGroup(data, containerId, '此區間尚無收入紀錄', 'income', '張訂單'); }
+
+/* ================== 單日明細 Modal 邏輯 ================== */
+function openDailyDetail(context, dateKey) { currentDailyContext = context; currentDailyDateObj = new Date(dateKey); currentDailyTab = 'foodpanda'; document.getElementById('view-daily-detail').classList.add('active'); updateUIState(); renderDailyDetail(); }
+function closeDailyDetail() { document.getElementById('view-daily-detail').classList.remove('active'); updateUIState(); }
+function prevDailyDetail() { currentDailyDateObj.setDate(currentDailyDateObj.getDate() - 1); renderDailyDetail(); }
+function nextDailyDetail() { currentDailyDateObj.setDate(currentDailyDateObj.getDate() + 1); renderDailyDetail(); }
+
+function renderDailyDetail() {
+    const dateKey = getDateKey(currentDailyDateObj.getTime());
+    document.getElementById('daily-detail-date').innerText = `${currentDailyDateObj.getMonth() + 1}月${currentDailyDateObj.getDate()}日 ${DAYS_MAP[currentDailyDateObj.getDay()]}`;
+    document.getElementById('daily-detail-week').innerText = `第${getWeekNumber(currentDailyDateObj)}週 ${currentDailyDateObj.getFullYear()}`;
+    
+    const listContainer = document.getElementById('daily-detail-list'), statsGrid = document.getElementById('daily-detail-stats-grid');
+    let html = '';
+    
+    if (currentDailyContext === 'income') {
+        const tabCancelled = document.getElementById('tab-cancelled');
+        if (tabCancelled) tabCancelled.style.display = 'inline-block';
+        const tabFoodpanda = document.getElementById('tab-foodpanda');
+        if (tabFoodpanda) tabFoodpanda.style.display = 'inline-block';
+        const tabUbereats = document.getElementById('tab-ubereats');
+        if (tabUbereats) tabUbereats.style.display = 'inline-block';
+
+        let typeLabel = 'foodpanda 報酬';
+        if (currentDailyTab === 'ubereats') typeLabel = 'Uber Eats 報酬';
+        if (currentDailyTab === 'cancelled') typeLabel = '取消 (當日總額)';
+        document.getElementById('daily-detail-type-label').innerText = typeLabel;
+        
+        const allDailyRecords = historyRecords.filter(r => r.dateKey === dateKey);
+        
+        let dailyRecords = [];
+        if (currentDailyTab === 'cancelled') {
+            dailyRecords = allDailyRecords.filter(r => r.status === 'cancelled');
+        } else {
+            dailyRecords = allDailyRecords.filter(r => (r.status || 'completed') === 'completed' && (r.platform || 'foodpanda') === currentDailyTab);
+        }
+        dailyRecords.sort((a,b)=>b.timestamp - a.timestamp);
+        
+        document.getElementById('daily-detail-amount').innerText = fmtMoney(dailyRecords.reduce((s,r)=>s+r.amount,0));
+        document.getElementById('daily-detail-amount').style.color = currentDailyTab === 'cancelled' ? 'var(--danger)' : 'var(--success)';
+        
+        let totalShiftMins = shiftRecords.filter(r => r.dateKey === dateKey).reduce((s,r) => s + r.durationMins, 0) + (activeShift && getDateKey(activeShift.startTime) === dateKey ? Math.floor((Date.now() - activeShift.startTime) / 60000) : 0);
+        const dailyWaits = waitRecords.filter(r => r.dateKey === dateKey);
+        let totalWaitMins = dailyWaits.reduce((s,r) => s + r.durationMins, 0), maxWaitMins = dailyWaits.length > 0 ? Math.max(...dailyWaits.map(r=>r.durationMins)) : 0;
+        if (activeWait && getDateKey(activeWait.startTime) === dateKey) { const currWait = Math.floor((Date.now() - activeWait.startTime) / 60000); totalWaitMins += currWait; maxWaitMins = Math.max(maxWaitMins, currWait); }
+
+        statsGrid.style.display = 'grid';
+        document.getElementById('daily-detail-online-hours').innerText = formatMins(totalShiftMins);
+        document.getElementById('daily-detail-wait-total').innerText = formatMins(totalWaitMins);
+        document.getElementById('daily-detail-wait-max').innerText = formatMins(maxWaitMins);
+
+        if (dailyRecords.length === 0) {
+            let emptyLabel = currentDailyTab === 'cancelled' ? '取消' : '收入';
+            html = `<div class="empty-state">今日無${emptyLabel}紀錄</div>`;
+        } else {
+            if (currentDailyTab === 'ubereats') {
+                const tripGroups = {};
+                dailyRecords.forEach(r => {
+                    const tId = r.tripId || r.id; 
+                    if (!tripGroups[tId]) tripGroups[tId] = [];
+                    tripGroups[tId].push(r);
+                });
+                
+                Object.values(tripGroups).forEach(group => {
+                    group.forEach(r => {
+                        const isUber = r.platform === 'ubereats';
+                        const titleStr = r.storeName ? `<div style="font-weight:bold; color:var(--primary); margin-bottom:4px; font-size:1rem; word-break:break-word;">${r.storeName} #${r.orderNumber}</div>` : '';
+                        
+                        const estAction = isUber ? '預估金額' : '預估';
+                        const estInfo = (isUber && r.estimatedAmount) ? ` / 預估 $${r.estimatedAmount}` : (r.estimatedTime ? ` / 預估 ${r.estimatedTime} 分鐘` : '');
+
+                        html += `<div class="swipe-container record-swipe-container" data-id="${r.id}"><div class="swipe-content record-swipe-content" ontouchstart="handleItemTouchStart(event)" ontouchmove="handleItemTouchMove(event)" ontouchend="handleItemTouchEnd(event)" ontouchcancel="handleItemTouchEnd(event)"><div class="swipe-edit" style="background:var(--success);" onclick="editHistoryEstimatedTime('${r.id}')">${estAction}</div><div class="record-info" onclick="editIncomeAmount('${r.id}')" style="cursor:pointer;">${titleStr}<div class="record-time" style="color:var(--text-main);">${r.startTimeStr} - ${r.endTimeStr}</div><div class="record-desc" style="color:var(--text-muted);">實際 ${r.durationMins} 分鐘 ${estInfo}</div></div><div class="record-amount" onclick="editIncomeAmount('${r.id}')" style="cursor:pointer;">${fmtMoney(r.amount)}${flameIconHtml(r)}</div><div class="swipe-delete" onclick="deleteHistoryRecord('${r.id}')">刪除</div></div></div>`;
+                    });
+                    
+                    if (group.length > 1) {
+                        const tripTotal = group.reduce((sum, r) => sum + r.amount, 0);
+                        html += `<div style="text-align:right; font-size:0.9rem; color:var(--text-main); font-weight:bold; margin-top:-4px; margin-bottom:12px; padding-right:10px;">此趟行程總計： <span style="color:var(--success); font-size:1.15rem; margin-left:4px;">${fmtMoney(tripTotal)}</span></div>`;
+                    }
+                });
+            } else {
+                dailyRecords.forEach(r => {
+                    const isUber = r.platform === 'ubereats';
+                    const titleStr = r.storeName ? `<div style="font-weight:bold; color:var(--primary); margin-bottom:4px; font-size:1rem; word-break:break-word;">${r.storeName} #${r.orderNumber}</div>` : '';
+                    
+                    const estAction = isUber ? '預估金額' : '預估';
+                    const estInfo = (isUber && r.estimatedAmount) ? ` / 預估 $${r.estimatedAmount}` : (r.estimatedTime ? ` / 預估 ${r.estimatedTime} 分鐘` : '');
+
+                    html += `<div class="swipe-container record-swipe-container" data-id="${r.id}"><div class="swipe-content record-swipe-content" ontouchstart="handleItemTouchStart(event)" ontouchmove="handleItemTouchMove(event)" ontouchend="handleItemTouchEnd(event)" ontouchcancel="handleItemTouchEnd(event)"><div class="swipe-edit" style="background:var(--success);" onclick="editHistoryEstimatedTime('${r.id}')">${estAction}</div><div class="record-info" onclick="editIncomeAmount('${r.id}')" style="cursor:pointer;">${titleStr}<div class="record-time" style="color:var(--text-main);">${r.startTimeStr} - ${r.endTimeStr}</div><div class="record-desc" style="color:var(--text-muted);">實際 ${r.durationMins} 分鐘 ${estInfo}</div></div><div class="record-amount" onclick="editIncomeAmount('${r.id}')" style="cursor:pointer;">${fmtMoney(r.amount)}${flameIconHtml(r)}</div><div class="swipe-delete" onclick="deleteHistoryRecord('${r.id}')">刪除</div></div></div>`;
+                });
+            }
+        }
+    } else if (currentDailyContext === 'tip') {
+        const tabCancelled = document.getElementById('tab-cancelled'); if (tabCancelled) tabCancelled.style.display = 'none';
+        const tabFoodpanda = document.getElementById('tab-foodpanda'); if (tabFoodpanda) tabFoodpanda.style.display = 'none';
+        const tabUbereats = document.getElementById('tab-ubereats'); if (tabUbereats) tabUbereats.style.display = 'none';
+
+        document.getElementById('daily-detail-type-label').innerText = '小費總額';
+        const dailyRecords = tipRecords.filter(r => r.dateKey === dateKey).sort((a,b)=>b.timestamp - a.timestamp);
+        document.getElementById('daily-detail-amount').innerText = fmtMoney(dailyRecords.reduce((s,r)=>s+r.amount,0));
+        document.getElementById('daily-detail-amount').style.color = 'var(--success)';
+        statsGrid.style.display = 'none';
+
+        if (dailyRecords.length === 0) html = '<div class="empty-state">今日無小費紀錄</div>';
+        else dailyRecords.forEach(r => html += `<div class="swipe-container record-swipe-container"><div class="swipe-content record-swipe-content" ontouchstart="handleItemTouchStart(event)" ontouchmove="handleItemTouchMove(event)" ontouchend="handleItemTouchEnd(event)" ontouchcancel="handleItemTouchEnd(event)"><div class="swipe-edit" onclick="openEdit('tip', '${r.id}')">編輯</div><div class="record-info"><div class="record-time">${r.timeStr}</div><div class="record-desc">支付方式: ${r.method}</div></div><div class="record-amount">${fmtMoney(r.amount)}</div><div class="swipe-delete" onclick="deleteTip('${r.id}')">刪除</div></div></div>`);
+    } else if (currentDailyContext === 'cost') {
+        const tabCancelled = document.getElementById('tab-cancelled'); if (tabCancelled) tabCancelled.style.display = 'none';
+        const tabFoodpanda = document.getElementById('tab-foodpanda'); if (tabFoodpanda) tabFoodpanda.style.display = 'none';
+        const tabUbereats = document.getElementById('tab-ubereats'); if (tabUbereats) tabUbereats.style.display = 'none';
+
+        document.getElementById('daily-detail-type-label').innerText = '成本支出總額';
+        const dailyRecords = costRecords.filter(r => r.dateKey === dateKey).sort((a,b)=>b.timestamp - a.timestamp);
+        document.getElementById('daily-detail-amount').innerText = fmtMoney(dailyRecords.reduce((s,r)=>s+r.amount,0));
+        document.getElementById('daily-detail-amount').style.color = 'var(--text-main)';
+        statsGrid.style.display = 'none';
+
+        if (dailyRecords.length === 0) html = '<div class="empty-state">今日無成本紀錄</div>';
+        else dailyRecords.forEach(r => { let tags = `<span class="tag">${r.type}</span>`; if((r.type === '保養維修' || r.type === '加油') && r.mileage) tags += `<span class="tag">里程:${fmtNum(r.mileage)}</span>`; html += `<div class="swipe-container record-swipe-container"><div class="swipe-content record-swipe-content" ontouchstart="handleItemTouchStart(event)" ontouchmove="handleItemTouchMove(event)" ontouchend="handleItemTouchEnd(event)" ontouchcancel="handleItemTouchEnd(event)"><div class="swipe-edit" onclick="openEdit('cost', '${r.id}')">編輯</div><div class="record-info"><div class="record-time">${r.timeStr} ${tags}</div><div class="record-desc">${r.memo || '無備註'}</div></div><div class="record-amount" style="color:var(--text-main);">- ${fmtMoney(r.amount)}</div><div class="swipe-delete" onclick="deleteCost('${r.id}')">刪除</div></div></div>`; });
+    }
+    listContainer.innerHTML = html;
+}
+
+/* ================== 編輯與查詢邏輯 ================== */
+function openEdit(category, id) { 
+    closeAllSwipes(); 
+    document.querySelectorAll('#edit-modal input, #edit-modal select').forEach(inp => {
+        inp.disabled = false;
+        inp.readOnly = false;
+    });
+    document.getElementById('edit-modal').classList.add('active'); 
+    document.getElementById('edit-id').value = id; 
+    document.getElementById('edit-category').value = category; 
+    if (category === 'tip') { 
+        document.getElementById('edit-modal-title').innerText = '編輯小費'; 
+        document.getElementById('edit-tip-fields').style.display = 'block'; 
+        document.getElementById('edit-cost-fields').style.display = 'none'; 
+        const record = tipRecords.find(t => t.id === id); 
+        document.getElementById('edit-amount').value = record.amount; 
+        document.getElementById('edit-tip-method').value = record.method; 
+    } else { 
+        document.getElementById('edit-modal-title').innerText = '編輯成本'; 
+        document.getElementById('edit-tip-fields').style.display = 'none'; 
+        document.getElementById('edit-cost-fields').style.display = 'block'; 
+        const record = costRecords.find(t => t.id === id); 
+        document.getElementById('edit-amount').value = record.amount; 
+        document.getElementById('edit-cost-type').value = record.type; 
+        document.getElementById('edit-cost-memo').value = record.memo || ''; 
+        toggleEditMileage(); 
+        if(record.type === '保養維修' || record.type === '加油') document.getElementById('edit-cost-mileage').value = record.mileage || ''; 
+    } 
+}
+
+async function saveEdit() { const id = document.getElementById('edit-id').value, category = document.getElementById('edit-category').value, amount = Number(document.getElementById('edit-amount').value); if (!amount || amount <= 0) return await appAlert('請輸入有效金額', '輸入錯誤'); if (category === 'tip') { const idx = tipRecords.findIndex(t => t.id === id); if(idx > -1) { tipRecords[idx].amount = amount; tipRecords[idx].method = document.getElementById('edit-tip-method').value; localStorage.setItem(getStoreKey('order_tips'), JSON.stringify(tipRecords)); renderWeeklyData(); if(document.getElementById('view-daily-detail').classList.contains('active')) renderDailyDetail(); } } else { const idx = costRecords.findIndex(t => t.id === id); if(idx > -1) { const type = document.getElementById('edit-cost-type').value; costRecords[idx].amount = amount; costRecords[idx].type = type; costRecords[idx].memo = document.getElementById('edit-cost-memo').value; costRecords[idx].mileage = (type === '保養維修' || type === '加油') ? document.getElementById('edit-cost-mileage').value : ''; localStorage.setItem(getStoreKey('order_costs'), JSON.stringify(costRecords)); renderWeeklyData(); if(document.getElementById('view-daily-detail').classList.contains('active')) renderDailyDetail(); } } closeModal('edit-modal'); }
+
+let currentCalDate = new Date(), calSelStart = null, calSelEnd = null;
+function openFilterModal() { calSelStart = null; calSelEnd = null; renderCalendar(); document.getElementById('filter-modal').classList.add('active'); } 
+
+function closeModal(id) { 
+    const modal = document.getElementById(id);
+    if (modal) {
+        const inputs = modal.querySelectorAll('input, select, textarea');
+        inputs.forEach(inp => {
+            inp.blur();
+            inp.disabled = true;
+            inp.readOnly = true;
+        });
+        modal.classList.remove('active'); 
+    }
+    if (document.activeElement && typeof document.activeElement.blur === 'function') {
+        document.activeElement.blur();
+    }
+} 
+
+function calPrevMonth() { currentCalDate.setMonth(currentCalDate.getMonth() - 1); renderCalendar(); } 
+function calNextMonth() { currentCalDate.setMonth(currentCalDate.getMonth() + 1); renderCalendar(); }
+function renderCalendar() { const y = currentCalDate.getFullYear(), m = currentCalDate.getMonth(); document.getElementById('cal-month-year').innerText = `${y}年${m + 1}月`; const firstDay = new Date(y, m, 1).getDay(), daysInMonth = new Date(y, m + 1, 0).getDate(), grid = document.getElementById('cal-days'); grid.innerHTML = ''; for (let i = 0; i < firstDay; i++) grid.innerHTML += `<div class="cal-day empty"></div>`; for (let i = 1; i <= daysInMonth; i++) { const dayTime = new Date(y, m, i, 0, 0, 0).getTime(); let classes = 'cal-day'; if (calSelStart === dayTime || calSelEnd === dayTime) classes += ' selected'; if (calSelStart && calSelEnd && dayTime > calSelStart && dayTime < calSelEnd) classes += ' in-range'; grid.innerHTML += `<div class="${classes}" onclick="selectCalDate(${y}, ${m}, ${i})">${i}</div>`; } document.getElementById('cal-selection-text').innerText = !calSelStart ? '請點選開始日期' : (!calSelEnd ? '請點選結束日期 (單日請直接按確認)' : '已選擇範圍，請點擊確認查詢'); }
+function selectCalDate(y, m, d) { const t = new Date(y, m, d, 0, 0, 0).getTime(); if (!calSelStart || (calSelStart && calSelEnd)) { calSelStart = t; calSelEnd = null; } else { if (t >= calSelStart) calSelEnd = t; else { calSelStart = t; calSelEnd = null; } } renderCalendar(); }
+async function applyFilter() { if (!calSelStart) return await appAlert('請先選擇日期', '操作錯誤'); const sTime = calSelStart, eTime = (calSelEnd || calSelStart) + 86399999; const fInc = historyRecords.filter(r => r.timestamp >= sTime && r.timestamp <= eTime && (r.status || 'completed') === 'completed'), fTip = tipRecords.filter(r => r.timestamp >= sTime && r.timestamp <= eTime), fCost = costRecords.filter(r => r.timestamp >= sTime && r.timestamp <= eTime); document.getElementById('search-total-income').innerText = fmtMoney(fInc.reduce((s, r)=>s+r.amount,0)); document.getElementById('search-total-tips').innerText = fmtMoney(fTip.reduce((s, r)=>s+r.amount,0)); document.getElementById('search-total-costs').innerText = '-' + fmtMoney(fCost.reduce((s, r)=>s+r.amount,0)); const sd = new Date(sTime), ed = new Date(eTime), sStr = `${sd.getFullYear()}/${sd.getMonth()+1}/${sd.getDate()}`, eStr = `${ed.getFullYear()}/${ed.getMonth()+1}/${ed.getDate()}`; document.getElementById('search-date-range').innerText = sStr === eStr ? sStr : `${sStr} ~ ${eStr}`; renderStats(fInc, 'search-income-list'); renderTips(fTip, 'search-tips-list'); renderCosts(fCost, 'search-costs-list'); closeModal('filter-modal'); isSearchResultOpen = true; document.getElementById('view-search-result').classList.add('active'); updateUIState(); }
+
+/* ================== 準時率 / 兩週週期計算邏輯 ================== */
+function calculatePunctuality() {
+    const buffer = Number(document.getElementById('rate-buffer-time').value) || 0;
+    const now = Date.now();
+    
+    const anchor = new Date(2026, 7, 17).setHours(0,0,0,0);
+    const cycleMs = 14 * 24 * 60 * 60 * 1000;
+    const weekMs = 7 * 24 * 60 * 60 * 1000;
+    
+    let startMs = anchor;
+    let diff = now - anchor;
+    if (diff >= 0) { startMs = anchor + Math.floor(diff / cycleMs) * cycleMs; } else { startMs = anchor - Math.ceil(Math.abs(diff) / cycleMs) * cycleMs; }
+    let endMs = startMs + cycleMs - 1;
+    let isWeek2 = (now - startMs) >= weekMs;
+    
+    const validRecords = historyRecords.filter(r => r.estimatedTime && r.estimatedTime > 0 && r.timestamp >= startMs && r.timestamp <= endMs && (r.status || 'completed') === 'completed');
+    
+    const d1 = new Date(startMs), d2 = new Date(endMs);
+    const cycleStr = `${d1.getFullYear()}/${d1.getMonth()+1}/${d1.getDate()} - ${d2.getMonth()+1}/${d2.getDate()}`;
+    const weekStr = isWeek2 ? '第二週' : '第一週';
+    
+    let cycleInfoEl = document.getElementById('punctuality-cycle-info');
+    if (!cycleInfoEl) {
+        cycleInfoEl = document.createElement('div');
+        cycleInfoEl.id = 'punctuality-cycle-info';
+        cycleInfoEl.style.fontSize = '0.85rem';
+        cycleInfoEl.style.color = 'var(--text-muted)';
+        cycleInfoEl.style.marginBottom = '10px';
+        document.getElementById('card-punctuality').insertBefore(cycleInfoEl, document.getElementById('punctuality-ontime').parentNode.parentNode);
+    }
+    cycleInfoEl.innerHTML = `週期: <b style="color:var(--primary);">${cycleStr}</b> (目前為${weekStr})`;
+
+    if (validRecords.length === 0) {
+        document.getElementById('punctuality-ontime').innerText = '--%';
+        document.getElementById('punctuality-avg-timeout').innerText = '--%';
+        document.getElementById('punctuality-total-timeout').innerText = '--%';
+        return;
+    }
+
+    let onTimeCount = 0, singleTimeoutRates = [], totalActual = 0, totalEstimatedWithBuffer = 0;
+    validRecords.forEach(r => {
+        let limit = r.estimatedTime + buffer;
+        let actual = r.durationMins;
+        if (actual <= limit) { onTimeCount++; singleTimeoutRates.push(0); } else { singleTimeoutRates.push((actual - limit) / limit); }
+        totalActual += actual; totalEstimatedWithBuffer += limit;
+    });
+
+    const onTimeRate = (onTimeCount / validRecords.length) * 100;
+    const avgTimeoutRate = (singleTimeoutRates.reduce((a, b) => a + b, 0) / validRecords.length) * 100;
+    let totalTimeoutRate = 0;
+    if (totalActual > totalEstimatedWithBuffer && totalEstimatedWithBuffer > 0) { totalTimeoutRate = ((totalActual - totalEstimatedWithBuffer) / totalEstimatedWithBuffer) * 100; }
+
+    document.getElementById('punctuality-ontime').innerText = onTimeRate.toFixed(1) + '%';
+    document.getElementById('punctuality-avg-timeout').innerText = avgTimeoutRate.toFixed(1) + '%';
+    document.getElementById('punctuality-total-timeout').innerText = totalTimeoutRate.toFixed(1) + '%';
+}
+
+function exportData() { const data = {}; for(let i=0; i<localStorage.length; i++){ const key = localStorage.key(i); if(key.includes('order_') || key.includes('app_')) data[key] = localStorage.getItem(key); } const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), url = URL.createObjectURL(blob), a = document.createElement('a'), d = new Date(); a.href = url; a.download = `訂單統計備份_${d.getFullYear()}${(d.getMonth()+1).toString().padStart(2,'0')}${d.getDate().toString().padStart(2,'0')}.json`; a.click(); URL.revokeObjectURL(url); }
+function importData(event) { const file = event.target.files[0]; if(!file) return; const reader = new FileReader(); reader.onload = async function(e) { try { const data = JSON.parse(e.target.result); let valid = false; Object.keys(data).forEach(k => { if(k.includes('order_') || k.includes('app_')) { localStorage.setItem(k, data[k]); valid = true; } }); if(valid) { await appAlert('資料匯入成功！即將重新載入頁面。', '匯入成功'); location.reload(); } else await appAlert('無效的備份檔案格式。', '匯入失敗'); } catch(err) { await appAlert('匯入失敗：檔案損毀或格式錯誤。', '錯誤'); } }; reader.readAsText(file); }
+
+async function clearAllData() {
+    if (await appConfirm(`確定要清空使用者 [${currentUser}] 的所有紀錄嗎？\n此動作無法復原！`, '清空確認', true)) {
+        ['order_active_timers', 'order_history_records', 'order_tips', 'order_costs', 'order_active_shift', 'order_shifts', 'order_active_wait', 'order_waits'].forEach(k => {
+            localStorage.removeItem(getStoreKey(k));
+        });
+        loadData();
+        await appAlert('已成功清空該使用者紀錄！', '提示');
+    }
 }

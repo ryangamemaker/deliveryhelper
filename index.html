@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Divery Master</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-    <link rel="stylesheet" href="style.css?v=1.4.2">
+    <link rel="stylesheet" href="style.css?v=1.5.0">
 </head>
 <body class="map-enabled">
     <canvas id="dynamic-canvas"></canvas>
@@ -206,6 +206,14 @@
 
         <!-- 視圖 5: 設定 -->
         <div id="view-settings" class="view-section">
+            <div class="settings-tabs" role="tablist">
+                <button class="settings-tab active" data-settings-tab="general" onclick="switchSettingsTab('general')">一般</button>
+                <button class="settings-tab" data-settings-tab="appearance" onclick="switchSettingsTab('appearance')">外觀</button>
+                <button class="settings-tab" data-settings-tab="users" onclick="switchSettingsTab('users')">使用者</button>
+                <button class="settings-tab" data-settings-tab="data" onclick="switchSettingsTab('data')">資料</button>
+            </div>
+
+            <div class="settings-panel active" data-settings-panel="general">
             <div class="card">
                 <h2>功能與操作設定</h2>
                 <div class="input-group" style="margin-top: 15px; display: flex; align-items: center; justify-content: space-between;">
@@ -224,16 +232,9 @@
                     <button class="btn btn-outline" style="padding: 10px;" onclick="openChangelogModal()">查看版本更新日誌</button>
                 </div>
             </div>
-
-            <div class="card">
-                <h2>使用者管理</h2>
-                <div class="btn-grid" style="margin-top: 10px;">
-                    <button class="btn btn-outline" onclick="addUser()">新增使用者</button>
-                    <button class="btn btn-outline" onclick="renameUser()">重新命名</button>
-                    <button class="btn btn-outline" onclick="openUserModal('remove')" style="grid-column: span 2; border-color:var(--danger); color:var(--danger);">移除使用者</button>
-                </div>
             </div>
 
+            <div class="settings-panel" data-settings-panel="appearance">
             <div class="card">
                 <h2>高質感預設組合 (一鍵套用)</h2>
                 <div class="btn-grid" style="margin-top:10px;">
@@ -245,7 +246,7 @@
                     <div class="btn-preset ocean" onclick="applyPremiumPreset('classic-blue', 'canvas-ocean')"><strong>深海湛藍</strong><span style="font-size:0.75rem;">+ 陽光與氣泡</span></div>
                 </div>
             </div>
-            
+
             <div class="card">
                 <h2>自由搭配 (色彩與特效)</h2>
                 <div class="input-group" style="margin-top: 15px;">
@@ -338,16 +339,35 @@
                     </div>
                 </div>
 
-                <div class="input-group" style="margin-top: 25px; display: flex; align-items: center; justify-content: space-between;">
-                    <label style="margin-bottom:0;">字體大小</label>
-                    <div style="display: flex; gap: 8px;">
-                        <button class="btn btn-outline" style="padding:6px; width:auto;" onclick="setFontSize('14px')">小</button>
-                        <button class="btn btn-outline" style="padding:6px; width:auto;" onclick="setFontSize('16px')">中</button>
-                        <button class="btn btn-outline" style="padding:6px; width:auto;" onclick="setFontSize('18px')">大</button>
-                    </div>
-                </div>
             </div>
 
+            <div class="card">
+                <h2>字體大小</h2>
+                <div class="fontsize-row">
+                    <span class="fontsize-a small">A</span>
+                    <input type="range" id="font-size-range" class="fontsize-range" min="12" max="22" step="1" value="16" oninput="onFontSizeSlide(this.value)" onchange="onFontSizeSlide(this.value, true)">
+                    <span class="fontsize-a large">A</span>
+                </div>
+                <div class="fontsize-meta">
+                    <span id="font-size-val">16px</span>
+                    <button class="fontsize-reset" onclick="onFontSizeSlide(16, true)">恢復預設</button>
+                </div>
+                <p class="fontsize-preview">預覽：今日收入 $1,234.00・3 張訂單進行中</p>
+            </div>
+            </div>
+
+            <div class="settings-panel" data-settings-panel="users">
+            <div class="card">
+                <h2>使用者管理</h2>
+                <div class="btn-grid" style="margin-top: 10px;">
+                    <button class="btn btn-outline" onclick="addUser()">新增使用者</button>
+                    <button class="btn btn-outline" onclick="renameUser()">重新命名</button>
+                    <button class="btn btn-outline" onclick="openUserModal('remove')" style="grid-column: span 2; border-color:var(--danger); color:var(--danger);">移除使用者</button>
+                </div>
+            </div>
+            </div>
+
+            <div class="settings-panel" data-settings-panel="data">
             <div class="card">
                 <h2>資料管理 (匯入/匯出)</h2>
                 <div style="display: flex; gap: 10px; margin-bottom: 15px;">
@@ -357,6 +377,8 @@
                 </div>
                 <button class="btn" style="background: var(--danger); border: none; color: #ffffff;" onclick="clearAllData()">清除當前使用者紀錄</button>
             </div>
+            </div>
+
         </div>
     </div>
 
@@ -644,7 +666,7 @@
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-    <script src="data.js?v=1.4.2"></script>
-    <script src="app.js?v=1.4.2"></script>
+    <script src="data.js?v=1.5.0"></script>
+    <script src="app.js?v=1.5.0"></script>
 </body>
 </html>

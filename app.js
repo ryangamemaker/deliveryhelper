@@ -42,9 +42,18 @@ const SVG_ICONS = {
 };
 
 /* ================== 更新日誌邏輯 ================== */
-const CURRENT_APP_VERSION = 'v1.4.0';
+const CURRENT_APP_VERSION = 'v1.5.0';
 
 const CHANGELOG_HISTORY = [
+    {
+        version: 'v1.5.0',
+        date: '2026-10-24',
+        tag: '新功能',
+        items: [
+            '【設定】設定頁改為分頁式：一般、外觀、使用者、資料四個分類，會記住上次停留的分頁。',
+            '【字體】字體大小改用調整桿調整（12px – 22px），拖曳即時預覽，可一鍵恢復預設 16px。'
+        ]
+    },
     {
         version: 'v1.4.0',
         date: '2026-10-23',
@@ -52,7 +61,7 @@ const CHANGELOG_HISTORY = [
         items: [
             '【新增】耳機按鈕：啟用滿版地圖時位於右上角，未啟用時位於左上角。',
             '【倍率調整】可用調整桿或直接輸入設定 1.00 – 5.00 倍，之後結算的 foodpanda 訂單金額（含最低 $45）皆乘上倍率。',
-            '【明細】倍率不為 1.00 的訂單會在單日明細顯示「倍率 x?.??」，修改預估時間重算時沿用該筆原倍率。'
+            '【明細】倍率不為 1.00 的訂單，會在單日明細該筆金額下方顯示火焰圖示；修改預估時間重算時沿用該筆原倍率。'
         ]
     },
     {
@@ -246,6 +255,40 @@ function injectNewStyles() {
             box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
         }
 
+        /* 設定分頁 */
+        .settings-tabs {
+            display: flex; gap: 6px; padding: 5px; margin-bottom: 16px;
+            background: var(--card-bg); border: 1px solid var(--border); border-radius: 14px;
+            box-shadow: var(--item-shadow);
+            backdrop-filter: var(--card-backdrop); -webkit-backdrop-filter: var(--card-backdrop);
+        }
+        .settings-tab {
+            flex: 1; min-width: 0; padding: 10px 4px; border: none; border-radius: 10px;
+            background: transparent; color: var(--text-muted); font-size: 0.95rem; font-weight: 600;
+            cursor: pointer; transition: background 0.2s, color 0.2s, box-shadow 0.2s; white-space: nowrap;
+        }
+        .settings-tab.active {
+            background: var(--primary); color: var(--btn-text);
+            box-shadow: 0 3px 8px -2px rgba(0,0,0,0.2), inset 0 1px 1px rgba(255,255,255,0.2);
+        }
+        .settings-panel { display: none; }
+        .settings-panel.active { display: block; animation: settingsFade 0.25s ease; }
+        @keyframes settingsFade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+        /* 字體大小調整桿 */
+        .fontsize-row { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
+        .fontsize-range { flex: 1; min-width: 0; height: 28px; accent-color: var(--primary); cursor: pointer; }
+        .fontsize-a { color: var(--text-muted); font-weight: bold; line-height: 1; flex-shrink: 0; }
+        .fontsize-a.small { font-size: 12px; }
+        .fontsize-a.large { font-size: 22px; }
+        .fontsize-meta { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; }
+        #font-size-val { font-weight: bold; color: var(--primary); font-size: 0.95rem; }
+        .fontsize-reset { background: none; border: none; color: var(--text-muted); font-size: 0.85rem; cursor: pointer; text-decoration: underline; padding: 4px; }
+        .fontsize-preview {
+            margin-top: 12px; padding: 10px 12px; background: var(--timer-bg);
+            border: 1px dashed var(--border); border-radius: 8px; color: var(--text-main); font-size: 1rem;
+        }
+
         /* 倍率訂單：金額下方火焰圖示（置中於金額下方） */
         .record-amount { display: inline-flex; flex-direction: column; align-items: center; }
         .record-amount .amount-flame {
@@ -379,6 +422,7 @@ function loadSettingsForCurrentUser() {
 
 window.onload = function() {
     injectNewStyles();
+    restoreSettingsTab();
     document.querySelectorAll('.headset-badge').forEach(el => el.remove()); // 移除舊版殘留的倍率標籤
     if (currentUser === '新使用者' && !localStorage.getItem(getStoreKey('order_history_records')) && localStorage.getItem('order_history_records')) {
         ['order_active_timers', 'order_history_records', 'order_tips', 'order_costs'].forEach(k => { localStorage.setItem(getStoreKey(k), localStorage.getItem(k) || '[]'); });
@@ -666,7 +710,7 @@ function getLuminance(r, g, b) { return (0.299 * r + 0.587 * g + 0.114 * b) / 25
 function hexToRgb(hex) { hex = hex.replace('#', ''); if (hex.length === 3) hex = hex.split('').map(c => c + c).join(''); const num = parseInt(hex, 16); return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 }; }
 
 function applySettings() {
-    document.documentElement.style.cssText = ''; document.body.style.removeProperty('--card-bg'); document.body.style.removeProperty('--timer-bg'); document.documentElement.style.fontSize = settings.fontSize;
+    document.documentElement.style.cssText = ''; document.body.style.removeProperty('--card-bg'); document.body.style.removeProperty('--timer-bg'); document.documentElement.style.fontSize = settings.fontSize; syncFontSizeUI();
     document.getElementById('auto-night-toggle').checked = settings.autoNightMode || false; document.getElementById('color-theme-select').value = settings.colorTheme; document.getElementById('effect-theme-select').value = settings.effectTheme;
     document.getElementById('custom-matrix-text-1').value = settings.matrixText1 || ''; document.getElementById('custom-matrix-text-2').value = settings.matrixText2 || ''; document.getElementById('custom-matrix-text-3').value = settings.matrixText3 || '';
     document.getElementById('custom-matrix-input-group').style.display = (settings.effectTheme === 'canvas-matrix-custom') ? 'block' : 'none';
@@ -727,6 +771,42 @@ function saveMatrixText() { settings.matrixText1 = document.getElementById('cust
 function toggleCustomCard() { settings.customCardEnable = document.getElementById('custom-card-toggle').checked; saveSettings(); applySettings(); }
 function updateCustomCard() { settings.customCardBg = document.getElementById('picker-card-bg').value; settings.customCardOpacity = document.getElementById('picker-card-opacity').value; document.getElementById('card-opacity-val').innerText = settings.customCardOpacity; saveSettings(); applySettings(); }
 function setFontSize(size) { settings.fontSize = size; saveSettings(); applySettings(); }
+
+/* ================== 設定分頁與字體調整桿 ================== */
+const FONT_SIZE_MIN = 12, FONT_SIZE_MAX = 22, FONT_SIZE_DEFAULT = 16;
+
+function onFontSizeSlide(val, commit = false) {
+    let px = Math.round(parseFloat(val));
+    if (isNaN(px)) px = FONT_SIZE_DEFAULT;
+    px = Math.min(FONT_SIZE_MAX, Math.max(FONT_SIZE_MIN, px));
+    settings.fontSize = px + 'px';
+    document.documentElement.style.fontSize = settings.fontSize; // 拖曳時即時預覽
+    syncFontSizeUI();
+    if (commit) saveSettings();
+}
+
+function syncFontSizeUI() {
+    const px = parseInt(settings.fontSize, 10) || FONT_SIZE_DEFAULT;
+    const range = document.getElementById('font-size-range');
+    const label = document.getElementById('font-size-val');
+    if (range) range.value = px;
+    if (label) label.innerText = px === FONT_SIZE_DEFAULT ? `${px}px（預設）` : `${px}px`;
+}
+
+function switchSettingsTab(name) {
+    document.querySelectorAll('.settings-tab').forEach(t => t.classList.toggle('active', t.dataset.settingsTab === name));
+    document.querySelectorAll('.settings-panel').forEach(p => p.classList.toggle('active', p.dataset.settingsPanel === name));
+    const view = document.getElementById('view-settings');
+    if (view) view.scrollTop = 0;
+    try { localStorage.setItem('settings_last_tab', name); } catch (e) {}
+}
+
+function restoreSettingsTab() {
+    let name = 'general';
+    try { name = localStorage.getItem('settings_last_tab') || 'general'; } catch (e) {}
+    if (!document.querySelector(`.settings-tab[data-settings-tab="${name}"]`)) name = 'general';
+    switchSettingsTab(name);
+}
 function saveSettings() { localStorage.setItem(getStoreKey('order_settings'), JSON.stringify(settings)); }
 function applyNightMode() { 
     const hour = new Date().getHours(); 

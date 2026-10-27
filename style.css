@@ -339,13 +339,23 @@ body.map-enabled #map {
     display: block;
 }
 
-/* ★ 需求 4：確保白淨地圖清晰度與無水印呈現 */
-.leaflet-tile {
-    filter: brightness(1.02) contrast(1.03);
+/* 地圖灰階濾鏡：OpenStreetMap 彩色圖資轉成淺灰極簡風格（只作用在圖磚，定位圓點與路線維持原色） */
+#map .leaflet-tile {
+    filter: grayscale(1) brightness(1.06) contrast(0.92);
 }
-.leaflet-control-attribution {
-    display: none !important;
+#map .leaflet-control-attribution {
+    /* OpenStreetMap 使用規範：版權標示必須可見，這裡縮成一行小字 */
+    font-size: 10px !important;
+    line-height: 1.4;
+    padding: 1px 6px !important;
+    margin: 6px 8px 0 0 !important;
+    background: rgba(255, 255, 255, 0.75) !important;
+    border-radius: 6px;
+    color: #555 !important;
 }
+#map .leaflet-control-attribution a { color: #555 !important; text-decoration: none; }
+body.night-mode #map .leaflet-control-attribution { background: rgba(15, 23, 42, 0.7) !important; color: #cbd5e1 !important; }
+body.night-mode #map .leaflet-control-attribution a { color: #cbd5e1 !important; }
 
 /* 底部面板本體 */
 .bottom-panel {
@@ -453,8 +463,11 @@ body:not(.map-enabled) .map-btn-recenter {
 }
 
 /* 確保 Leaflet 控制項不會蓋到 Header */
-.leaflet-top, .leaflet-bottom { z-index: 9 !important; }
+/* 控制項（含版權標示）需高於地圖圖層；#map 本身 z-index:1，所以仍在標題列與底部面板之下 */
+#map .leaflet-top, #map .leaflet-bottom { z-index: 1000 !important; }
 .leaflet-control-container .leaflet-top { top: 70px; }
+/* 版權標示放右上（耳機按鈕下方），避免被底部面板蓋住 */
+body.map-enabled .leaflet-top.leaflet-right { top: 72px; }
 
 /* --- 單日明細頁籤 --- */
 .detail-tabs-container { display: flex; gap: 15px; border-bottom: 1px solid var(--border); padding-bottom: 5px; margin-bottom: 15px; justify-content: flex-start; }
@@ -635,45 +648,8 @@ body.night-mode .changelog-card.latest {
     margin-bottom: 0;
 }
 /* ==============================================================
-   耳機按鈕與倍率調整 (v1.4.0)
+   倍率調整視窗（耳機按鈕本身的樣式由 app.js 注入，避免重複）
    ============================================================== */
-.header-side { width: 90px; flex-shrink: 0; }
-
-.btn-headset {
-    position: relative;
-    width: 40px;
-    height: 40px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    background: none;
-    border: none;
-    color: var(--primary);
-    cursor: pointer;
-    padding: 0;
-    flex-shrink: 0;
-    pointer-events: auto;
-    transition: transform 0.2s;
-}
-.btn-headset:active { transform: scale(0.9); }
-.headset-svg { width: 24px; height: 24px; display: block; }
-
-/* 啟用滿版地圖 → 右上角；未啟用 → 左上角 */
-body.map-enabled .btn-headset-left { display: none !important; }
-body:not(.map-enabled) .btn-headset-right { display: none !important; }
-/* 單日明細 / 查詢結果時，左側讓給返回鍵 */
-body.sub-view-open .btn-headset { display: none !important; }
-
-/* 地圖首頁：與左上選單鍵同款的浮動圓形按鈕 */
-body.map-enabled.on-home-view .btn-headset-right {
-    width: 44px;
-    height: 44px;
-    background: var(--card-bg);
-    border-radius: 50%;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-}
-
-
 .multiplier-section { padding-top: 4px; }
 .multiplier-title { font-weight: bold; font-size: 1rem; color: var(--text-main); margin-bottom: 12px; }
 .multiplier-row { display: flex; align-items: center; gap: 12px; }

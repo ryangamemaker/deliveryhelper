@@ -55,6 +55,13 @@ const DOT_EDGE_MARGIN = 28;     // 圓點距離可見範圍邊緣小於此值（
 const MAP_TILE = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 const MAP_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>';
 
+// 主要底圖：CARTO Positron 向量地圖（MapLibre GL 繪製），失敗時自動退回上面的 OpenStreetMap 灰階圖磚
+const MAP_VECTOR_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
+const MAP_VECTOR_ATTRIBUTION = '&copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>';
+const MAPLIBRE_CSS = 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css';
+const MAPLIBRE_JS = 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js';
+const MAPLIBRE_LEAFLET_JS = 'https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.0.22/leaflet-maplibre-gl.js';
+
 /* ================== SVG 向量圖標庫 ================== */
 const SVG_ICONS = {
     home: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="nav-svg"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>`,
@@ -69,6 +76,7 @@ const SVG_ICONS = {
 const CURRENT_APP_VERSION = 'v1.5.1';
 
 const CHANGELOG_HISTORY = [
+
     {
         version: 'v1.5.1',
         date: '2026-10-27',
@@ -528,13 +536,60 @@ function ensureMap() {
     });
 }
 
+function loadScriptOnce(src) {
+    return new Promise((resolve, reject) => {
+        const existing = document.querySelector(`script[data-src="${src}"]`);
+        if (existing) { existing.dataset.loaded ? resolve() : existing.addEventListener('load', resolve, { once: true }); return; }
+        const sc = document.createElement('script');
+        sc.src = src; sc.dataset.src = src; sc.crossOrigin = '';
+        sc.onload = () => { sc.dataset.loaded = '1'; resolve(); };
+        sc.onerror = () => { sc.remove(); reject(new Error('載入失敗：' + src)); };
+        document.head.appendChild(sc);
+    });
+}
+
+function supportsWebGL() {
+    try { const c = document.createElement('canvas'); return !!(c.getContext('webgl2') || c.getContext('webgl')); } catch (e) { return false; }
+}
+
+// 退回方案：OpenStreetMap 圖磚（加灰階濾鏡）
+function useRasterBaseLayer() {
+    if (!mapInstance || currentTileLayer) return;
+    currentTileLayer = L.tileLayer(MAP_TILE, { maxZoom: 19, attribution: MAP_ATTRIBUTION }).addTo(mapInstance);
+}
+
+// 主要方案：CARTO Positron 向量地圖
+async function addBaseLayer() {
+    if (!supportsWebGL()) return useRasterBaseLayer();
+    try {
+        const res = await fetch(MAP_VECTOR_STYLE, { cache: 'force-cache' });
+        if (!res.ok) throw new Error('樣式下載失敗 ' + res.status);
+        const style = await res.json();
+        if (!document.querySelector('link[data-maplibre-css]')) {
+            const link = document.createElement('link');
+            link.rel = 'stylesheet'; link.href = MAPLIBRE_CSS; link.dataset.maplibreCss = '1';
+            const firstSheet = document.querySelector('link[rel="stylesheet"]');
+            if (firstSheet) document.head.insertBefore(link, firstSheet); else document.head.appendChild(link);
+        }
+        await loadScriptOnce(MAPLIBRE_JS);
+        await loadScriptOnce(MAPLIBRE_LEAFLET_JS);
+        if (!mapInstance || typeof L.maplibreGL !== 'function') throw new Error('MapLibre 外掛未就緒');
+        currentTileLayer = L.maplibreGL({ style, attribution: MAP_VECTOR_ATTRIBUTION }).addTo(mapInstance);
+        const glMap = currentTileLayer.getMaplibreMap && currentTileLayer.getMaplibreMap();
+        if (glMap) glMap.on('webglcontextlost', () => { mapInstance.removeLayer(currentTileLayer); currentTileLayer = null; useRasterBaseLayer(); });
+    } catch (err) {
+        console.warn('向量地圖無法使用，改用 OpenStreetMap 圖磚：', err.message);
+        useRasterBaseLayer();
+    }
+}
+
 function initMap() {
     if (typeof L === 'undefined') { console.warn('無法載入地圖資源'); return; }
     if (mapInstance) return;
     
     mapInstance = L.map('map', {zoomControl: false, attributionControl: false}).setView(currentLoc, 15);
     L.control.attribution({ position: 'topright', prefix: false }).addTo(mapInstance);
-    currentTileLayer = L.tileLayer(MAP_TILE, { maxZoom: 19, attribution: MAP_ATTRIBUTION }).addTo(mapInstance);
+    addBaseLayer();
     
     trafficLayer = L.layerGroup().addTo(mapInstance);
     

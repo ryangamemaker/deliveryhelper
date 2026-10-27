@@ -55,9 +55,12 @@ const DOT_EDGE_MARGIN = 28;     // 圓點距離可見範圍邊緣小於此值（
 const MAP_TILE = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 const MAP_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>';
 
-// 主要底圖：CARTO Positron 向量地圖（MapLibre GL 繪製），失敗時自動退回上面的 OpenStreetMap 灰階圖磚
-const MAP_VECTOR_STYLE = 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
-const MAP_VECTOR_ATTRIBUTION = '&copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>';
+// 主要底圖：OpenFreeMap Positron 向量地圖（MapLibre GL 繪製；免費、免 API key、無瀏覽次數上限）
+// 失敗時自動退回上面的 OpenStreetMap 灰階圖磚
+const MAP_VECTOR_STYLE = 'https://tiles.openfreemap.org/styles/positron';
+const MAP_VECTOR_ATTRIBUTION = '&copy; <a href="https://openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>';
+const MAP_WATER_COLOR = 'rgb(170, 206, 235)';       // 淺藍水域
+const TRAFFIC_COLORS = { green: '#22c55e', orange: '#f97316', red: '#ef4444' };
 const MAPLIBRE_CSS = 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css';
 const MAPLIBRE_JS = 'https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js';
 const MAPLIBRE_LEAFLET_JS = 'https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.0.22/leaflet-maplibre-gl.js';
@@ -558,13 +561,48 @@ function useRasterBaseLayer() {
     currentTileLayer = L.tileLayer(MAP_TILE, { maxZoom: 19, attribution: MAP_ATTRIBUTION }).addTo(mapInstance);
 }
 
-// 主要方案：CARTO Positron 向量地圖
+/* 依需求調整向量地圖樣式：淺藍水域 + 主要道路外圈的綠／橘／紅路況線條（道路中間維持白色） */
+function customizeVectorStyle(style) {
+    // 以道路屬性與編號產生固定的「隨機」值，同一路段顏色不會每次移動地圖就改變
+    const hash = ['%', ['+',
+        ['*', 7, ['to-number', ['coalesce', ['id'], 0], 0]],
+        ['*', 5, ['to-number', ['coalesce', ['get', 'oneway'], 0], 0]],
+        ['*', 11, ['to-number', ['coalesce', ['get', 'layer'], 0], 0]],
+        ['*', 3, ['length', ['to-string', ['coalesce', ['get', 'subclass'], '']]]],
+        ['*', 13, ['length', ['to-string', ['coalesce', ['get', 'surface'], '']]]],
+        ['match', ['get', 'brunnel'], 'bridge', 17, 'tunnel', 9, 0]
+    ], 20];
+    const trafficColor = ['case', ['<', hash, 15], TRAFFIC_COLORS.green, ['<', hash, 18], TRAFFIC_COLORS.orange, TRAFFIC_COLORS.red];
+    const casingWidths = {
+        highway_major_casing: ['interpolate', ['exponential', 1.3], ['zoom'], 10, 4.5, 20, 28],
+        highway_motorway_casing: ['interpolate', ['exponential', 1.4], ['zoom'], 5.8, 0, 6, 4.5, 20, 46],
+        highway_motorway_bridge_casing: ['interpolate', ['exponential', 1.4], ['zoom'], 5.8, 0, 6, 6, 20, 50]
+    };
+    (style.layers || []).forEach(layer => {
+        if (layer.id === 'water' && layer.type === 'fill') layer.paint = Object.assign({}, layer.paint, { 'fill-color': MAP_WATER_COLOR });
+        if (layer.id === 'waterway' && layer.type === 'line') layer.paint = Object.assign({}, layer.paint, { 'line-color': MAP_WATER_COLOR });
+        if (casingWidths[layer.id]) {
+            const isMajor = layer.id === 'highway_major_casing';
+            layer.paint = Object.assign({}, layer.paint, {
+                // 三級道路（tertiary）維持灰色外框，只有主要道路顯示路況顏色
+                'line-color': isMajor ? ['case', ['==', ['get', 'class'], 'tertiary'], 'rgb(213, 213, 213)', trafficColor] : trafficColor,
+                'line-width': casingWidths[layer.id],
+                'line-opacity': 0.95
+            });
+        }
+    });
+    return style;
+}
+
+function isVectorBaseActive() { return !!(currentTileLayer && currentTileLayer.getMaplibreMap); }
+
+// 主要方案：OpenFreeMap Positron 向量地圖
 async function addBaseLayer() {
     if (!supportsWebGL()) return useRasterBaseLayer();
     try {
         const res = await fetch(MAP_VECTOR_STYLE, { cache: 'force-cache' });
         if (!res.ok) throw new Error('樣式下載失敗 ' + res.status);
-        const style = await res.json();
+        const style = customizeVectorStyle(await res.json());
         if (!document.querySelector('link[data-maplibre-css]')) {
             const link = document.createElement('link');
             link.rel = 'stylesheet'; link.href = MAPLIBRE_CSS; link.dataset.maplibreCss = '1';
@@ -644,6 +682,7 @@ function initMap() {
 
 function loadFakeTraffic() {
     if (!document.body.classList.contains('map-enabled') || !mapInstance) return;
+    if (isVectorBaseActive()) { if (trafficLayer) trafficLayer.clearLayers(); return; } // 向量地圖已內建路況線條，不必再向 overpass 下載
     if (mapInstance.getZoom() < 13) {
         trafficLayer.clearLayers();
         return;

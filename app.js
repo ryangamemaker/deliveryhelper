@@ -1,9 +1,28 @@
 /* ==============================================================
    全域狀態與資料初始化
    ============================================================== */
+/* 安全讀取：資料損毀時不讓 App 白畫面，改用預設值並保留損毀的原始內容 */
+function safeParse(key, fallback) {
+    let raw = null;
+    try { raw = localStorage.getItem(key); } catch (e) { return fallback; }
+    if (raw === null || raw === undefined) return fallback;
+    try {
+        const val = JSON.parse(raw);
+        if (val === null || val === undefined) return fallback;
+        if (Array.isArray(fallback) && !Array.isArray(val)) throw new Error('not an array');
+        return val;
+    } catch (e) {
+        console.warn(`[safeParse] ${key} 資料損毀，已改用預設值`, e);
+        try { localStorage.setItem(key + '__corrupt_backup', raw); } catch (_) {}
+        return fallback;
+    }
+}
+
 let currentUser = localStorage.getItem('app_current_user') || '新使用者';
-let usersList = JSON.parse(localStorage.getItem('app_users_list')) || ['新使用者'];
-let customStores = JSON.parse(localStorage.getItem('app_custom_stores')) || [];
+let usersList = safeParse('app_users_list', ['新使用者']);
+if (usersList.length === 0) usersList = ['新使用者'];
+if (!usersList.includes(currentUser)) currentUser = usersList[0];
+let customStores = safeParse('app_custom_stores', []);
 function getStoreKey(key) { return `${currentUser}_${key}`; }
 
 let activeTimers = [], historyRecords = [], tipRecords = [], costRecords = [], shiftRecords = [], activeShift = null, waitRecords = [], activeWait = null, settings = {};
@@ -27,9 +46,14 @@ let userMarker = null;
 let currentLoc = [25.0478, 121.5170]; // 預設台北車站
 let geoWatchId = null;
 let hasCenteredMapInit = false; 
+let followUser = true;          // 跟隨模式：圓點快離開可見範圍時，地圖自動跟上
+let lastMapInteraction = 0;     // 最後一次手動操作地圖的時間
+const FOLLOW_RESUME_MS = 15000; // 手動拖曳後 15 秒自動恢復跟隨
+const DOT_EDGE_MARGIN = 28;     // 圓點距離可見範圍邊緣小於此值（px）就移動地圖
 
-// 極簡白淨高畫質圖資 (Esri Light Gray Canvas)
-const MAP_TILE = 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}';
+// OpenStreetMap 官方圖資（依規範需顯示版權標示）
+const MAP_TILE = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+const MAP_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>';
 
 /* ================== SVG 向量圖標庫 ================== */
 const SVG_ICONS = {
@@ -42,9 +66,26 @@ const SVG_ICONS = {
 };
 
 /* ================== 更新日誌邏輯 ================== */
-const CURRENT_APP_VERSION = 'v1.5.0';
+const CURRENT_APP_VERSION = 'v1.5.1';
 
 const CHANGELOG_HISTORY = [
+    {
+        version: 'v1.5.1',
+        date: '2026-10-27',
+        tag: '修正',
+        items: [
+            '【修復】選擇平台視窗第二次開啟後無法切換 foodpanda / Uber Eats 的問題。',
+            '【修復】第二次綁定店家時搜尋框無法輸入的問題。',
+            '【修復】「新增同店家訂單」會遺失平台與行程，導致 Uber Eats 訂單被當成 foodpanda 計算。',
+            '【地圖】移動時定位圓點可以滑到邊緣，但快離開可見地圖（含被底部面板蓋住）時，地圖會自動跟上。',
+            '【地圖】手動拖曳地圖可自由查看，停止操作 15 秒後自動恢復跟隨，按定位按鈕可立即恢復。',
+            '【地圖】圖資改用 OpenStreetMap 並加上灰階濾鏡，維持淺灰極簡風格；依使用規範在右上角以小字顯示版權標示。',
+            '【穩定】資料損毀時不再白畫面，自動改用預設值並保留原始資料備份。',
+            '【效能】地圖程式改為需要時才載入，網路慢也能先開啟 App；關閉滿版地圖時完全不下載。',
+            '【效能】捲動頁面時不再受底部面板觸控監聽影響，捲動更順。',
+            '【收入】本週上線時數即時包含進行中的時段。'
+        ]
+    },
     {
         version: 'v1.5.0',
         date: '2026-10-24',
@@ -406,11 +447,11 @@ async function appPrompt(message, defaultValue = '', title = '請輸入') { retu
 
 /* ================== 載入初始化 ================== */
 function loadSettingsForCurrentUser() {
-    let saved = localStorage.getItem(getStoreKey('order_settings'));
-    if (saved) { settings = JSON.parse(saved); } 
+    let saved = safeParse(getStoreKey('order_settings'), null);
+    if (saved && typeof saved === 'object') { settings = saved; } 
     else {
-        let globalSaved = localStorage.getItem('order_settings');
-        if (globalSaved) { settings = JSON.parse(globalSaved); if(settings.theme && !settings.colorTheme) { settings.colorTheme = settings.theme; settings.effectTheme = 'none'; delete settings.theme; } } 
+        let globalSaved = safeParse('order_settings', null);
+        if (globalSaved && typeof globalSaved === 'object') { settings = globalSaved; if(settings.theme && !settings.colorTheme) { settings.colorTheme = settings.theme; settings.effectTheme = 'none'; delete settings.theme; } } 
         else { settings = { colorTheme: 'pink', effectTheme: 'none', fontSize: '16px', customPrimary: '#ff7597', autoNightMode: false }; }
     }
     if(settings.matrixText1 === undefined) settings.matrixText1 = '01'; if(settings.matrixText2 === undefined) settings.matrixText2 = ''; if(settings.matrixText3 === undefined) settings.matrixText3 = '';
@@ -420,7 +461,7 @@ function loadSettingsForCurrentUser() {
     if(settings.payMultiplier === undefined) settings.payMultiplier = 1.00;
 }
 
-window.onload = function() {
+function initApp() {
     injectNewStyles();
     restoreSettingsTab();
     document.querySelectorAll('.headset-badge').forEach(el => el.remove()); // 移除舊版殘留的倍率標籤
@@ -431,7 +472,6 @@ window.onload = function() {
     loadSettingsForCurrentUser(); 
     loadData(); 
     
-    initMap();
     initBottomPanel();
 
     applySettings(); 
@@ -444,18 +484,57 @@ window.onload = function() {
     switchView(0, true);
 
     checkChangelogNotice();
-};
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initApp); else initApp();
 
 /* ================== 地圖、即時路況與面板邏輯 ================== */
 let trafficLayer = null;
 let isFetchingTraffic = false;
+
+/* 需要地圖時才下載 Leaflet，網路慢也不會擋住 App 開啟 */
+const LEAFLET_CSS = { href: 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css', integrity: 'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=' };
+const LEAFLET_JS = { src: 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js', integrity: 'sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=' };
+let leafletLoading = null;
+
+function loadLeaflet() {
+    if (typeof L !== 'undefined') return Promise.resolve();
+    if (leafletLoading) return leafletLoading;
+    if (!document.getElementById('leaflet-css')) {
+        const link = document.createElement('link');
+        link.id = 'leaflet-css'; link.rel = 'stylesheet'; link.href = LEAFLET_CSS.href;
+        link.integrity = LEAFLET_CSS.integrity; link.crossOrigin = '';
+        // 插在 style.css 之前，讓 style.css 的自訂地圖樣式維持較高優先權
+        const firstSheet = document.querySelector('link[rel="stylesheet"]');
+        if (firstSheet) document.head.insertBefore(link, firstSheet); else document.head.appendChild(link);
+    }
+    leafletLoading = new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = LEAFLET_JS.src; script.integrity = LEAFLET_JS.integrity; script.crossOrigin = '';
+        script.onload = () => resolve();
+        script.onerror = () => { script.remove(); leafletLoading = null; reject(new Error('Leaflet 載入失敗')); };
+        document.head.appendChild(script);
+    });
+    return leafletLoading;
+}
+
+function ensureMap() {
+    if (mapInstance || settings.enableMap === false) return;
+    loadLeaflet().then(() => {
+        initMap();
+        if (mapInstance && document.body.classList.contains('map-enabled')) setTimeout(() => mapInstance.invalidateSize(), 300);
+    }).catch(err => {
+        console.warn(err.message + '，恢復連線後會自動重試');
+        window.addEventListener('online', ensureMap, { once: true });
+    });
+}
 
 function initMap() {
     if (typeof L === 'undefined') { console.warn('無法載入地圖資源'); return; }
     if (mapInstance) return;
     
     mapInstance = L.map('map', {zoomControl: false, attributionControl: false}).setView(currentLoc, 15);
-    currentTileLayer = L.tileLayer(MAP_TILE, { maxZoom: 19 }).addTo(mapInstance);
+    L.control.attribution({ position: 'topright', prefix: false }).addTo(mapInstance);
+    currentTileLayer = L.tileLayer(MAP_TILE, { maxZoom: 19, attribution: MAP_ATTRIBUTION }).addTo(mapInstance);
     
     trafficLayer = L.layerGroup().addTo(mapInstance);
     
@@ -484,14 +563,20 @@ function initMap() {
                     recenterMap(true); 
                     hasCenteredMapInit = true;
                 } else if (mapInstance) {
-                    const bounds = mapInstance.getBounds();
-                    if (!bounds.contains(currentLoc)) recenterMap();
+                    if (!followUser && Date.now() - lastMapInteraction > FOLLOW_RESUME_MS) followUser = true; // 停止操作 15 秒 → 自動恢復跟隨
+                    keepDotInView();
                 }
             },
             (error) => { console.warn("定位獲取失敗: ", error); },
             { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
         );
     }
+
+    mapInstance.on('dragstart', () => { followUser = false; lastMapInteraction = Date.now(); });
+    mapInstance.on('drag zoomstart', () => { lastMapInteraction = Date.now(); });
+    const mapEl = document.getElementById('map');
+    mapEl.addEventListener('touchstart', () => { lastMapInteraction = Date.now(); }, { passive: true });
+    mapEl.addEventListener('touchend', () => { lastMapInteraction = Date.now(); }, { passive: true });
 
     mapInstance.on('moveend', () => {
         clearTimeout(window.trafficTimer);
@@ -557,17 +642,54 @@ function loadFakeTraffic() {
     });
 }
 
-function recenterMap(instant = false) {
+/* 可見地圖範圍：標題列下緣 ~ 底部面板上緣（面板蓋住的地方不算） */
+function getVisibleMapRect() {
+    const size = mapInstance.getSize();
+    const top = 70;
+    let bottom = size.y;
+    const panel = document.getElementById('bottom-panel');
+    if (panel && document.body.classList.contains('map-enabled')) {
+        const panelTop = panel.getBoundingClientRect().top;
+        if (panelTop > top && panelTop < size.y) bottom = panelTop;
+    }
+    return { top, bottom, left: 0, right: size.x };
+}
+
+/* 跟隨模式：圓點可以滑到邊緣，但快離開可見範圍時自動把地圖移過去 */
+function keepDotInView() {
+    if (!mapInstance || !currentLoc || !followUser) return;
+    if (!document.body.classList.contains('map-enabled')) return;
+    if (Date.now() - lastMapInteraction < 1500) return; // 手指還在操作地圖時不搶畫面
+    const r = getVisibleMapRect();
+    if (r.bottom - r.top < 120) return; // 面板拉到最高、幾乎看不到地圖時不處理
+    const pt = mapInstance.latLngToContainerPoint(currentLoc);
+    const m = DOT_EDGE_MARGIN;
+    const inside = pt.x >= r.left + m && pt.x <= r.right - m && pt.y >= r.top + m && pt.y <= r.bottom - m;
+    if (!inside) recenterMap(false, true);
+}
+
+function recenterMap(instant = false, isAuto = false) {
+    if (!isAuto) followUser = true; // 按定位按鈕 → 恢復自動跟隨
     if (mapInstance && currentLoc) {
         const zoom = mapInstance.getZoom() || 15;
+        // 可見區域 = 標題列下緣 ~ 底部面板上緣，圓點放在這段的正中央
+        const mapH = mapInstance.getSize().y;
+        const topEdge = 70;
+        const panel = document.getElementById('bottom-panel');
+        let bottomEdge = mapH;
+        if (panel && document.body.classList.contains('map-enabled')) {
+            const panelTop = panel.getBoundingClientRect().top;
+            if (panelTop > topEdge + 60 && panelTop < mapH) bottomEdge = panelTop;
+        }
+        const visibleCenterY = (topEdge + bottomEdge) / 2;
         const targetPoint = mapInstance.project(currentLoc, zoom);
-        targetPoint.y += (window.innerHeight / 4); 
+        targetPoint.y += (mapH / 2) - visibleCenterY;
         const targetLatLng = mapInstance.unproject(targetPoint, zoom);
         
         if (instant) {
             mapInstance.setView(targetLatLng, zoom, { animate: false });
         } else {
-            mapInstance.setView(targetLatLng, zoom, { animate: true, duration: 0.25 });
+            mapInstance.setView(targetLatLng, zoom, { animate: true, duration: isAuto ? 0.5 : 0.25 });
         }
     }
 }
@@ -611,7 +733,7 @@ function initBottomPanel() {
         isContentDragging = false;
     }, {passive: true});
 
-    document.addEventListener('touchmove', (e) => {
+    panel.addEventListener('touchmove', (e) => {
         if (!document.body.classList.contains('map-enabled')) return;
         const currentY = e.touches[0].clientY;
 
@@ -688,7 +810,7 @@ function initBottomPanel() {
         const contentEl = document.getElementById('panel-scroll-content');
         if (contentEl) contentEl.style.paddingBottom = `${closest + 40}px`;
         
-        if (mapInstance) setTimeout(() => mapInstance.invalidateSize(), 300);
+        if (mapInstance) setTimeout(() => { mapInstance.invalidateSize(); keepDotInView(); }, 320);
     }
 
     document.addEventListener('touchend', handlePanelEndOrCancel);
@@ -738,19 +860,21 @@ function applySettings() {
     
     if (settings.enableMap !== false) {
         document.body.classList.add('map-enabled');
+        ensureMap();
         const sideShift = document.getElementById('side-menu-shift-section');
         if (sideShift) sideShift.style.display = 'block';
         const bottomShift = document.getElementById('bottom-panel-shift-card');
         if (bottomShift) bottomShift.style.display = 'none';
 
-        if (mapInstance) { 
-            setTimeout(() => mapInstance.invalidateSize(), 300); 
-            const panel = document.getElementById('bottom-panel');
-            if (panel && (!panel.style.transform || panel.style.transform === 'none')) {
-                const snapMiddle = window.innerHeight * 0.5;
-                panel.style.transform = `translateY(${snapMiddle}px)`;
-            }
+        // 面板位置不依賴地圖是否已載入（地圖改為延後載入後，切換開啟時地圖可能還不存在）
+        const panel = document.getElementById('bottom-panel');
+        if (panel && (!panel.style.transform || panel.style.transform === 'none')) {
+            const snapMiddle = window.innerHeight * 0.5;
+            panel.style.transform = `translateY(${snapMiddle}px)`;
+            const contentEl = document.getElementById('panel-scroll-content');
+            if (contentEl) contentEl.style.paddingBottom = `${snapMiddle + 40}px`;
         }
+        if (mapInstance) setTimeout(() => mapInstance.invalidateSize(), 300);
     } else {
         document.body.classList.remove('map-enabled');
         const sideShift = document.getElementById('side-menu-shift-section');
@@ -765,7 +889,7 @@ function applySettings() {
 }
 
 function changeTheme() { settings.colorTheme = document.getElementById('color-theme-select').value; settings.effectTheme = document.getElementById('effect-theme-select').value; saveSettings(); applySettings(); }
-function applyPremiumPreset(colorTheme, effectTheme) { settings.colorTheme = colorTheme; settings.effectTheme = effectTheme; settings.customCardEnable = false; saveSettings(); applySettings(); window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }); }
+function applyPremiumPreset(colorTheme, effectTheme) { settings.colorTheme = colorTheme; settings.effectTheme = effectTheme; settings.customCardEnable = false; saveSettings(); applySettings(); }
 function applyCustomPalette() { settings.colorTheme = 'custom'; settings.customPrimary = document.getElementById('picker-primary').value; saveSettings(); applySettings(); }
 function saveMatrixText() { settings.matrixText1 = document.getElementById('custom-matrix-text-1').value; settings.matrixText2 = document.getElementById('custom-matrix-text-2').value; settings.matrixText3 = document.getElementById('custom-matrix-text-3').value; saveSettings(); applySettings(); }
 function toggleCustomCard() { settings.customCardEnable = document.getElementById('custom-card-toggle').checked; saveSettings(); applySettings(); }
@@ -934,7 +1058,9 @@ function renderWeeklyData() {
     const startTs = viewedWeekStart.getTime(), endTs = end.getTime();
     const weeklyRecords = historyRecords.filter(r => r.timestamp >= startTs && r.timestamp <= endTs && (r.status || 'completed') === 'completed');
     document.getElementById('weekly-total-amount').innerText = fmtMoney(weeklyRecords.reduce((sum, r) => sum + r.amount, 0));
-    document.getElementById('weekly-online-hours').innerText = `上線時數: ${formatMins(shiftRecords.filter(r => r.timestamp >= startTs && r.timestamp <= endTs).reduce((s, r) => s + r.durationMins, 0))}`;
+    const nowTs = Date.now();
+    const runningShiftMins = (activeShift && nowTs >= startTs && nowTs <= endTs) ? Math.floor((nowTs - Math.max(activeShift.startTime, startTs)) / 60000) : 0;
+    document.getElementById('weekly-online-hours').innerText = `上線時數: ${formatMins(shiftRecords.filter(r => r.timestamp >= startTs && r.timestamp <= endTs).reduce((s, r) => s + r.durationMins, 0) + runningShiftMins)}`;
     renderStats(weeklyRecords, 'stats-list'); renderWeeklyChart('weekly-chart-income', weeklyRecords, 'income');
 
     const weeklyTips = tipRecords.filter(r => r.timestamp >= startTs && r.timestamp <= endTs);
@@ -995,14 +1121,14 @@ function startCanvasEngine(themeType) {
     視圖切換與使用者管理邏輯
     ============================================================== */
 function loadData() { 
-    activeTimers = JSON.parse(localStorage.getItem(getStoreKey('order_active_timers'))) || []; 
-    historyRecords = JSON.parse(localStorage.getItem(getStoreKey('order_history_records'))) || []; 
-    tipRecords = JSON.parse(localStorage.getItem(getStoreKey('order_tips'))) || []; 
-    costRecords = JSON.parse(localStorage.getItem(getStoreKey('order_costs'))) || []; 
-    activeShift = JSON.parse(localStorage.getItem(getStoreKey('order_active_shift'))) || null;
-    shiftRecords = JSON.parse(localStorage.getItem(getStoreKey('order_shifts'))) || [];
-    activeWait = JSON.parse(localStorage.getItem(getStoreKey('order_active_wait'))) || null;
-    waitRecords = JSON.parse(localStorage.getItem(getStoreKey('order_waits'))) || [];
+    activeTimers = safeParse(getStoreKey('order_active_timers'), []); 
+    historyRecords = safeParse(getStoreKey('order_history_records'), []); 
+    tipRecords = safeParse(getStoreKey('order_tips'), []); 
+    costRecords = safeParse(getStoreKey('order_costs'), []); 
+    activeShift = safeParse(getStoreKey('order_active_shift'), null);
+    shiftRecords = safeParse(getStoreKey('order_shifts'), []);
+    activeWait = safeParse(getStoreKey('order_active_wait'), null);
+    waitRecords = safeParse(getStoreKey('order_waits'), []);
     renderActiveTimers(); updateShiftUI(); initWeeklyView(); renderWeeklyData(); 
 }
 
@@ -1164,7 +1290,7 @@ function openUserModal(mode = 'switch') {
             btn.style.width = '100%'; btn.style.padding = '12px'; btn.innerText = u; btn.onclick = () => switchUser(u); container.appendChild(btn);
         });
     }
-    document.getElementById('user-modal').classList.add('active');
+    openModal('user-modal');
 }
 
 function switchUser(name) {
@@ -1390,7 +1516,7 @@ async function setEstimatedAmount(id) {
 }
 
 function promptCancelTimer(id) {
-    closeAllSwipes(); document.getElementById('cancel-target-id').value = id; document.getElementById('cancel-timer-modal').classList.add('active');
+    closeAllSwipes(); document.getElementById('cancel-target-id').value = id; openModal('cancel-timer-modal');
 }
 
 function confirmCancelTimer(reason) {
@@ -1424,10 +1550,10 @@ function incrementOrderNumber(str) {
     return str + '1';
 }
 
-function openStoreModal(id) { document.getElementById('store-target-id').value = id; const kwInput = document.getElementById('store-keyword'); kwInput.value = ''; document.getElementById('store-result-list').innerHTML = ''; document.getElementById('store-modal').classList.add('active'); kwInput.focus(); setTimeout(() => { kwInput.focus(); }, 50); }
-function handleTimerTitleClick(id) { const timer = activeTimers.find(t => t.id === id); if (!timer) return; if (timer.storeName) { document.getElementById('timer-action-title').innerText = timer.storeName; document.getElementById('timer-action-id').value = id; document.getElementById('timer-action-modal').classList.add('active'); } else { openStoreModal(id); } }
+function openStoreModal(id) { document.getElementById('store-target-id').value = id; const kwInput = document.getElementById('store-keyword'); kwInput.value = ''; document.getElementById('store-result-list').innerHTML = ''; openModal('store-modal'); kwInput.focus(); setTimeout(() => { kwInput.focus(); }, 50); }
+function handleTimerTitleClick(id) { const timer = activeTimers.find(t => t.id === id); if (!timer) return; if (timer.storeName) { document.getElementById('timer-action-title').innerText = timer.storeName; document.getElementById('timer-action-id').value = id; openModal('timer-action-modal'); } else { openStoreModal(id); } }
 function editOrderNumber() { const id = document.getElementById('timer-action-id').value, timer = activeTimers.find(t => t.id === id); if(timer) { closeModal('timer-action-modal'); openOrderNumberModal('修改單號', timer.orderNumber || '', function(newNum) { timer.orderNumber = newNum; localStorage.setItem(getStoreKey('order_active_timers'), JSON.stringify(activeTimers)); renderActiveTimers(); }); } }
-function cloneTimer() { const id = document.getElementById('timer-action-id').value, timer = activeTimers.find(t => t.id === id); if(timer) { closeModal('timer-action-modal'); const nextNum = incrementOrderNumber(timer.orderNumber); openOrderNumberModal(`為【${timer.storeName}】新增訂單`, nextNum, function(orderNum) { const now = Date.now(); activeTimers.push({ id: 'timer_' + now + '_' + Math.random().toString(36).substr(2, 5), startTime: now, storeName: timer.storeName, orderNumber: orderNum }); localStorage.setItem(getStoreKey('order_active_timers'), JSON.stringify(activeTimers)); renderActiveTimers(); checkWaitState(); }); } }
+function cloneTimer() { const id = document.getElementById('timer-action-id').value, timer = activeTimers.find(t => t.id === id); if(timer) { closeModal('timer-action-modal'); const nextNum = incrementOrderNumber(timer.orderNumber); openOrderNumberModal(`為【${timer.storeName}】新增訂單`, nextNum, function(orderNum) { const now = Date.now(); activeTimers.push({ id: 'timer_' + now + '_' + Math.random().toString(36).substr(2, 5), startTime: now, platform: timer.platform || 'foodpanda', tripId: timer.tripId || ('trip_' + now), storeName: timer.storeName, orderNumber: orderNum }); localStorage.setItem(getStoreKey('order_active_timers'), JSON.stringify(activeTimers)); renderActiveTimers(); checkWaitState(); }); } }
 function rebindTimer() { const id = document.getElementById('timer-action-id').value; closeModal('timer-action-modal'); openStoreModal(id); }
 
 async function addCustomStore() { const kw = document.getElementById('store-keyword').value.trim(); const name = await appPrompt('請輸入新店家名稱：', kw, '新增自訂店家'); if (name && name.trim() !== '') { customStores.push({ code: '自訂', name: name.trim() }); localStorage.setItem('app_custom_stores', JSON.stringify(customStores)); searchStore(); selectStore(name.trim()); } }
@@ -1567,7 +1693,7 @@ function handleItemTouchEnd(e) {
 }
 
 function openOrderQuantityModal() {
-    document.getElementById('order-quantity-modal').classList.add('active');
+    openModal('order-quantity-modal');
 }
 
 function updateActiveOrdersTitle() {
@@ -1830,7 +1956,15 @@ function openEdit(category, id) {
 async function saveEdit() { const id = document.getElementById('edit-id').value, category = document.getElementById('edit-category').value, amount = Number(document.getElementById('edit-amount').value); if (!amount || amount <= 0) return await appAlert('請輸入有效金額', '輸入錯誤'); if (category === 'tip') { const idx = tipRecords.findIndex(t => t.id === id); if(idx > -1) { tipRecords[idx].amount = amount; tipRecords[idx].method = document.getElementById('edit-tip-method').value; localStorage.setItem(getStoreKey('order_tips'), JSON.stringify(tipRecords)); renderWeeklyData(); if(document.getElementById('view-daily-detail').classList.contains('active')) renderDailyDetail(); } } else { const idx = costRecords.findIndex(t => t.id === id); if(idx > -1) { const type = document.getElementById('edit-cost-type').value; costRecords[idx].amount = amount; costRecords[idx].type = type; costRecords[idx].memo = document.getElementById('edit-cost-memo').value; costRecords[idx].mileage = (type === '保養維修' || type === '加油') ? document.getElementById('edit-cost-mileage').value : ''; localStorage.setItem(getStoreKey('order_costs'), JSON.stringify(costRecords)); renderWeeklyData(); if(document.getElementById('view-daily-detail').classList.contains('active')) renderDailyDetail(); } } closeModal('edit-modal'); }
 
 let currentCalDate = new Date(), calSelStart = null, calSelEnd = null;
-function openFilterModal() { calSelStart = null; calSelEnd = null; renderCalendar(); document.getElementById('filter-modal').classList.add('active'); } 
+function openFilterModal() { calSelStart = null; calSelEnd = null; renderCalendar(); openModal('filter-modal'); } 
+
+// closeModal 會鎖住輸入框（iOS 還原輸入修復），所有視窗開啟時統一解鎖
+function openModal(id) {
+    const modal = document.getElementById(id);
+    if (!modal) return;
+    modal.querySelectorAll('input, select, textarea').forEach(inp => { inp.disabled = false; inp.readOnly = false; });
+    modal.classList.add('active');
+}
 
 function closeModal(id) { 
     const modal = document.getElementById(id);
@@ -1912,7 +2046,7 @@ function calculatePunctuality() {
 }
 
 function exportData() { const data = {}; for(let i=0; i<localStorage.length; i++){ const key = localStorage.key(i); if(key.includes('order_') || key.includes('app_')) data[key] = localStorage.getItem(key); } const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), url = URL.createObjectURL(blob), a = document.createElement('a'), d = new Date(); a.href = url; a.download = `訂單統計備份_${d.getFullYear()}${(d.getMonth()+1).toString().padStart(2,'0')}${d.getDate().toString().padStart(2,'0')}.json`; a.click(); URL.revokeObjectURL(url); }
-function importData(event) { const file = event.target.files[0]; if(!file) return; const reader = new FileReader(); reader.onload = async function(e) { try { const data = JSON.parse(e.target.result); let valid = false; Object.keys(data).forEach(k => { if(k.includes('order_') || k.includes('app_')) { localStorage.setItem(k, data[k]); valid = true; } }); if(valid) { await appAlert('資料匯入成功！即將重新載入頁面。', '匯入成功'); location.reload(); } else await appAlert('無效的備份檔案格式。', '匯入失敗'); } catch(err) { await appAlert('匯入失敗：檔案損毀或格式錯誤。', '錯誤'); } }; reader.readAsText(file); }
+function importData(event) { const file = event.target.files[0]; if(!file) return; const reader = new FileReader(); reader.onload = async function(e) { try { const data = JSON.parse(e.target.result); let valid = false; Object.keys(data).forEach(k => { if(k.includes('order_') || k.includes('app_')) { const v = data[k]; localStorage.setItem(k, typeof v === 'string' ? v : JSON.stringify(v)); valid = true; } }); if(valid) { await appAlert('資料匯入成功！即將重新載入頁面。', '匯入成功'); location.reload(); } else await appAlert('無效的備份檔案格式。', '匯入失敗'); } catch(err) { await appAlert('匯入失敗：檔案損毀或格式錯誤。', '錯誤'); } }; reader.readAsText(file); }
 
 async function clearAllData() {
     if (await appConfirm(`確定要清空使用者 [${currentUser}] 的所有紀錄嗎？\n此動作無法復原！`, '清空確認', true)) {
